@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useCanvas } from '@/hooks/useCanvas';
 import { CanvasBackground, Block } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
@@ -12,7 +12,7 @@ function getBgClass(bg: CanvasBackground) {
   switch (bg) {
     case 'grid': return 'canvas-grid bg-canvas';
     case 'dots': return 'bg-canvas';
-    case 'blueprint': return 'canvas-grid bg-canvas';
+    case 'blueprint': return 'bg-canvas';
     case 'plain': return 'bg-canvas';
     default: return 'canvas-grid bg-canvas';
   }
@@ -38,34 +38,38 @@ function getBgStyle(bg: CanvasBackground): React.CSSProperties {
 export default function Canvas() {
   const canvas = useCanvas();
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
 
-  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget) return;
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    // Only respond to clicks directly on the canvas background area
+    const target = e.target as HTMLElement;
+    const isCanvas = target === canvasRef.current || target.dataset.canvasBg === 'true';
+    if (!isCanvas) return;
 
     if (canvas.tool === 'add') {
-      const rect = e.currentTarget.getBoundingClientRect();
+      const rect = canvasRef.current!.getBoundingClientRect();
       canvas.addBlock(e.clientX - rect.left - 80, e.clientY - rect.top - 28);
       canvas.setTool('select');
-    } else {
+    } else if (canvas.tool === 'select') {
       canvas.clearSelection();
       canvas.setConnectingFrom(null);
     }
-  }, [canvas]);
+  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom]);
 
   const handleConnectStart = useCallback((id: string) => {
     canvas.setConnectingFrom(id);
-  }, [canvas]);
+  }, [canvas.setConnectingFrom]);
 
   const handleConnectEnd = useCallback((id: string) => {
     if (canvas.connectingFrom && canvas.connectingFrom !== id) {
       canvas.addConnection(canvas.connectingFrom, id);
     }
     canvas.setConnectingFrom(null);
-  }, [canvas]);
+  }, [canvas.connectingFrom, canvas.addConnection, canvas.setConnectingFrom]);
 
   const handleDeleteSelected = useCallback(() => {
     canvas.selectedIds.forEach(id => canvas.deleteBlock(id));
-  }, [canvas]);
+  }, [canvas.selectedIds, canvas.deleteBlock]);
 
   const getGroupBlockIds = useCallback((blockId: string): string[] => {
     const block = canvas.blocks.find(b => b.id === blockId);
@@ -88,10 +92,22 @@ export default function Canvas() {
       />
 
       <div
-        className={cn("w-full h-full relative", getBgClass(canvas.background))}
+        ref={canvasRef}
+        className={cn(
+          "w-full h-full relative",
+          getBgClass(canvas.background),
+          canvas.tool === 'add' && 'cursor-crosshair',
+        )}
         style={getBgStyle(canvas.background)}
-        onClick={handleCanvasClick}
+        onMouseDown={handleCanvasMouseDown}
       >
+        {/* Transparent click catcher behind everything */}
+        <div
+          data-canvas-bg="true"
+          className="absolute inset-0"
+          style={{ zIndex: 0 }}
+        />
+
         <GroupOverlays groups={canvas.groups} blocks={canvas.blocks} />
         <ConnectionArrows
           connections={canvas.connections}
@@ -114,10 +130,6 @@ export default function Canvas() {
             groupBlockIds={getGroupBlockIds(block.id)}
           />
         ))}
-
-        {canvas.tool === 'add' && (
-          <div className="absolute inset-0 cursor-crosshair" style={{ zIndex: 0 }} />
-        )}
       </div>
 
       <BlockEditor
