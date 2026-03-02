@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { FileText, GripVertical, Upload } from 'lucide-react';
 import { Block, CanvasTool } from '@/types/canvas';
 import { cn } from '@/lib/utils';
@@ -73,13 +73,17 @@ export default function CanvasBlock({
     }
   }, [tool, block.id, onConnectEnd]);
 
-  const handleClick = useCallback(() => {
-    if (tool !== 'select') return;
-    const url = block.fileStorageUrl || block.fileUrl;
-    if (url) {
-      onViewFile(url, block.fileName || block.label);
+  // Track if mouse moved (drag detection)
+  const didDrag = useRef(false);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'o' || e.key === 'O') {
+      const url = block.fileStorageUrl || block.fileUrl;
+      if (url && isSelected) {
+        onViewFile(url, block.fileName || block.label);
+      }
     }
-  }, [block, tool, onViewFile]);
+  }, [block, isSelected, onViewFile]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -103,7 +107,18 @@ export default function CanvasBlock({
     }
   }, [block.id, block.label, onUpdateBlock]);
 
+  // Attach keyboard listener for O key to open files
+  useEffect(() => {
+    if (isSelected) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isSelected, handleKeyDown]);
+
   const hasFile = !!(block.fileStorageUrl || block.fileUrl);
+
+  // Hint text for blocks with files
+  const hintText = hasFile && isSelected ? ' (press O to open)' : '';
 
   return (
     <div
@@ -126,10 +141,10 @@ export default function CanvasBlock({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(block); }}
-      onClick={handleClick}
+      tabIndex={0}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
+      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}{hintText}</span>
       {hasFile && (
         <FileText className="h-4 w-4 text-primary shrink-0" />
       )}
