@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { FileText, GripVertical } from 'lucide-react';
+import { FileText, GripVertical, Upload } from 'lucide-react';
 import { Block, CanvasTool } from '@/types/canvas';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CanvasBlockProps {
   block: Block;
@@ -14,16 +15,20 @@ interface CanvasBlockProps {
   onConnectEnd: (id: string) => void;
   onDoubleClick: (block: Block) => void;
   onMoveGroup: (blockIds: string[], dx: number, dy: number) => void;
+  onViewFile: (url: string, fileName?: string) => void;
+  onUpdateBlock: (id: string, updates: Partial<Block>) => void;
   groupBlockIds: string[];
 }
 
 export default function CanvasBlock({
   block, isSelected, isGrouped, tool,
   onMove, onSelect, onConnectStart, onConnectEnd,
-  onDoubleClick, onMoveGroup, groupBlockIds,
+  onDoubleClick, onMoveGroup, onViewFile, onUpdateBlock, groupBlockIds,
 }: CanvasBlockProps) {
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -32,6 +37,7 @@ export default function CanvasBlock({
       onConnectStart(block.id);
       return;
     }
+    if (tool !== 'select') return;
 
     onSelect(block.id, e.shiftKey || e.metaKey);
     setDragging(true);
@@ -68,10 +74,36 @@ export default function CanvasBlock({
   }, [tool, block.id, onConnectEnd]);
 
   const handleClick = useCallback(() => {
-    if (block.fileUrl && tool === 'select') {
-      window.open(block.fileUrl, '_blank');
+    if (tool !== 'select') return;
+    const url = block.fileStorageUrl || block.fileUrl;
+    if (url) {
+      onViewFile(url, block.fileName || block.label);
     }
-  }, [block.fileUrl, tool]);
+  }, [block, tool, onViewFile]);
+
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from('canvas-files').upload(path, file);
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage.from('canvas-files').getPublicUrl(path);
+      onUpdateBlock(block.id, {
+        fileStorageUrl: publicUrl,
+        fileName: file.name,
+        label: block.label === 'New Block' ? file.name : block.label,
+      });
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setUploading(false);
+    }
+  }, [block.id, block.label, onUpdateBlock]);
+
+  const hasFile = !!(block.fileStorageUrl || block.fileUrl);
 
   return (
     <div
@@ -89,17 +121,32 @@ export default function CanvasBlock({
         top: block.y,
         width: block.width,
         height: block.height,
+        zIndex: dragging ? 50 : 10,
       }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onDoubleClick={() => onDoubleClick(block)}
+      onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(block); }}
       onClick={handleClick}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="truncate flex-1">{block.label}</span>
-      {block.fileName && (
+      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
+      {hasFile && (
         <FileText className="h-4 w-4 text-primary shrink-0" />
       )}
+      <button
+        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+        title="Upload file"
+        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+      >
+        <Upload className="h-3 w-3 text-muted-foreground" />
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileUpload}
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.ogg,.svg,.txt"
+      />
     </div>
   );
 }

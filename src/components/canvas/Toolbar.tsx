@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground } from '@/types/canvas';
 import {
@@ -7,6 +7,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useRef } from 'react';
 
 interface ToolbarProps {
   tool: CanvasTool;
@@ -18,6 +19,7 @@ interface ToolbarProps {
   onDelete: () => void;
   onGroup: () => void;
   onUngroup: () => void;
+  onBackgroundImageUpload: (file: File) => void;
 }
 
 const tools: { id: CanvasTool; icon: typeof MousePointer2; label: string }[] = [
@@ -36,7 +38,10 @@ const backgrounds: { id: CanvasBackground; label: string }[] = [
 export default function Toolbar({
   tool, setTool, background, setBackground,
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
+  onBackgroundImageUpload,
 }: ToolbarProps) {
+  const bgFileRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-3 py-2 bg-toolbar border border-toolbar-border rounded-xl shadow-lg">
       {tools.map(t => (
@@ -88,8 +93,22 @@ export default function Toolbar({
               {bg.label}
             </DropdownMenuItem>
           ))}
+          <DropdownMenuItem onClick={() => bgFileRef.current?.click()}>
+            <Upload className="h-4 w-4 mr-2" /> Upload Image
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <input
+        ref={bgFileRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (file) onBackgroundImageUpload(file);
+        }}
+      />
     </div>
   );
 }

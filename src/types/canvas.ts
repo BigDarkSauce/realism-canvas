@@ -7,6 +7,7 @@ export interface Block {
   label: string;
   fileUrl?: string;
   fileName?: string;
+  fileStorageUrl?: string; // URL from cloud storage
   groupId?: string;
 }
 
@@ -14,6 +15,9 @@ export interface Connection {
   id: string;
   fromId: string;
   toId: string;
+  // Control point offset for bending
+  cpX?: number;
+  cpY?: number;
 }
 
 export interface Group {
@@ -22,6 +26,18 @@ export interface Group {
   blockIds: string[];
 }
 
-export type CanvasTool = 'select' | 'connect' | 'add';
+export interface DrawingPoint {
+  x: number;
+  y: number;
+}
 
-export type CanvasBackground = 'grid' | 'dots' | 'plain' | 'blueprint';
+export interface DrawingStroke {
+  id: string;
+  points: DrawingPoint[];
+  color: string;
+  width: number;
+}
+
+export type CanvasTool = 'select' | 'connect' | 'add' | 'draw' | 'eraser';
+
+export type CanvasBackground = 'grid' | 'dots' | 'plain' | 'blueprint' | 'image';
