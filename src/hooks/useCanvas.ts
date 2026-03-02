@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { Block, Connection, Group, CanvasTool, CanvasBackground } from '@/types/canvas';
+import { Block, Connection, Group, CanvasTool, CanvasBackground, DrawingStroke } from '@/types/canvas';
 
 let nextId = 1;
 const genId = () => `block-${nextId++}`;
@@ -14,6 +14,8 @@ export function useCanvas() {
   const [tool, setTool] = useState<CanvasTool>('select');
   const [background, setBackground] = useState<CanvasBackground>('grid');
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
+  const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
   const addBlock = useCallback((x: number, y: number) => {
     const block: Block = {
@@ -64,10 +66,13 @@ export function useCanvas() {
     setConnections(prev => prev.filter(c => c.id !== id));
   }, []);
 
+  const updateConnection = useCallback((id: string, updates: Partial<Connection>) => {
+    setConnections(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+  }, []);
+
   const groupSelected = useCallback(() => {
     if (selectedIds.length < 2) return;
     const gid = groupId();
-    // Remove selected from existing groups
     setGroups(prev => {
       const cleaned = prev.map(g => ({
         ...g,
@@ -93,6 +98,10 @@ export function useCanvas() {
     setGroups(prev => prev.filter(g => !groupIdsToRemove.has(g.id)));
   }, [selectedIds, blocks]);
 
+  const renameGroup = useCallback((groupIdVal: string, newLabel: string) => {
+    setGroups(prev => prev.map(g => g.id === groupIdVal ? { ...g, label: newLabel } : g));
+  }, []);
+
   const toggleSelect = useCallback((id: string, multi: boolean) => {
     setSelectedIds(prev => {
       if (multi) {
@@ -104,13 +113,23 @@ export function useCanvas() {
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
+  const addStroke = useCallback((stroke: DrawingStroke) => {
+    setStrokes(prev => [...prev, stroke]);
+  }, []);
+
+  const eraseStroke = useCallback((id: string) => {
+    setStrokes(prev => prev.filter(s => s.id !== id));
+  }, []);
+
   return {
     blocks, connections, groups, selectedIds, tool, background,
     connectingFrom, setConnectingFrom,
+    strokes, backgroundImage, setBackgroundImage,
     addBlock, updateBlock, deleteBlock, moveBlock, moveGroup,
-    addConnection, deleteConnection,
-    groupSelected, ungroupSelected,
+    addConnection, deleteConnection, updateConnection,
+    groupSelected, ungroupSelected, renameGroup,
     toggleSelect, clearSelection,
     setTool, setBackground,
+    addStroke, eraseStroke,
   };
 }
