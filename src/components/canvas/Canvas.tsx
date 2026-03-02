@@ -158,6 +158,7 @@ export default function Canvas() {
           groups={canvas.groups}
           blocks={canvas.blocks}
           onRenameGroup={canvas.renameGroup}
+          onUpdateGroup={canvas.updateGroup}
         />
         <ConnectionArrows
           connections={canvas.connections}

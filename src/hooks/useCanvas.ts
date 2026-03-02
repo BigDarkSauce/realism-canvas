@@ -102,6 +102,10 @@ export function useCanvas() {
     setGroups(prev => prev.map(g => g.id === groupIdVal ? { ...g, label: newLabel } : g));
   }, []);
 
+  const updateGroup = useCallback((groupIdVal: string, updates: Partial<Group>) => {
+    setGroups(prev => prev.map(g => g.id === groupIdVal ? { ...g, ...updates } : g));
+  }, []);
+
   const toggleSelect = useCallback((id: string, multi: boolean) => {
     setSelectedIds(prev => {
       if (multi) {
@@ -127,7 +131,7 @@ export function useCanvas() {
     strokes, backgroundImage, setBackgroundImage,
     addBlock, updateBlock, deleteBlock, moveBlock, moveGroup,
     addConnection, deleteConnection, updateConnection,
-    groupSelected, ungroupSelected, renameGroup,
+    groupSelected, ungroupSelected, renameGroup, updateGroup,
     toggleSelect, clearSelection,
     setTool, setBackground,
     addStroke, eraseStroke,

@@ -24,6 +24,10 @@ export interface Group {
   id: string;
   label: string;
   blockIds: string[];
+  fontFamily?: string;
+  fontSize?: string;
+  bgColor?: string;
+  textColor?: string;
 }
 
 export interface DrawingPoint {
