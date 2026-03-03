@@ -10,6 +10,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+const FONT_SIZE_OPTIONS = [
+  '10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px',
+];
 
 interface BlockEditorProps {
   block: Block | null;
@@ -23,11 +34,12 @@ export default function BlockEditor({ block, onClose, onSave }: BlockEditorProps
   const [fileName, setFileName] = useState(block?.fileName || '');
   const [width, setWidth] = useState(block?.width || 160);
   const [height, setHeight] = useState(block?.height || 56);
+  const [fontSize, setFontSize] = useState(block?.fontSize || '14px');
 
   if (!block) return null;
 
   const handleSave = () => {
-    onSave(block.id, { label, fileUrl, fileName, width, height });
+    onSave(block.id, { label, fileUrl, fileName, width, height, fontSize });
     onClose();
   };
 
@@ -41,6 +53,19 @@ export default function BlockEditor({ block, onClose, onSave }: BlockEditorProps
           <div className="space-y-2">
             <Label htmlFor="label">Label</Label>
             <Input id="label" value={label} onChange={e => setLabel(e.target.value)} className="font-mono" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fontSize">Text Size</Label>
+            <Select value={fontSize} onValueChange={setFontSize}>
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {FONT_SIZE_OPTIONS.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="space-y-2">
             <Label htmlFor="fileName">File Name (display)</Label>

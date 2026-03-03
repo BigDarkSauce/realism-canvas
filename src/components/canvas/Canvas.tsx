@@ -55,20 +55,63 @@ export default function Canvas() {
   const [brushWidth, setBrushWidth] = useState(3);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Zoom & pan state
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const isPanning = useRef(false);
+  const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(prev => Math.min(3, Math.max(0.2, prev + delta)));
+    } else {
+      setPan(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY,
+      }));
+    }
+  }, []);
+
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     const isCanvas = target === canvasRef.current || target.dataset.canvasBg === 'true';
     if (!isCanvas) return;
 
+    // Middle-click or space+click to pan
+    if (e.button === 1) {
+      e.preventDefault();
+      isPanning.current = true;
+      panStart.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y };
+
+      const handleMove = (ev: MouseEvent) => {
+        setPan({
+          x: panStart.current.px + (ev.clientX - panStart.current.x),
+          y: panStart.current.py + (ev.clientY - panStart.current.y),
+        });
+      };
+      const handleUp = () => {
+        isPanning.current = false;
+        window.removeEventListener('mousemove', handleMove);
+        window.removeEventListener('mouseup', handleUp);
+      };
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleUp);
+      return;
+    }
+
     if (canvas.tool === 'add') {
       const rect = canvasRef.current!.getBoundingClientRect();
-      canvas.addBlock(e.clientX - rect.left - 80, e.clientY - rect.top - 28);
+      const x = (e.clientX - rect.left - pan.x) / zoom - 80;
+      const y = (e.clientY - rect.top - pan.y) / zoom - 28;
+      canvas.addBlock(x, y);
       canvas.setTool('select');
     } else if (canvas.tool === 'select') {
       canvas.clearSelection();
       canvas.setConnectingFrom(null);
     }
-  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom]);
+  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom, zoom, pan]);
 
   const handleConnectStart = useCallback((id: string) => {
     canvas.setConnectingFrom(id);
@@ -129,15 +172,32 @@ export default function Canvas() {
         setBrushWidth={setBrushWidth}
       />
 
+      {/* Zoom controls */}
+      <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1 px-2 py-1 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg">
+        <button
+          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-sm font-mono text-foreground"
+          onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
+        >−</button>
+        <button
+          className="px-2 h-6 flex items-center justify-center rounded hover:bg-accent text-xs font-mono text-muted-foreground"
+          onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+        >{Math.round(zoom * 100)}%</button>
+        <button
+          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-sm font-mono text-foreground"
+          onClick={() => setZoom(prev => Math.min(3, prev + 0.1))}
+        >+</button>
+      </div>
+
       <div
         ref={canvasRef}
         className={cn(
-          "w-full h-full relative",
+          "w-full h-full relative overflow-hidden",
           getBgClass(canvas.background),
           canvas.tool === 'add' && 'cursor-crosshair',
         )}
         style={getBgStyle(canvas.background, canvas.backgroundImage)}
         onMouseDown={handleCanvasMouseDown}
+        onWheel={handleWheel}
       >
         <div
           data-canvas-bg="true"
@@ -145,46 +205,59 @@ export default function Canvas() {
           style={{ zIndex: 0 }}
         />
 
-        <DrawingCanvas
-          strokes={canvas.strokes}
-          currentColor={drawColor}
-          currentWidth={brushWidth}
-          tool={canvas.tool}
-          onAddStroke={canvas.addStroke}
-          onEraseStroke={canvas.eraseStroke}
-        />
-
-        <GroupOverlays
-          groups={canvas.groups}
-          blocks={canvas.blocks}
-          onRenameGroup={canvas.renameGroup}
-          onUpdateGroup={canvas.updateGroup}
-        />
-        <ConnectionArrows
-          connections={canvas.connections}
-          blocks={canvas.blocks}
-          tool={canvas.tool}
-          onDelete={canvas.deleteConnection}
-          onUpdateConnection={canvas.updateConnection}
-        />
-        {canvas.blocks.map(block => (
-          <CanvasBlock
-            key={block.id}
-            block={block}
-            isSelected={canvas.selectedIds.includes(block.id)}
-            isGrouped={!!block.groupId}
+        {/* Zoomable/pannable layer */}
+        <div
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+          }}
+        >
+          <DrawingCanvas
+            strokes={canvas.strokes}
+            currentColor={drawColor}
+            currentWidth={brushWidth}
             tool={canvas.tool}
-            onMove={canvas.moveBlock}
-            onSelect={canvas.toggleSelect}
-            onConnectStart={handleConnectStart}
-            onConnectEnd={handleConnectEnd}
-            onDoubleClick={setEditingBlock}
-            onMoveGroup={canvas.moveGroup}
-            onViewFile={(url, fileName) => setViewingFile({ url, fileName })}
-            onUpdateBlock={canvas.updateBlock}
-            groupBlockIds={getGroupBlockIds(block.id)}
+            onAddStroke={canvas.addStroke}
+            onEraseStroke={canvas.eraseStroke}
           />
-        ))}
+
+          <GroupOverlays
+            groups={canvas.groups}
+            blocks={canvas.blocks}
+            onRenameGroup={canvas.renameGroup}
+            onUpdateGroup={canvas.updateGroup}
+          />
+          <ConnectionArrows
+            connections={canvas.connections}
+            blocks={canvas.blocks}
+            tool={canvas.tool}
+            onDelete={canvas.deleteConnection}
+            onUpdateConnection={canvas.updateConnection}
+          />
+          {canvas.blocks.map(block => (
+            <CanvasBlock
+              key={block.id}
+              block={block}
+              isSelected={canvas.selectedIds.includes(block.id)}
+              isGrouped={!!block.groupId}
+              tool={canvas.tool}
+              onMove={canvas.moveBlock}
+              onSelect={canvas.toggleSelect}
+              onConnectStart={handleConnectStart}
+              onConnectEnd={handleConnectEnd}
+              onDoubleClick={setEditingBlock}
+              onMoveGroup={canvas.moveGroup}
+              onViewFile={(url, fileName) => setViewingFile({ url, fileName })}
+              onUpdateBlock={canvas.updateBlock}
+              groupBlockIds={getGroupBlockIds(block.id)}
+            />
+          ))}
+        </div>
       </div>
 
       <BlockEditor

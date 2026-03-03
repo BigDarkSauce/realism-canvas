@@ -137,6 +137,7 @@ export default function CanvasBlock({
         width: block.width,
         height: block.height,
         zIndex: dragging ? 50 : 10,
+        fontSize: block.fontSize || undefined,
       }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}

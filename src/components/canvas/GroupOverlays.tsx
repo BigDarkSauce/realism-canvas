@@ -32,6 +32,18 @@ const FONT_OPTIONS = [
   { value: 'Arial, sans-serif', label: 'Arial' },
 ];
 
+const FONT_SIZE_OPTIONS = [
+  { value: '10px', label: '10' },
+  { value: '12px', label: '12' },
+  { value: '14px', label: '14' },
+  { value: '16px', label: '16' },
+  { value: '18px', label: '18' },
+  { value: '20px', label: '20' },
+  { value: '24px', label: '24' },
+  { value: '28px', label: '28' },
+  { value: '32px', label: '32' },
+];
+
 const BG_PRESETS = [
   'transparent',
   '#fef3c7', '#fce7f3', '#dbeafe', '#d1fae5',
@@ -63,9 +75,15 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
           fontFamily: group.fontFamily || undefined,
           fontSize: group.fontSize || undefined,
           backgroundColor: group.bgColor && group.bgColor !== 'transparent'
-            ? group.bgColor + '4D' // ~30% opacity
+            ? group.bgColor + '4D'
             : undefined,
+        };
+
+        // Text color: use group.textColor directly, fallback to inherited
+        const textStyle: React.CSSProperties = {
           color: group.textColor || undefined,
+          fontFamily: group.fontFamily || undefined,
+          fontSize: group.fontSize || undefined,
         };
 
         return (
@@ -91,17 +109,17 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                     }
                   }}
                   className="w-32 h-5 text-xs font-semibold px-2 py-0 bg-card border-border"
-                  style={{ fontFamily: group.fontFamily || undefined }}
+                  style={textStyle}
                 />
               ) : (
                 <span
-                  className="px-2 bg-card text-xs font-semibold text-primary rounded-b cursor-pointer hover:underline"
+                  className="px-2 bg-card text-xs font-semibold rounded-b cursor-pointer hover:underline"
                   onDoubleClick={() => {
                     setEditLabel(group.label);
                     setEditingId(group.id);
                   }}
                   title="Double-click to rename"
-                  style={{ fontFamily: group.fontFamily || undefined }}
+                  style={textStyle}
                 >
                   {group.label}
                 </span>
@@ -130,6 +148,25 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                         {FONT_OPTIONS.map(f => (
                           <SelectItem key={f.value} value={f.value}>
                             <span style={{ fontFamily: f.value }}>{f.label}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Text Size</Label>
+                    <Select
+                      value={group.fontSize || '12px'}
+                      onValueChange={val => onUpdateGroup(group.id, { fontSize: val })}
+                    >
+                      <SelectTrigger className="h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FONT_SIZE_OPTIONS.map(s => (
+                          <SelectItem key={s.value} value={s.value}>
+                            {s.label}px
                           </SelectItem>
                         ))}
                       </SelectContent>

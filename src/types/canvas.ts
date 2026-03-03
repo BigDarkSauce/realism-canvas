@@ -7,8 +7,9 @@ export interface Block {
   label: string;
   fileUrl?: string;
   fileName?: string;
-  fileStorageUrl?: string; // URL from cloud storage
+  fileStorageUrl?: string;
   groupId?: string;
+  fontSize?: string;
 }
 
 export interface Connection {
