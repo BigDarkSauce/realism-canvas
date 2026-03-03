@@ -9,6 +9,8 @@ import GroupOverlays from './GroupOverlays';
 import FileViewer from './FileViewer';
 import DrawingCanvas from './DrawingCanvas';
 import DrawingToolbar from './DrawingToolbar';
+import BlockSearch from './BlockSearch';
+import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -47,6 +49,8 @@ function getBgStyle(bg: CanvasBackground, bgImage?: string | null): React.CSSPro
   return {};
 }
 
+const INITIAL_CANVAS_SIZE = { width: 2000, height: 1500 };
+
 export default function Canvas() {
   const canvas = useCanvas();
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
@@ -60,6 +64,39 @@ export default function Canvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
+
+  // Bounded canvas size
+  const [canvasSize, setCanvasSize] = useState(INITIAL_CANVAS_SIZE);
+
+  const handleExtend = useCallback((direction: 'top' | 'bottom' | 'left' | 'right') => {
+    setCanvasSize(prev => {
+      switch (direction) {
+        case 'top':
+          // Move all blocks down and adjust pan
+          canvas.blocks.forEach(b => canvas.moveBlock(b.id, b.x, b.y + EXTEND_AMOUNT));
+          setPan(p => ({ ...p, y: p.y - EXTEND_AMOUNT * zoom }));
+          return { ...prev, height: prev.height + EXTEND_AMOUNT };
+        case 'bottom':
+          return { ...prev, height: prev.height + EXTEND_AMOUNT };
+        case 'left':
+          canvas.blocks.forEach(b => canvas.moveBlock(b.id, b.x + EXTEND_AMOUNT, b.y));
+          setPan(p => ({ ...p, x: p.x - EXTEND_AMOUNT * zoom }));
+          return { ...prev, width: prev.width + EXTEND_AMOUNT };
+        case 'right':
+          return { ...prev, width: prev.width + EXTEND_AMOUNT };
+      }
+    });
+  }, [canvas.blocks, canvas.moveBlock, zoom]);
+
+  const handleNavigateToBlock = useCallback((block: Block) => {
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const targetX = -(block.x + (block.width / 2)) * zoom + viewportW / 2;
+    const targetY = -(block.y + (block.height / 2)) * zoom + viewportH / 2;
+    setPan({ x: targetX, y: targetY });
+    canvas.clearSelection();
+    canvas.toggleSelect(block.id, false);
+  }, [zoom, canvas.clearSelection, canvas.toggleSelect]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
     if (e.ctrlKey || e.metaKey) {
@@ -79,7 +116,6 @@ export default function Canvas() {
     const isCanvas = target === canvasRef.current || target.dataset.canvasBg === 'true';
     if (!isCanvas) return;
 
-    // Middle-click or space+click to pan
     if (e.button === 1) {
       e.preventDefault();
       isPanning.current = true;
@@ -172,6 +208,15 @@ export default function Canvas() {
         setBrushWidth={setBrushWidth}
       />
 
+      <BlockSearch blocks={canvas.blocks} onNavigateTo={handleNavigateToBlock} />
+
+      <CanvasBorderHandles
+        canvasSize={canvasSize}
+        onExtend={handleExtend}
+        pan={pan}
+        zoom={zoom}
+      />
+
       {/* Zoom controls */}
       <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1 px-2 py-1 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg">
         <button
@@ -192,16 +237,14 @@ export default function Canvas() {
         ref={canvasRef}
         className={cn(
           "w-full h-full relative overflow-hidden",
-          getBgClass(canvas.background),
           canvas.tool === 'add' && 'cursor-crosshair',
         )}
-        style={getBgStyle(canvas.background, canvas.backgroundImage)}
         onMouseDown={handleCanvasMouseDown}
         onWheel={handleWheel}
       >
         <div
           data-canvas-bg="true"
-          className="absolute inset-0"
+          className="absolute inset-0 bg-muted/30"
           style={{ zIndex: 0 }}
         />
 
@@ -213,10 +256,23 @@ export default function Canvas() {
             position: 'absolute',
             top: 0,
             left: 0,
-            width: '100%',
-            height: '100%',
+            width: canvasSize.width,
+            height: canvasSize.height,
           }}
         >
+          {/* Canvas area with background */}
+          <div
+            data-canvas-bg="true"
+            className={cn(
+              "absolute inset-0 rounded-sm",
+              getBgClass(canvas.background),
+            )}
+            style={{
+              ...getBgStyle(canvas.background, canvas.backgroundImage),
+              boxShadow: '0 0 0 1px hsl(var(--border))',
+            }}
+          />
+
           <DrawingCanvas
             strokes={canvas.strokes}
             currentColor={drawColor}
@@ -278,6 +334,8 @@ export default function Canvas() {
         <span>{canvas.blocks.length} blocks</span>
         <span>·</span>
         <span>{canvas.connections.length} connections</span>
+        <span>·</span>
+        <span>{canvasSize.width}×{canvasSize.height}</span>
         {canvas.connectingFrom && (
           <>
             <span>·</span>
