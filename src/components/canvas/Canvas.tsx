@@ -11,6 +11,8 @@ import DrawingCanvas from './DrawingCanvas';
 import DrawingToolbar from './DrawingToolbar';
 import BlockSearch from './BlockSearch';
 import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
+import SaveLoadPanel from './SaveLoadPanel';
+import OuterBackgroundPicker from './OuterBackgroundPicker';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 
