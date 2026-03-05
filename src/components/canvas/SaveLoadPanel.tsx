@@ -83,16 +83,16 @@ export default function SaveLoadPanel({ getCanvasState, loadCanvasState }: SaveL
 
   return (
     <>
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-1">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleSave}
-          className="h-9 gap-2 bg-toolbar border-toolbar-border"
-        >
-          <Save className="h-4 w-4" />
-          Save
-        </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={handleSave}
+        className="h-9 gap-2 bg-toolbar border-toolbar-border"
+      >
+        <Save className="h-4 w-4" />
+        Save
+      </Button>
+      <div className="relative">
         <Button
           variant="outline"
           size="sm"
@@ -102,10 +102,9 @@ export default function SaveLoadPanel({ getCanvasState, loadCanvasState }: SaveL
           <History className="h-4 w-4" />
           History
         </Button>
-      </div>
 
       {showHistory && (
-        <div className="absolute top-16 right-4 z-50 w-80 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
+        <div className="absolute top-full right-0 mt-2 w-80 bg-card border border-border rounded-lg shadow-xl overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <h3 className="text-sm font-semibold text-foreground">Save History</h3>
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setShowHistory(false)}>
