@@ -59,6 +59,7 @@ export default function Canvas() {
   const [viewingFile, setViewingFile] = useState<{ url: string; fileName?: string } | null>(null);
   const [drawColor, setDrawColor] = useState('#000000');
   const [brushWidth, setBrushWidth] = useState(3);
+  const [outerBg, setOuterBg] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Zoom & pan state
