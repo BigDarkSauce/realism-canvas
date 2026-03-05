@@ -125,6 +125,29 @@ export function useCanvas() {
     setStrokes(prev => prev.filter(s => s.id !== id));
   }, []);
 
+  const loadState = useCallback((state: {
+    blocks: Block[];
+    connections: Connection[];
+    groups: Group[];
+    strokes: DrawingStroke[];
+    background: CanvasBackground;
+    backgroundImage: string | null;
+  }) => {
+    setBlocks(state.blocks || []);
+    setConnections(state.connections || []);
+    setGroups(state.groups || []);
+    setStrokes(state.strokes || []);
+    setBackground(state.background || 'grid');
+    setBackgroundImage(state.backgroundImage || null);
+    setSelectedIds([]);
+    const allIds = [...(state.blocks || []), ...(state.connections || []), ...(state.groups || [])];
+    const maxNum = allIds.reduce((max, item) => {
+      const match = item.id.match(/\d+/);
+      return match ? Math.max(max, parseInt(match[0])) : max;
+    }, 0);
+    nextId = maxNum + 1;
+  }, []);
+
   return {
     blocks, connections, groups, selectedIds, tool, background,
     connectingFrom, setConnectingFrom,
@@ -135,5 +158,6 @@ export function useCanvas() {
     toggleSelect, clearSelection,
     setTool, setBackground,
     addStroke, eraseStroke,
+    loadState,
   };
 }
