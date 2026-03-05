@@ -232,7 +232,7 @@ export default function Canvas() {
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
   return (
-    <div className="relative w-full h-screen overflow-hidden">
+    <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
       <Toolbar
         tool={canvas.tool}
         setTool={canvas.setTool}
@@ -245,6 +245,25 @@ export default function Canvas() {
         onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
       />
+
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-1">
+        <OuterBackgroundPicker value={outerBg} onChange={setOuterBg} />
+        <SaveLoadPanel
+          getCanvasState={() => ({
+            blocks: canvas.blocks,
+            connections: canvas.connections,
+            groups: canvas.groups,
+            strokes: canvas.strokes,
+            background: canvas.background,
+            backgroundImage: canvas.backgroundImage,
+            canvasSize,
+          })}
+          loadCanvasState={(state) => {
+            canvas.loadState(state);
+            if (state.canvasSize) setCanvasSize(state.canvasSize);
+          }}
+        />
+      </div>
 
       <DrawingToolbar
         tool={canvas.tool}
