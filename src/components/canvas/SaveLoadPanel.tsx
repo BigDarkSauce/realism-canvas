@@ -153,6 +153,7 @@ export default function SaveLoadPanel({ getCanvasState, loadCanvasState }: SaveL
           </ScrollArea>
         </div>
       )}
+      </div>
     </>
   );
 }
