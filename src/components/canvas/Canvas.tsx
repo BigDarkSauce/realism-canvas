@@ -60,7 +60,7 @@ export default function Canvas() {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Zoom & pan state
-  const [zoom, setZoom] = useState(1);
+  const zoom = 0.4;
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
@@ -99,16 +99,10 @@ export default function Canvas() {
   }, [zoom, canvas.clearSelection, canvas.toggleSelect]);
 
   const handleWheel = useCallback((e: React.WheelEvent) => {
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      setZoom(prev => Math.min(3, Math.max(0.2, prev + delta)));
-    } else {
-      setPan(prev => ({
-        x: prev.x - e.deltaX,
-        y: prev.y - e.deltaY,
-      }));
-    }
+    setPan(prev => ({
+      x: prev.x - e.deltaX,
+      y: prev.y - e.deltaY,
+    }));
   }, []);
 
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
@@ -217,20 +211,12 @@ export default function Canvas() {
         zoom={zoom}
       />
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-4 right-4 z-50 flex items-center gap-1 px-2 py-1 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg">
-        <button
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-sm font-mono text-foreground"
-          onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}
-        >−</button>
+      {/* Zoom indicator */}
+      <div className="absolute bottom-4 right-4 z-50 flex items-center px-2 py-1 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg">
         <button
           className="px-2 h-6 flex items-center justify-center rounded hover:bg-accent text-xs font-mono text-muted-foreground"
-          onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+          onClick={() => setPan({ x: 0, y: 0 })}
         >{Math.round(zoom * 100)}%</button>
-        <button
-          className="h-6 w-6 flex items-center justify-center rounded hover:bg-accent text-sm font-mono text-foreground"
-          onClick={() => setZoom(prev => Math.min(3, prev + 0.1))}
-        >+</button>
       </div>
 
       <div
