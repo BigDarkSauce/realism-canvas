@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      canvas_saves: {
+        Row: {
+          canvas_data: Json
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          canvas_data: Json
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Update: {
+          canvas_data?: Json
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
