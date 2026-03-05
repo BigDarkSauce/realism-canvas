@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useCanvas } from '@/hooks/useCanvas';
 import { CanvasBackground, Block } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
@@ -67,6 +67,56 @@ export default function Canvas() {
 
   // Bounded canvas size
   const [canvasSize, setCanvasSize] = useState(INITIAL_CANVAS_SIZE);
+
+  // Clipboard for copy/paste
+  const clipboard = useRef<Block[]>([]);
+
+  // Keyboard shortcuts: Ctrl+C, Ctrl+V, Delete/Backspace
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger when typing in inputs
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        const selected = canvas.blocks.filter(b => canvas.selectedIds.includes(b.id));
+        if (selected.length > 0) {
+          clipboard.current = selected.map(b => ({ ...b }));
+        }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        if (clipboard.current.length > 0) {
+          const newIds: string[] = [];
+          clipboard.current.forEach(b => {
+            const newBlock = canvas.addBlock(b.x + 30, b.y + 30);
+            canvas.updateBlock(newBlock.id, {
+              label: b.label,
+              width: b.width,
+              height: b.height,
+              fontSize: b.fontSize,
+              fileUrl: b.fileUrl,
+              fileStorageUrl: b.fileStorageUrl,
+              fileName: b.fileName,
+            });
+            newIds.push(newBlock.id);
+          });
+          canvas.clearSelection();
+          newIds.forEach(id => canvas.toggleSelect(id, true));
+        }
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        canvas.selectedIds.forEach(id => canvas.deleteBlock(id));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canvas.blocks, canvas.selectedIds, canvas.addBlock, canvas.updateBlock, canvas.clearSelection, canvas.toggleSelect, canvas.deleteBlock]);
 
   const handleExtend = useCallback((direction: 'top' | 'bottom' | 'left' | 'right') => {
     setCanvasSize(prev => {
