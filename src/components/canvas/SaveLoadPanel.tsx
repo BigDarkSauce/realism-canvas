@@ -56,7 +56,7 @@ export default function SaveLoadPanel({ getCanvasState, loadCanvasState }: SaveL
     const name = `Save ${new Date().toLocaleString()}`;
     const { error } = await supabase
       .from('canvas_saves')
-      .insert([{ name, canvas_data: state as unknown as Record<string, unknown> }]);
+      .insert([{ name, canvas_data: JSON.parse(JSON.stringify(state)) }]);
     if (error) {
       toast.error('Failed to save');
     } else {
