@@ -14,26 +14,100 @@ export type Database = {
   }
   public: {
     Tables: {
-      canvas_saves: {
+      canvas_documents: {
         Row: {
+          access_key: string
           canvas_data: Json
           created_at: string
           id: string
           name: string
         }
         Insert: {
-          canvas_data: Json
+          access_key: string
+          canvas_data?: Json
           created_at?: string
           id?: string
-          name?: string
+          name: string
         }
         Update: {
+          access_key?: string
           canvas_data?: Json
           created_at?: string
           id?: string
           name?: string
         }
         Relationships: []
+      }
+      canvas_saves: {
+        Row: {
+          canvas_data: Json
+          created_at: string
+          document_id: string | null
+          folder_id: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          canvas_data: Json
+          created_at?: string
+          document_id?: string | null
+          folder_id?: string | null
+          id?: string
+          name?: string
+        }
+        Update: {
+          canvas_data?: Json
+          created_at?: string
+          document_id?: string | null
+          folder_id?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canvas_saves_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canvas_saves_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "save_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      save_folders: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          name?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "save_folders_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "canvas_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
