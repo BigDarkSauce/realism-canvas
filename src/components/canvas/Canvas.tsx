@@ -246,35 +246,40 @@ export default function Canvas() {
         onBackgroundImageUpload={handleBackgroundImageUpload}
       />
 
-      <div className="absolute top-4 right-4 z-50 flex items-center gap-1">
-        <OuterBackgroundPicker value={outerBg} onChange={setOuterBg} />
-        <SaveLoadPanel
-          getCanvasState={() => ({
-            blocks: canvas.blocks,
-            connections: canvas.connections,
-            groups: canvas.groups,
-            strokes: canvas.strokes,
-            background: canvas.background,
-            backgroundImage: canvas.backgroundImage,
-            canvasSize,
-          })}
-          loadCanvasState={(state) => {
-            canvas.loadState(state);
-            if (state.canvasSize) setCanvasSize(state.canvasSize);
-          }}
-        />
+      {/* Top-right controls: two rows */}
+      <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2">
+        {/* Row 1: Outer bg, Save, History */}
+        <div className="flex items-center gap-1">
+          <OuterBackgroundPicker value={outerBg} onChange={setOuterBg} />
+          <SaveLoadPanel
+            getCanvasState={() => ({
+              blocks: canvas.blocks,
+              connections: canvas.connections,
+              groups: canvas.groups,
+              strokes: canvas.strokes,
+              background: canvas.background,
+              backgroundImage: canvas.backgroundImage,
+              canvasSize,
+            })}
+            loadCanvasState={(state) => {
+              canvas.loadState(state);
+              if (state.canvasSize) setCanvasSize(state.canvasSize);
+            }}
+          />
+        </div>
+        {/* Row 2: Search, Drawing tools */}
+        <div className="flex items-center gap-1">
+          <BlockSearch blocks={canvas.blocks} onNavigateTo={handleNavigateToBlock} />
+          <DrawingToolbar
+            tool={canvas.tool}
+            setTool={canvas.setTool}
+            color={drawColor}
+            setColor={setDrawColor}
+            brushWidth={brushWidth}
+            setBrushWidth={setBrushWidth}
+          />
+        </div>
       </div>
-
-      <DrawingToolbar
-        tool={canvas.tool}
-        setTool={canvas.setTool}
-        color={drawColor}
-        setColor={setDrawColor}
-        brushWidth={brushWidth}
-        setBrushWidth={setBrushWidth}
-      />
-
-      <BlockSearch blocks={canvas.blocks} onNavigateTo={handleNavigateToBlock} />
 
       <CanvasBorderHandles
         canvasSize={canvasSize}
