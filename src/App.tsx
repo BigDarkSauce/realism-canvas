@@ -4,7 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
+import Lobby from "./pages/Lobby";
+import CanvasPage from "./pages/Index";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import PasswordGate from "./components/PasswordGate";
@@ -27,7 +28,8 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Lobby />} />
+            <Route path="/canvas/:documentId" element={<CanvasPage />} />
             <Route path="/install" element={<Install />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
