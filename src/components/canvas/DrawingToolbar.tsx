@@ -21,13 +21,13 @@ const COLORS = [
 
 export default function DrawingToolbar({ tool, setTool, color, setColor, brushWidth, setBrushWidth }: DrawingToolbarProps) {
   return (
-    <div className="absolute top-4 right-4 z-50 flex flex-col items-center gap-1 px-2 py-2 bg-toolbar border border-toolbar-border rounded-xl shadow-lg">
+    <div className="flex items-center gap-1 px-2 py-1 bg-toolbar border border-toolbar-border rounded-lg">
       <Button
         variant={tool === 'draw' ? 'default' : 'ghost'}
         size="sm"
         onClick={() => setTool(tool === 'draw' ? 'select' : 'draw')}
         title="Draw"
-        className="h-9 w-9 p-0"
+        className="h-8 w-8 p-0"
       >
         <Paintbrush className="h-4 w-4" />
       </Button>
@@ -36,22 +36,22 @@ export default function DrawingToolbar({ tool, setTool, color, setColor, brushWi
         size="sm"
         onClick={() => setTool(tool === 'eraser' ? 'select' : 'eraser')}
         title="Eraser"
-        className="h-9 w-9 p-0"
+        className="h-8 w-8 p-0"
       >
         <Eraser className="h-4 w-4" />
       </Button>
 
-      <div className="w-px h-4 bg-border" />
+      <div className="h-5 w-px bg-border mx-1" />
 
       <Popover>
         <PopoverTrigger asChild>
           <button
-            className="h-7 w-7 rounded-md border-2 border-border"
+            className="h-6 w-6 rounded-md border-2 border-border"
             style={{ backgroundColor: color }}
             title="Pick color"
           />
         </PopoverTrigger>
-        <PopoverContent side="left" className="w-auto p-2">
+        <PopoverContent side="bottom" className="w-auto p-2">
           <div className="grid grid-cols-5 gap-1">
             {COLORS.map(c => (
               <button
@@ -73,7 +73,7 @@ export default function DrawingToolbar({ tool, setTool, color, setColor, brushWi
         </PopoverContent>
       </Popover>
 
-      <div className="w-full px-1">
+      <div className="w-20 px-1">
         <Slider
           value={[brushWidth]}
           onValueChange={v => setBrushWidth(v[0])}
