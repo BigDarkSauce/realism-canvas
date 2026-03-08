@@ -61,8 +61,36 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setPdfPageUrls([]);
     setPdfPageDimensions([]);
     setPdfLineRects(new Map());
+    setSearchQuery('');
+    setSearchOpen(false);
+    setActiveMatchIdx(0);
     if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
     setFileObjectUrl(null);
+  };
+
+  // Ctrl+F to open search in highlight step
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && step === 'highlight') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [step, searchOpen]);
+
+  // Reset active match when query changes
+  useEffect(() => { setActiveMatchIdx(0); }, [searchQuery]);
+
+  const navigateMatch = (dir: 1 | -1) => {
+    if (searchMatches.length === 0) return;
+    setActiveMatchIdx(prev => (prev + dir + searchMatches.length) % searchMatches.length);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
