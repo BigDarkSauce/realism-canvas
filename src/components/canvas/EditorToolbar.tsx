@@ -5,6 +5,7 @@ import {
   Superscript, Subscript, AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, Undo2, Redo2,
 } from 'lucide-react';
+import UnicodeMathEditor from './UnicodeMathEditor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
