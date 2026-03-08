@@ -214,15 +214,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
   const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[]) => {
-    // Find a clear area: place blocks in a column, starting from center of current view
-    const startX = (-pan.x / zoom) + 200;
-    const startY = (-pan.y / zoom) + 100;
+    setPendingSections(sections);
+    toast.info('Click on the canvas to place the split sections');
+  }, []);
+
+  const placeSectionsAt = useCallback((startX: number, startY: number) => {
+    if (!pendingSections) return;
     const blockWidth = 280;
     const blockHeight = 56;
     const gap = 80;
 
     let nextIdLocal = Date.now();
-    const newBlocks: Block[] = sections.map((s, i) => ({
+    const newBlocks: Block[] = pendingSections.map((s, i) => ({
       id: `split-${nextIdLocal++}`,
       x: startX,
       y: startY + i * (blockHeight + gap),
@@ -241,14 +244,15 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     canvas.addBlocksBatch(newBlocks);
     canvas.addConnectionsBatch(newConnections);
 
-    // Expand canvas if needed
-    const maxY = startY + sections.length * (blockHeight + gap) + 200;
+    const maxY = startY + pendingSections.length * (blockHeight + gap) + 200;
     const maxX = startX + blockWidth + 200;
     setCanvasSize(prev => ({
       width: Math.max(prev.width, maxX),
       height: Math.max(prev.height, maxY),
     }));
-  }, [pan, zoom, canvas.addBlocksBatch, canvas.addConnectionsBatch]);
+
+    setPendingSections(null);
+  }, [pendingSections, canvas.addBlocksBatch, canvas.addConnectionsBatch]);
 
   // Save state before leaving
   const handleBackToMenu = async () => {
