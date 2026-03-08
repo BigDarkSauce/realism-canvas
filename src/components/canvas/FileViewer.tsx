@@ -298,6 +298,53 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     let existingStyles = '';
     doc.querySelectorAll('style').forEach(s => { existingStyles += s.textContent || ''; });
 
+    // Scan for all font families used in the document to preserve them
+    const usedFonts = new Set<string>();
+    doc.body.querySelectorAll('*').forEach(el => {
+      const ff = (el as HTMLElement).style?.fontFamily;
+      if (ff) usedFonts.add(ff.replace(/['"]/g, ''));
+    });
+
+    // Build font-face declarations for detected math/special fonts
+    let dynamicFontFaces = '';
+    const mathFonts = ['Cambria Math', 'Cambria', 'Symbol', 'MT Extra'];
+    mathFonts.forEach(f => {
+      dynamicFontFaces += `
+      @font-face {
+        font-family: "${f}";
+        panose-1: 2 4 5 3 5 4 6 3 2 4;
+      }`;
+    });
+
+    // Process math elements: ensure all elements with math-related content preserve their font
+    const bodyEl = doc.body.cloneNode(true) as HTMLElement;
+    bodyEl.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      const text = htmlEl.textContent || '';
+      // Check if element contains math unicode characters
+      const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
+      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') || 
+                          htmlEl.style?.fontFamily?.includes('Math') ||
+                          htmlEl.className?.includes('math');
+      
+      if (hasMathChars || hasMathFont) {
+        htmlEl.style.fontFamily = '"Cambria Math", "Cambria", serif';
+        htmlEl.setAttribute('data-mso-font-charset', '0');
+      }
+      
+      // Preserve superscript/subscript styling for Word
+      if (htmlEl.tagName === 'SUP') {
+        htmlEl.style.fontSize = '8pt';
+        htmlEl.style.verticalAlign = 'super';
+      }
+      if (htmlEl.tagName === 'SUB') {
+        htmlEl.style.fontSize = '8pt';
+        htmlEl.style.verticalAlign = 'sub';
+      }
+    });
+
+    const processedBody = bodyEl.innerHTML;
+
     const wordContent = `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -317,14 +364,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 </xml>
 <![endif]-->
 <style>
-  @font-face {
-    font-family: "Cambria Math";
-    panose-1: 2 4 5 3 5 4 6 3 2 4;
-  }
-  @font-face {
-    font-family: "Cambria";
-    panose-1: 2 4 5 3 5 4 6 3 2 4;
-  }
+  ${dynamicFontFaces}
   @font-face {
     font-family: "Calibri";
     panose-1: 2 15 5 2 2 2 4 3 2 4;
@@ -338,17 +378,30 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
   /* Preserve math font styling */
-  [style*="Cambria Math"], .math-symbol, .math-template {
+  [style*="Cambria Math"], .math-symbol, .math-template,
+  [data-mso-font-charset] {
     font-family: "Cambria Math", "Cambria", serif;
     mso-font-charset: 0;
+    mso-generic-font-family: roman;
+    mso-font-pitch: variable;
   }
-  sup { font-size: 8pt; vertical-align: super; }
+  /* Fraction styling for Word */
+  .math-fraction {
+    mso-element: field-begin;
+    font-family: "Cambria Math";
+  }
+  sup { font-size: 8pt; vertical-align: super; mso-text-raise: 30%; }
   sub { font-size: 8pt; vertical-align: sub; }
+  /* Preserve overline for square root notation */
+  [style*="overline"] {
+    text-decoration: overline;
+    font-family: "Cambria Math", serif;
+  }
   ${existingStyles}
 </style>
 </head>
 <body lang="EN-US" style="tab-interval:.5in">
-${bodyHtml}
+${processedBody}
 </body>
 </html>`;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
