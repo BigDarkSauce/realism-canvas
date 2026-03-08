@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw } from 'lucide-react';
+import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   extractDocxParagraphs,
   extractPdfParagraphs,
@@ -36,6 +37,19 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [pdfLineRects, setPdfLineRects] = useState<Map<number, { page: number; top: number; height: number }>>(new Map());
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeMatchIdx, setActiveMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return paragraphs
+      .map((p, i) => ({ index: i, match: p.text.toLowerCase().includes(q) }))
+      .filter(m => m.match)
+      .map(m => m.index);
+  }, [searchQuery, paragraphs]);
 
   const reset = () => {
     setFile(null);
@@ -47,8 +61,36 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setPdfPageUrls([]);
     setPdfPageDimensions([]);
     setPdfLineRects(new Map());
+    setSearchQuery('');
+    setSearchOpen(false);
+    setActiveMatchIdx(0);
     if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
     setFileObjectUrl(null);
+  };
+
+  // Ctrl+F to open search in highlight step
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && step === 'highlight') {
+        e.preventDefault();
+        setSearchOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 50);
+      }
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+        setSearchQuery('');
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [step, searchOpen]);
+
+  // Reset active match when query changes
+  useEffect(() => { setActiveMatchIdx(0); }, [searchQuery]);
+
+  const navigateMatch = (dir: 1 | -1) => {
+    if (searchMatches.length === 0) return;
+    setActiveMatchIdx(prev => (prev + dir + searchMatches.length) % searchMatches.length);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -189,6 +231,15 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
               Click any paragraph to mark it as a section heading
             </span>
             <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => { setSearchOpen(o => !o); setTimeout(() => searchInputRef.current?.focus(), 50); }}
+                title="Search (Ctrl+F)"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </Button>
               <span className="text-xs text-primary font-medium">
                 {headingIndices.size} heading{headingIndices.size !== 1 ? 's' : ''}
               </span>
@@ -209,6 +260,38 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
             </div>
           </div>
 
+          {/* Search bar */}
+          {searchOpen && (
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-card border-b border-border shrink-0">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') navigateMatch(e.shiftKey ? -1 : 1);
+                  if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+                }}
+                placeholder="Search in document…"
+                className="h-7 text-xs flex-1"
+              />
+              {searchQuery && (
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {searchMatches.length > 0 ? `${activeMatchIdx + 1}/${searchMatches.length}` : 'No results'}
+                </span>
+              )}
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => navigateMatch(-1)} disabled={searchMatches.length === 0}>
+                <ChevronUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => navigateMatch(1)} disabled={searchMatches.length === 0}>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+
           {/* File name bar */}
           <div className="px-4 py-1.5 bg-muted/30 border-b border-border shrink-0">
             <p className="text-xs text-muted-foreground">
@@ -224,6 +307,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 paragraphs={paragraphs}
                 headingIndices={headingIndices}
                 onToggle={toggleHeading}
+                searchQuery={searchQuery}
+                searchMatches={searchMatches}
+                activeMatchParaIndex={searchMatches.length > 0 ? searchMatches[activeMatchIdx] : -1}
               />
             ) : (
               <PdfHighlightView
@@ -232,6 +318,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 onToggle={toggleHeading}
                 pageUrls={pdfPageUrls}
                 pageDimensions={pdfPageDimensions}
+                searchQuery={searchQuery}
+                searchMatches={searchMatches}
+                activeMatchParaIndex={searchMatches.length > 0 ? searchMatches[activeMatchIdx] : -1}
               />
             )}
           </div>
@@ -311,19 +400,38 @@ function DocxHighlightView({
   paragraphs,
   headingIndices,
   onToggle,
+  searchQuery,
+  searchMatches,
+  activeMatchParaIndex,
 }: {
   paragraphs: DocumentParagraph[];
   headingIndices: Set<number>;
   onToggle: (i: number) => void;
+  searchQuery: string;
+  searchMatches: number[];
+  activeMatchParaIndex: number;
 }) {
+  const activeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeMatchParaIndex]);
+
+  const isMatch = (i: number) => searchMatches.includes(i);
+
   return (
     <div className="max-w-[800px] mx-auto py-8 px-6">
-      <div className="bg-white dark:bg-zinc-900 shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
+      <div className="bg-card shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
         {paragraphs.map((p, i) => {
           const isHeading = headingIndices.has(i);
+          const matched = searchQuery && isMatch(i);
+          const isActive = i === activeMatchParaIndex;
           return (
             <div
               key={i}
+              ref={isActive ? activeRef : undefined}
               onClick={() => onToggle(i)}
               className={`
                 cursor-pointer rounded px-3 py-1.5 transition-all select-none relative group
@@ -331,21 +439,20 @@ function DocxHighlightView({
                   ? 'bg-primary/15 border-l-4 border-primary ring-1 ring-primary/20 my-3'
                   : 'hover:bg-accent/30 border-l-4 border-transparent'
                 }
+                ${matched && !isActive ? 'ring-1 ring-yellow-400/50 bg-yellow-400/10' : ''}
+                ${isActive ? 'ring-2 ring-yellow-500 bg-yellow-400/20' : ''}
               `}
             >
-              {/* Render original HTML if available for better formatting */}
               {p.html ? (
                 <div
                   className={`pointer-events-none ${isHeading ? 'font-bold' : ''}`}
                   dangerouslySetInnerHTML={{ __html: p.html }}
-                  style={{ fontSize: isHeading ? undefined : undefined }}
                 />
               ) : (
                 <p className={`text-sm ${isHeading ? 'font-bold text-foreground text-base' : 'text-foreground/80'}`}>
                   {p.text}
                 </p>
               )}
-              {/* Heading badge */}
               {isHeading && (
                 <span className="absolute -left-1 top-1/2 -translate-y-1/2 -translate-x-full text-[9px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 mr-1">
                   H
@@ -366,15 +473,29 @@ function PdfHighlightView({
   onToggle,
   pageUrls,
   pageDimensions,
+  searchQuery,
+  searchMatches,
+  activeMatchParaIndex,
 }: {
   paragraphs: DocumentParagraph[];
   headingIndices: Set<number>;
   onToggle: (i: number) => void;
   pageUrls: string[];
   pageDimensions: { width: number; height: number }[];
+  searchQuery: string;
+  searchMatches: number[];
+  activeMatchParaIndex: number;
 }) {
-  // For PDF, we show the rendered pages as background images
-  // and overlay the extracted text as clickable paragraphs on the side
+  const activeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeMatchParaIndex]);
+
+  const isMatch = (i: number) => searchMatches.includes(i);
+
   return (
     <div className="flex h-full">
       {/* Left: PDF rendered pages */}
@@ -403,9 +524,12 @@ function PdfHighlightView({
         <div className="space-y-0">
           {paragraphs.map((p, i) => {
             const isHeading = headingIndices.has(i);
+            const matched = searchQuery && isMatch(i);
+            const isActive = i === activeMatchParaIndex;
             return (
               <div
                 key={i}
+                ref={isActive ? activeRef : undefined}
                 onClick={() => onToggle(i)}
                 className={`
                   cursor-pointer rounded px-2 py-1 transition-all select-none text-xs
@@ -413,6 +537,8 @@ function PdfHighlightView({
                     ? 'bg-primary/15 border-l-[3px] border-primary font-bold text-foreground my-1.5'
                     : 'text-muted-foreground hover:bg-accent/40 border-l-[3px] border-transparent'
                   }
+                  ${matched && !isActive ? 'ring-1 ring-yellow-400/50 bg-yellow-400/10' : ''}
+                  ${isActive ? 'ring-2 ring-yellow-500 bg-yellow-400/20' : ''}
                 `}
               >
                 {p.text}
