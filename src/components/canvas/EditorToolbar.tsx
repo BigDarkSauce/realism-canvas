@@ -101,6 +101,7 @@ function execCmd(iframe: HTMLIFrameElement | null, cmd: string, value?: string) 
 
 export default function EditorToolbar({ iframeRef, onContentChange }: EditorToolbarProps) {
   const [showSearch, setShowSearch] = useState(false);
+  const [showMathEditor, setShowMathEditor] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [replaceQuery, setReplaceQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
