@@ -254,16 +254,31 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
           {dirty && <span className="text-[10px] text-amber-500 font-medium">• Unsaved</span>}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            className="h-7 text-xs gap-1"
-            title="Download to PC"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download
-          </Button>
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              className="h-7 text-xs gap-1"
+              title="Download to PC"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </Button>
+            {showDownloadMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px]">
+                <button onClick={downloadAsWord} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  Word (.doc)
+                </button>
+                <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  PDF (via Print)
+                </button>
+                <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
+                  HTML
+                </button>
+              </div>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
