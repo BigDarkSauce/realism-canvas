@@ -287,6 +287,7 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
             <X className="h-5 w-5" />
           </Button>
         </div>
+      </div>
       <div className="flex-1 overflow-hidden">
         {getViewerContent(url, fileName, htmlContent)}
       </div>
