@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,6 +10,7 @@ import LibraryPage from "./pages/LibraryPage";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import PasswordGate from "./components/PasswordGate";
+import { ThemeChooser, getStoredTheme, applyTheme } from "./components/ThemeSelector";
 
 const queryClient = new QueryClient();
 
@@ -17,6 +18,18 @@ const App = () => {
   const [unlocked, setUnlocked] = useState(
     () => sessionStorage.getItem('canvas_unlocked') === '1'
   );
+  const [themeChosen, setThemeChosen] = useState(
+    () => localStorage.getItem('theme_chosen') === '1'
+  );
+
+  // Apply stored theme on mount
+  useEffect(() => {
+    applyTheme(getStoredTheme());
+  }, []);
+
+  if (!themeChosen) {
+    return <ThemeChooser onChosen={() => setThemeChosen(true)} />;
+  }
 
   if (!unlocked) {
     return <PasswordGate onUnlock={() => setUnlocked(true)} />;

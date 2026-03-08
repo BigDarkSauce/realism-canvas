@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilePlus, FolderOpen, Library } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeSelector';
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -80,7 +81,10 @@ export default function Lobby() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 gap-6">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 gap-6 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Create new file */}
         <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-lg">
