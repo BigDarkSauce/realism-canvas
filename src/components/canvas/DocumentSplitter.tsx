@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw } from 'lucide-react';
+import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw, Search, ChevronUp, ChevronDown } from 'lucide-react';
 import {
   extractDocxParagraphs,
   extractPdfParagraphs,
