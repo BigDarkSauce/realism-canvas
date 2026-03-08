@@ -65,7 +65,10 @@ export async function extractDocxParagraphs(
       };
     })
     .filter(Boolean) as DocumentParagraph[];
+  targetProgress = 1;
+  currentProgress = 1;
   onProgress?.(1);
+  if (animFrame) cancelAnimationFrame(animFrame);
   return paragraphs;
 }
 
