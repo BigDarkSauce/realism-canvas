@@ -94,6 +94,8 @@ export async function extractPdfParagraphs(
         lineMap.set(y, { text: (item as any).str, maxFontSize: fontSize, fontNames: names });
       }
     }
+    // Report per-page progress (15% to 85% range for page processing)
+    onProgress?.(0.15 + (i / totalPages) * 0.7);
 
     const sorted = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]);
     for (const [, v] of sorted) {
