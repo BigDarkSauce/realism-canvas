@@ -28,8 +28,12 @@ export async function parseDocxSections(file: File): Promise<DocumentSection[]> 
     return splitByHeadingTags(elements, isHeadingTag);
   }
 
-  // Fallback: detect headings by style (bold, short, standalone paragraphs)
-  return splitByStyleHeuristics(elements);
+  // No heading styles found in Word doc — fall back to simple chunk split
+  // Do NOT use style heuristics for DOCX since Word heading styles are the
+  // authoritative source; guessing from bold/short text creates false positives.
+  const allText = elements.map(el => el.textContent?.trim() || '').filter(Boolean);
+  if (allText.length === 0) return [];
+  return fallbackChunkSplit(allText);
 }
 
 function splitByHeadingTags(
