@@ -288,6 +288,15 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
 
+      {pendingSections && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
+          <span className="text-sm font-medium">Click on the canvas to place {pendingSections.length} section blocks</span>
+          <Button variant="secondary" size="sm" onClick={() => setPendingSections(null)} className="h-7 text-xs">
+            Cancel
+          </Button>
+        </div>
+      )}
+
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
           <ArrowLeft className="h-4 w-4" /> Menu
