@@ -347,20 +347,43 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
+  /** Extract the main heading (H1) from the iframe document as default file name */
+  const getDefaultFileName = useCallback((): string => {
+    const doc = iframeRef.current?.contentDocument;
+    if (doc) {
+      const h1 = doc.querySelector('h1');
+      if (h1?.textContent?.trim()) return h1.textContent.trim();
+      const h2 = doc.querySelector('h2');
+      if (h2?.textContent?.trim()) return h2.textContent.trim();
+    }
+    return 'Document';
+  }, []);
+
+  /** Prompt the user for a file name, defaulting to the document heading */
+  const promptFileName = useCallback((ext: string): string | null => {
+    const defaultName = getDefaultFileName();
+    const name = prompt(`Enter file name:`, defaultName);
+    if (name === null) return null; // cancelled
+    const clean = (name.trim() || defaultName).replace(/[<>:"/\\|?*]/g, '_');
+    return `${clean}.${ext}`;
+  }, [getDefaultFileName]);
+
   const downloadAsHtml = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
+    const fileName = promptFileName('html');
+    if (!fileName) return;
     const blob = new Blob([editedHtml], { type: 'text/html' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (url.split('/').pop() || 'document.html');
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
     toast.success('Downloaded as HTML');
     setShowDownloadMenu(false);
-  }, [getEditedHtml, url]);
+  }, [getEditedHtml, promptFileName]);
 
   const downloadAsWord = useCallback(() => {
     const editedHtml = getEditedHtml();
@@ -481,18 +504,19 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 ${processedBody}
 </body>
 </html>`;
+    const docFileName = promptFileName('doc');
+    if (!docFileName) return;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
-    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${baseName}.doc`;
+    a.download = docFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
     toast.success('Downloaded as Word');
     setShowDownloadMenu(false);
-  }, [getEditedHtml, url]);
+  }, [getEditedHtml, promptFileName]);
 
   const downloadAsPdf = useCallback(() => {
     const editedHtml = getEditedHtml();
