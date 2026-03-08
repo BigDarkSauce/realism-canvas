@@ -276,10 +276,17 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
           <Eye className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-mono text-foreground truncate">{fileName || url}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-          <X className="h-5 w-5" />
-        </Button>
-      </div>
+        <div className="flex items-center gap-2">
+          <a href={url} download={fileName || 'file'} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </Button>
+          </a>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       <div className="flex-1 overflow-hidden">
         {getViewerContent(url, fileName, htmlContent)}
       </div>
