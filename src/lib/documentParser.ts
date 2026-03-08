@@ -51,17 +51,24 @@ export async function extractDocxParagraphs(
 /**
  * Extract all lines from a PDF file with heading hints.
  */
-export async function extractPdfParagraphs(file: File): Promise<DocumentParagraph[]> {
+export async function extractPdfParagraphs(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<DocumentParagraph[]> {
+  onProgress?.(0.05);
   const arrayBuffer = await file.arrayBuffer();
+  onProgress?.(0.1);
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  onProgress?.(0.15);
 
   interface PdfLine { text: string; fontSize: number; fontName: string; }
   const allLines: PdfLine[] = [];
   const Y_TOLERANCE = 3;
+  const totalPages = pdf.numPages;
 
-  for (let i = 1; i <= pdf.numPages; i++) {
+  for (let i = 1; i <= totalPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const lineMap = new Map<number, { text: string; maxFontSize: number; fontNames: Set<string> }>();
