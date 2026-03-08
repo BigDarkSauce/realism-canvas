@@ -116,14 +116,12 @@ export default function CanvasBlock({
     }
   }, [tool, block.id, onConnectEnd]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'o' || e.key === 'O') {
-      const url = block.fileStorageUrl || block.fileUrl;
-      if (url && isSelected) {
-        onViewFile(url, block.fileName || block.label);
-      }
+  const handleOpenFile = useCallback(() => {
+    const url = block.fileStorageUrl || block.fileUrl;
+    if (url) {
+      onViewFile(url, block.fileName || block.label);
     }
-  }, [block, isSelected, onViewFile]);
+  }, [block, onViewFile]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
