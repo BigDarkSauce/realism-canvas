@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
 
 interface FileViewerProps {
   url: string;
@@ -7,18 +8,34 @@ interface FileViewerProps {
   onClose: () => void;
 }
 
-function getViewerContent(url: string, fileName?: string) {
+function useHtmlContent(url: string, fileName?: string) {
+  const ext = (fileName || url).split('.').pop()?.toLowerCase() || '';
+  const isHtml = ext === 'html' || ext === 'htm';
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isHtml) return;
+    fetch(url)
+      .then(r => r.text())
+      .then(setHtmlContent)
+      .catch(() => setHtmlContent(null));
+  }, [url, isHtml]);
+
+  return { isHtml, htmlContent };
+}
+
+function getViewerContent(url: string, fileName?: string, htmlContent?: string | null) {
   const ext = (fileName || url).split('.').pop()?.toLowerCase() || '';
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext);
   const isVideo = ['mp4', 'webm', 'ogg', 'mov'].includes(ext);
   const isPdf = ext === 'pdf';
-  
-  // Check URL patterns for video platforms
+  const isHtml = ext === 'html' || ext === 'htm';
+
   const isYoutube = url.includes('youtube.com') || url.includes('youtu.be');
   const isVimeo = url.includes('vimeo.com');
 
   if (isYoutube) {
-    const videoId = url.includes('youtu.be') 
+    const videoId = url.includes('youtu.be')
       ? url.split('/').pop()?.split('?')[0]
       : new URL(url).searchParams.get('v');
     return (
@@ -58,11 +75,21 @@ function getViewerContent(url: string, fileName?: string) {
     );
   }
 
+  if (isHtml && htmlContent) {
+    return (
+      <iframe
+        srcDoc={htmlContent}
+        className="w-full h-full bg-white"
+        title={fileName || 'Document'}
+        sandbox="allow-same-origin"
+      />
+    );
+  }
+
   if (isPdf) {
     return <iframe src={url} className="w-full h-full" title={fileName || 'PDF'} />;
   }
 
-  // For Word docs and other files, try iframe with Google Docs viewer as fallback
   if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
     return (
       <iframe
@@ -73,11 +100,12 @@ function getViewerContent(url: string, fileName?: string) {
     );
   }
 
-  // Generic: try iframe
   return <iframe src={url} className="w-full h-full" title={fileName || 'File'} />;
 }
 
 export default function FileViewer({ url, fileName, onClose }: FileViewerProps) {
+  const { htmlContent } = useHtmlContent(url, fileName);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -87,7 +115,7 @@ export default function FileViewer({ url, fileName, onClose }: FileViewerProps) 
         </Button>
       </div>
       <div className="flex-1 overflow-hidden">
-        {getViewerContent(url, fileName)}
+        {getViewerContent(url, fileName, htmlContent)}
       </div>
     </div>
   );
