@@ -400,19 +400,38 @@ function DocxHighlightView({
   paragraphs,
   headingIndices,
   onToggle,
+  searchQuery,
+  searchMatches,
+  activeMatchParaIndex,
 }: {
   paragraphs: DocumentParagraph[];
   headingIndices: Set<number>;
   onToggle: (i: number) => void;
+  searchQuery: string;
+  searchMatches: number[];
+  activeMatchParaIndex: number;
 }) {
+  const activeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeMatchParaIndex]);
+
+  const isMatch = (i: number) => searchMatches.includes(i);
+
   return (
     <div className="max-w-[800px] mx-auto py-8 px-6">
-      <div className="bg-white dark:bg-zinc-900 shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
+      <div className="bg-card shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
         {paragraphs.map((p, i) => {
           const isHeading = headingIndices.has(i);
+          const matched = searchQuery && isMatch(i);
+          const isActive = i === activeMatchParaIndex;
           return (
             <div
               key={i}
+              ref={isActive ? activeRef : undefined}
               onClick={() => onToggle(i)}
               className={`
                 cursor-pointer rounded px-3 py-1.5 transition-all select-none relative group
@@ -420,21 +439,20 @@ function DocxHighlightView({
                   ? 'bg-primary/15 border-l-4 border-primary ring-1 ring-primary/20 my-3'
                   : 'hover:bg-accent/30 border-l-4 border-transparent'
                 }
+                ${matched && !isActive ? 'ring-1 ring-yellow-400/50 bg-yellow-400/10' : ''}
+                ${isActive ? 'ring-2 ring-yellow-500 bg-yellow-400/20' : ''}
               `}
             >
-              {/* Render original HTML if available for better formatting */}
               {p.html ? (
                 <div
                   className={`pointer-events-none ${isHeading ? 'font-bold' : ''}`}
                   dangerouslySetInnerHTML={{ __html: p.html }}
-                  style={{ fontSize: isHeading ? undefined : undefined }}
                 />
               ) : (
                 <p className={`text-sm ${isHeading ? 'font-bold text-foreground text-base' : 'text-foreground/80'}`}>
                   {p.text}
                 </p>
               )}
-              {/* Heading badge */}
               {isHeading && (
                 <span className="absolute -left-1 top-1/2 -translate-y-1/2 -translate-x-full text-[9px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 mr-1">
                   H
@@ -455,15 +473,29 @@ function PdfHighlightView({
   onToggle,
   pageUrls,
   pageDimensions,
+  searchQuery,
+  searchMatches,
+  activeMatchParaIndex,
 }: {
   paragraphs: DocumentParagraph[];
   headingIndices: Set<number>;
   onToggle: (i: number) => void;
   pageUrls: string[];
   pageDimensions: { width: number; height: number }[];
+  searchQuery: string;
+  searchMatches: number[];
+  activeMatchParaIndex: number;
 }) {
-  // For PDF, we show the rendered pages as background images
-  // and overlay the extracted text as clickable paragraphs on the side
+  const activeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (activeRef.current) {
+      activeRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [activeMatchParaIndex]);
+
+  const isMatch = (i: number) => searchMatches.includes(i);
+
   return (
     <div className="flex h-full">
       {/* Left: PDF rendered pages */}
@@ -492,9 +524,12 @@ function PdfHighlightView({
         <div className="space-y-0">
           {paragraphs.map((p, i) => {
             const isHeading = headingIndices.has(i);
+            const matched = searchQuery && isMatch(i);
+            const isActive = i === activeMatchParaIndex;
             return (
               <div
                 key={i}
+                ref={isActive ? activeRef : undefined}
                 onClick={() => onToggle(i)}
                 className={`
                   cursor-pointer rounded px-2 py-1 transition-all select-none text-xs
@@ -502,6 +537,8 @@ function PdfHighlightView({
                     ? 'bg-primary/15 border-l-[3px] border-primary font-bold text-foreground my-1.5'
                     : 'text-muted-foreground hover:bg-accent/40 border-l-[3px] border-transparent'
                   }
+                  ${matched && !isActive ? 'ring-1 ring-yellow-400/50 bg-yellow-400/10' : ''}
+                  ${isActive ? 'ring-2 ring-yellow-500 bg-yellow-400/20' : ''}
                 `}
               >
                 {p.text}
@@ -512,4 +549,5 @@ function PdfHighlightView({
       </div>
     </div>
   );
+}
 }
