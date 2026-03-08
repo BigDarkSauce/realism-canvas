@@ -193,7 +193,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
   }, [saveContent]);
 
-  const handleDownload = useCallback(() => {
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+
+  const downloadAsHtml = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
     const blob = new Blob([editedHtml], { type: 'text/html' });
@@ -204,8 +206,44 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
-    toast.success('Downloaded');
+    toast.success('Downloaded as HTML');
+    setShowDownloadMenu(false);
   }, [getEditedHtml, url]);
+
+  const downloadAsWord = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const wordContent = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Document</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${editedHtml}</body></html>`;
+    const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
+    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${baseName}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast.success('Downloaded as Word');
+    setShowDownloadMenu(false);
+  }, [getEditedHtml, url]);
+
+  const downloadAsPdf = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to download as PDF');
+      return;
+    }
+    printWindow.document.write(editedHtml);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+    toast.success('Print dialog opened — choose "Save as PDF"');
+    setShowDownloadMenu(false);
+  }, [getEditedHtml]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
