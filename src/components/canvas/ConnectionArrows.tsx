@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Connection, Block, CanvasTool, ArrowStyle } from '@/types/canvas';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Slider } from '@/components/ui/slider';
@@ -75,6 +75,7 @@ function ArrowStylePopover({
       style={{ left: position.x, top: position.y, transform: 'translate(-50%, -100%) translateY(-12px)' }}
     >
       <div
+        data-arrow-popover
         className="bg-card border border-border rounded-lg shadow-xl p-3 space-y-3 w-[220px]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -151,6 +152,18 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
   const blockMap = new Map(blocks.map(b => [b.id, b]));
   const [draggingCp, setDraggingCp] = useState<string | null>(null);
   const [selectedConn, setSelectedConn] = useState<string | null>(null);
+
+  // Close popover on outside click
+  useEffect(() => {
+    if (!selectedConn) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-arrow-popover]')) return;
+      setSelectedConn(null);
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [selectedConn]);
 
   const handleCpMouseDown = useCallback((e: React.MouseEvent, connId: string) => {
     if (tool !== 'select') return;
