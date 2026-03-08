@@ -63,11 +63,14 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, pan,
       const fromBlock = blockMap.get(conn.fromId);
       const toBlock = blockMap.get(conn.toId);
       if (!fromBlock || !toBlock) return;
+      // Convert screen coords to canvas coords accounting for pan & zoom
+      const canvasX = (ev.clientX - rect.left - pan.x) / zoom;
+      const canvasY = (ev.clientY - rect.top - pan.y) / zoom;
       const midX = (getCenter(fromBlock).x + getCenter(toBlock).x) / 2;
       const midY = (getCenter(fromBlock).y + getCenter(toBlock).y) / 2;
       onUpdateConnection(connId, {
-        cpX: ev.clientX - rect.left - midX,
-        cpY: ev.clientY - rect.top - midY,
+        cpX: canvasX - midX,
+        cpY: canvasY - midY,
       });
     };
 
