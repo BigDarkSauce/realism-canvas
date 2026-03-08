@@ -240,8 +240,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           <span className="text-xs font-mono text-muted-foreground w-8 text-right">{Math.round(zoom * 100)}%</span>
           <input
             type="range"
-            min={10}
-            max={50}
+            min={5}
+            max={150}
             value={Math.round(zoom * 100)}
             onChange={e => setZoom(Number(e.target.value) / 100)}
             className="w-24 h-1.5 accent-primary cursor-pointer"
