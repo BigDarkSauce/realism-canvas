@@ -30,6 +30,7 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
       if (!text) return null;
       return {
         text,
+        html: (el as HTMLElement).outerHTML,
         isLikelyHeading: isHeadingTag(el.tagName),
       };
     })
