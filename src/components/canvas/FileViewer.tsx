@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import EditorToolbar from './EditorToolbar';
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -186,6 +187,12 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     onClose();
   }, [dirty, saveContent, onClose]);
 
+  const markDirty = useCallback(() => {
+    setDirty(true);
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
+  }, [saveContent]);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -210,6 +217,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
           </Button>
         </div>
       </div>
+      <EditorToolbar iframeRef={iframeRef} onContentChange={markDirty} />
       <div className="flex-1 overflow-hidden">
         <iframe
           ref={iframeRef}
