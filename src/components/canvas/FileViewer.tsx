@@ -1,4 +1,4 @@
-import { X, Pencil, Eye, Save } from 'lucide-react';
+import { X, Pencil, Eye, Save, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
