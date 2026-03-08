@@ -227,12 +227,35 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     setShowDownloadMenu(false);
   }, [getEditedHtml, url]);
 
-  const downloadAsPdf = useCallback(() => {
+  const downloadAsPdf = useCallback(async () => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
+    try {
+      const html2pdf = (await import('html2pdf.js')).default;
+      const container = document.createElement('div');
+      container.innerHTML = editedHtml;
+      document.body.appendChild(container);
+      await html2pdf().set({
+        margin: 10,
+        filename: `${baseName}.pdf`,
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      }).from(container).save();
+      document.body.removeChild(container);
+      toast.success('Downloaded as PDF');
+    } catch {
+      toast.error('PDF generation failed');
+    }
+    setShowDownloadMenu(false);
+  }, [getEditedHtml, url]);
+
+  const downloadAsPdfPrint = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      toast.error('Please allow popups to download as PDF');
+      toast.error('Please allow popups to print as PDF');
       return;
     }
     printWindow.document.write(editedHtml);
@@ -241,7 +264,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       printWindow.print();
       printWindow.close();
     }, 500);
-    toast.success('Print dialog opened — choose "Save as PDF"');
+    toast.success('Print dialog opened');
     setShowDownloadMenu(false);
   }, [getEditedHtml]);
 
@@ -271,6 +294,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
                   Word (.doc)
                 </button>
                 <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  PDF
+                </button>
+                <button onClick={downloadAsPdfPrint} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
                   PDF (via Print)
                 </button>
                 <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
