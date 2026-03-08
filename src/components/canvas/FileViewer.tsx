@@ -327,7 +327,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
         .update(storagePath, blob, { upsert: true, contentType: 'text/html' });
       if (error) throw error;
       setDirty(false);
-      toast.success('Saved');
     } catch (err) {
       console.error('Save error:', err);
       toast.error('Failed to save');
