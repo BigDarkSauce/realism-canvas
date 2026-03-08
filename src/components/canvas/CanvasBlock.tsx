@@ -153,7 +153,6 @@ export default function CanvasBlock({
   }, [isSelected, handleKeyDown]);
 
   const hasFile = !!(block.fileStorageUrl || block.fileUrl);
-  const hintText = hasFile && isSelected ? ' (press O to open)' : '';
 
   const handleEdges: { edge: ResizeEdge; className: string; cursor: string }[] = [
     { edge: 'e', className: 'top-0 -right-[4px] w-[8px] h-full', cursor: 'ew-resize' },
