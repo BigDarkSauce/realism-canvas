@@ -79,13 +79,34 @@ export async function extractPdfParagraphs(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<DocumentParagraph[]> {
-  onProgress?.(0.05);
+  // Use a smooth continuous progress animation
+  let currentProgress = 0;
+  let targetProgress = 0;
+  let animFrame: number | null = null;
+  
+  const smoothProgress = () => {
+    if (currentProgress < targetProgress) {
+      currentProgress += (targetProgress - currentProgress) * 0.08;
+      if (targetProgress - currentProgress < 0.005) currentProgress = targetProgress;
+      onProgress?.(currentProgress);
+    }
+    if (currentProgress < 1) {
+      animFrame = requestAnimationFrame(smoothProgress);
+    }
+  };
+  
+  const setTarget = (t: number) => {
+    targetProgress = t;
+    if (!animFrame) animFrame = requestAnimationFrame(smoothProgress);
+  };
+  
+  setTarget(0.05);
   const arrayBuffer = await file.arrayBuffer();
-  onProgress?.(0.1);
+  setTarget(0.1);
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  onProgress?.(0.15);
+  setTarget(0.15);
 
   interface PdfLine { text: string; fontSize: number; fontName: string; }
   const allLines: PdfLine[] = [];
