@@ -290,7 +290,6 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
               </Button>
             </div>
           )}
-          </div>
 
           {/* File name bar */}
           <div className="px-4 py-1.5 bg-muted/30 border-b border-border shrink-0">
@@ -307,6 +306,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 paragraphs={paragraphs}
                 headingIndices={headingIndices}
                 onToggle={toggleHeading}
+                searchQuery={searchQuery}
+                searchMatches={searchMatches}
+                activeMatchParaIndex={searchMatches.length > 0 ? searchMatches[activeMatchIdx] : -1}
               />
             ) : (
               <PdfHighlightView
@@ -315,6 +317,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 onToggle={toggleHeading}
                 pageUrls={pdfPageUrls}
                 pageDimensions={pdfPageDimensions}
+                searchQuery={searchQuery}
+                searchMatches={searchMatches}
+                activeMatchParaIndex={searchMatches.length > 0 ? searchMatches[activeMatchIdx] : -1}
               />
             )}
           </div>
