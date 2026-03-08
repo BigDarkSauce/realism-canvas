@@ -56,7 +56,8 @@ interface CanvasProps {
 export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const canvas = useCanvas();
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
-  const [viewingFile, setViewingFile] = useState<{ url: string; fileName?: string } | null>(null);
+  const [viewingFile, setViewingFile] = useState<{ url: string; fileName?: string; mode: FileViewerMode } | null>(null);
+  const [fileOpenPrompt, setFileOpenPrompt] = useState<{ url: string; fileName?: string } | null>(null);
   const [drawColor, setDrawColor] = useState('#000000');
   const [brushWidth, setBrushWidth] = useState(3);
   const [outerBg, setOuterBg] = useState('');
