@@ -292,6 +292,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     };
   }, []);
 
+  // Listen for theme changes and update iframe
+  useEffect(() => {
+    const handler = () => {
+      const doc = iframeRef.current?.contentDocument;
+      if (doc) applyIframeTheme(doc);
+    };
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
+  }, []);
+
   // Save on close if dirty
   const handleClose = useCallback(async () => {
     if (dirty) {
