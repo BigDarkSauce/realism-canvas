@@ -113,7 +113,17 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
         className="w-full h-full"
         title={fileName || 'Document'}
         sandbox="allow-same-origin"
-        onLoad={(e) => applyIframeTheme((e.target as HTMLIFrameElement).contentDocument!)}
+        onLoad={(e) => {
+          const doc = (e.target as HTMLIFrameElement).contentDocument!;
+          applyIframeTheme(doc);
+          // Inject MathLive static CSS for equation rendering
+          if (!doc.querySelector('link[href*="mathlive"]')) {
+            const link = doc.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+            doc.head.appendChild(link);
+          }
+        }}
       />
     );
   }
@@ -169,6 +179,12 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     // Apply theme to iframe content
     applyIframeTheme(iframe.contentDocument);
 
+    // Inject MathLive static CSS for rendered equations
+    const mathLink = iframe.contentDocument.createElement('link');
+    mathLink.rel = 'stylesheet';
+    mathLink.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+    iframe.contentDocument.head.appendChild(mathLink);
+
     // Make images selectable and draggable
     const style = iframe.contentDocument.createElement('style');
     style.textContent = `
@@ -184,6 +200,11 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       img::selection, img:focus {
         outline: 2px solid #3b82f6;
         outline-offset: 2px;
+      }
+      .math-expression {
+        display: inline-block;
+        vertical-align: middle;
+        cursor: default;
       }
     `;
     iframe.contentDocument.head.appendChild(style);
