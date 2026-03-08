@@ -213,71 +213,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   const downloadAsWord = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
-    
-    // Parse the full edited HTML to extract head content (styles) and body
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(editedHtml, 'text/html');
-    
-    // Collect all inline styles from the original document
-    const styles = Array.from(doc.querySelectorAll('style')).map(s => s.outerHTML).join('\n');
-    const bodyContent = doc.body.innerHTML;
-    
-    // Build Word-compatible HTML with full formatting preservation
-    const wordContent = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns:m="http://schemas.microsoft.com/office/2004/12/omml"
-      xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>Document</title>
-<!--[if gte mso 9]>
-<xml>
-  <w:WordDocument>
-    <w:View>Print</w:View>
-    <w:Zoom>100</w:Zoom>
-    <w:DoNotOptimizeForBrowser/>
-  </w:WordDocument>
-</xml>
-<![endif]-->
-<style>
-  @font-face { font-family: 'Cambria Math'; }
-  @font-face { font-family: 'Calibri'; }
-  @font-face { font-family: 'Times New Roman'; }
-  @font-face { font-family: 'Arial'; }
-  @font-face { font-family: 'Georgia'; }
-  @font-face { font-family: 'Courier New'; }
-  
-  body { font-family: Calibri, Arial, sans-serif; }
-  
-  /* Preserve math formula styling */
-  .math-inline, .math-block {
-    font-family: 'Cambria Math', 'Times New Roman', serif;
-    font-style: italic;
-  }
-  .math-block { display: block; text-align: center; margin: 1em 0; }
-  
-  /* Preserve fraction styling */
-  .math-frac { display: inline-block; text-align: center; vertical-align: middle; }
-  .math-frac .num { display: block; border-bottom: 1px solid currentColor; padding: 0 4px 2px; }
-  .math-frac .den { display: block; padding: 2px 4px 0; }
-  
-  /* Preserve superscript/subscript */
-  sup { vertical-align: super; font-size: 0.8em; }
-  sub { vertical-align: sub; font-size: 0.8em; }
-  
-  /* Preserve sqrt styling */
-  .math-sqrt { border-top: 1px solid currentColor; padding: 0 4px; margin-left: 2px; }
-  .math-sqrt::before { content: '\\221A'; }
-</style>
-${styles}
-</head>
-<body>
-${bodyContent}
-</body>
-</html>`;
-    
+    const wordContent = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Document</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${editedHtml}</body></html>`;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
     const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
     const a = document.createElement('a');
