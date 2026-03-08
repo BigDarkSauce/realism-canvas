@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { FileText, GripVertical, Upload } from 'lucide-react';
+import { FileText, GripVertical, Upload, FolderOpen } from 'lucide-react';
 import { Block, CanvasTool } from '@/types/canvas';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
@@ -116,14 +116,12 @@ export default function CanvasBlock({
     }
   }, [tool, block.id, onConnectEnd]);
 
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'o' || e.key === 'O') {
-      const url = block.fileStorageUrl || block.fileUrl;
-      if (url && isSelected) {
-        onViewFile(url, block.fileName || block.label);
-      }
+  const handleOpenFile = useCallback(() => {
+    const url = block.fileStorageUrl || block.fileUrl;
+    if (url) {
+      onViewFile(url, block.fileName || block.label);
     }
-  }, [block, isSelected, onViewFile]);
+  }, [block, onViewFile]);
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -147,15 +145,8 @@ export default function CanvasBlock({
     }
   }, [block.id, block.label, onUpdateBlock]);
 
-  useEffect(() => {
-    if (isSelected) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isSelected, handleKeyDown]);
 
   const hasFile = !!(block.fileStorageUrl || block.fileUrl);
-  const hintText = hasFile && isSelected ? ' (press O to open)' : '';
 
   const handleEdges: { edge: ResizeEdge; className: string; cursor: string }[] = [
     { edge: 'e', className: 'top-0 -right-[4px] w-[8px] h-full', cursor: 'ew-resize' },
@@ -194,9 +185,15 @@ export default function CanvasBlock({
       tabIndex={0}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}{hintText}</span>
+      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
       {hasFile && (
-        <FileText className="h-4 w-4 text-primary shrink-0" />
+        <button
+          className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+          title="Open file"
+          onClick={(e) => { e.stopPropagation(); handleOpenFile(); }}
+        >
+          <FolderOpen className="h-3 w-3 text-primary" />
+        </button>
       )}
       <button
         className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
