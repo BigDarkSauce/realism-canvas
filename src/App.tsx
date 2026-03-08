@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Lobby from "./pages/Lobby";
 import CanvasPage from "./pages/Index";
+import LibraryPage from "./pages/LibraryPage";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import PasswordGate from "./components/PasswordGate";
@@ -30,6 +31,7 @@ const App = () => {
           <Routes>
             <Route path="/" element={<Lobby />} />
             <Route path="/canvas/:documentId" element={<CanvasPage />} />
+            <Route path="/library" element={<LibraryPage />} />
             <Route path="/install" element={<Install />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
