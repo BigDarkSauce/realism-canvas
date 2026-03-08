@@ -188,11 +188,11 @@ export default function CanvasBlock({
       <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
       {hasFile && (
         <button
-          className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+          className="h-6 w-6 flex items-center justify-center rounded border border-primary/30 bg-primary/10 hover:bg-primary/20 shrink-0"
           title="Open file"
           onClick={(e) => { e.stopPropagation(); handleOpenFile(); }}
         >
-          <FolderOpen className="h-3 w-3 text-primary" />
+          <FolderOpen className="h-3.5 w-3.5 text-primary" />
         </button>
       )}
       <button
