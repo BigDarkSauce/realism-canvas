@@ -22,8 +22,13 @@ interface ThemeToggleProps {
 }
 
 export function ThemeToggle({ className }: ThemeToggleProps) {
-  const isDark = document.documentElement.classList.contains('dark');
+  const [isDark, setIsDark] = useState(document.documentElement.classList.contains('dark'));
 
+  useEffect(() => {
+    const handler = () => setIsDark(document.documentElement.classList.contains('dark'));
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
+  }, []);
   const toggle = () => {
     const next: AppTheme = isDark ? 'light' : 'dark';
     applyTheme(next);
