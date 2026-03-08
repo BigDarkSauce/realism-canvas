@@ -99,7 +99,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
           <SplitSquareVertical className="h-4 w-4 text-primary" />
           Split Document by Sections
         </h3>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setOpen(false); setFile(null); setSections(null); }}>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { onClose(); setFile(null); setSections(null); }}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
