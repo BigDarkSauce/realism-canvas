@@ -91,20 +91,6 @@ export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitter
 
   if (!open) {
     return (
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => setOpen(true)}
-        title="Split Document by Sections"
-        className="h-9 w-9 p-0"
-      >
-        <SplitSquareVertical className="h-4 w-4" />
-      </Button>
-    );
-  }
-
-  return (
-    <>
       <div className="absolute top-4 left-1/2 translate-x-[calc(50%+60px)] z-50">
         <Button
           variant="ghost"
@@ -116,6 +102,11 @@ export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitter
           <SplitSquareVertical className="h-4 w-4" />
         </Button>
       </div>
+    );
+  }
+
+  return (
+    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[420px] bg-card border border-border rounded-xl shadow-2xl p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <SplitSquareVertical className="h-4 w-4 text-primary" />
