@@ -175,7 +175,10 @@ export async function extractPdfParagraphs(
       l.text.length < 120 &&
       !/[.,;:]$/.test(l.text),
   }));
+  targetProgress = 1;
+  currentProgress = 1;
   onProgress?.(1);
+  if (animFrame) cancelAnimationFrame(animFrame);
   return result;
 }
 
