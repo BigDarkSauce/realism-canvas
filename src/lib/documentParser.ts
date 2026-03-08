@@ -188,7 +188,18 @@ export async function parseDocxSections(file: File): Promise<DocumentSection[]> 
   const arrayBuffer = await file.arrayBuffer();
 
   // First try HTML-based heading detection
-  const result = await mammoth.convertToHtml({ arrayBuffer });
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer },
+    {
+      convertImage: mammoth.images.imgElement(function (image: any) {
+        return image.read('base64').then(function (imageBuffer: string) {
+          return {
+            src: 'data:' + image.contentType + ';base64,' + imageBuffer,
+          };
+        });
+      }),
+    }
+  );
   const html = result.value;
 
   const parser = new DOMParser();
