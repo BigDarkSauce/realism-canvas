@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -62,72 +62,75 @@ const UNICODE_MAP: Record<string, string> = {
   '\\ldots': '…', '\\cdots': '⋯', '\\vdots': '⋮', '\\ddots': '⋱',
 };
 
+// Pre-sort once for performance
+const SORTED_UNICODE_ENTRIES = Object.entries(UNICODE_MAP).sort((a, b) => b[0].length - a[0].length);
+
 // Structural commands that produce HTML
 function processStructuralCommands(input: string): string {
   let result = input;
 
-  // \frac{a}{b} → fraction HTML
+  // \frac{a}{b}
   result = result.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, (_, num, den) =>
     `<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px">${num}</span><span style="display:block;padding:0 4px">${den}</span></span>`
   );
 
-  // \sqrt{x} → square root
+  // \sqrt{x}
   result = result.replace(/\\sqrt\{([^}]*)\}/g, (_, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif">√<span style="text-decoration:overline;padding:0 2px">${content}</span></span>`
   );
 
-  // \sqrt[n]{x} → nth root
+  // \sqrt[n]{x}
   result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, (_, n, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif"><sup style="font-size:0.7em">${n}</sup>√<span style="text-decoration:overline;padding:0 2px">${content}</span></span>`
   );
 
-  // \int_{a}^{b} or \int_a^b → definite integral
+  // \int_{a}^{b}
   result = result.replace(/\\int_\{?([^}^{]*)\}?\^\{?([^}^{]*)\}?/g, (_, lower, upper) =>
     `<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;font-size:0.65em;line-height:1">${upper}</span><span style="display:block;font-size:1.5em;line-height:1">∫</span><span style="display:block;font-size:0.65em;line-height:1">${lower}</span></span>`
   );
 
-  // \sum_{i=1}^{n} → summation with bounds
+  // \sum_{i=1}^{n}
   result = result.replace(/\\sum_\{?([^}^{]*)\}?\^\{?([^}^{]*)\}?/g, (_, lower, upper) =>
     `<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;font-size:0.65em;line-height:1">${upper}</span><span style="display:block;font-size:1.4em;line-height:1">∑</span><span style="display:block;font-size:0.65em;line-height:1">${lower}</span></span>`
   );
 
-  // \prod_{i=1}^{n} → product with bounds
+  // \prod_{i=1}^{n}
   result = result.replace(/\\prod_\{?([^}^{]*)\}?\^\{?([^}^{]*)\}?/g, (_, lower, upper) =>
     `<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;font-size:0.65em;line-height:1">${upper}</span><span style="display:block;font-size:1.4em;line-height:1">∏</span><span style="display:block;font-size:0.65em;line-height:1">${lower}</span></span>`
   );
 
-  // \lim_{x \to a} → limit
+  // \lim_{x \to a}
   result = result.replace(/\\lim_\{?([^}]*)\}?/g, (_, sub) => {
     const processed = sub.replace(/\\to/g, '→').replace(/\\infty/g, '∞');
     return `<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;font-size:0.9em;line-height:1">lim</span><span style="display:block;font-size:0.65em;line-height:1">${processed}</span></span>`;
   });
 
-  // \binom{n}{k} → binomial
+  // \binom{n}{k}
   result = result.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, (_, n, k) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif">(</span><span style="display:inline-block;text-align:center;vertical-align:middle;font-family:'Cambria Math',serif"><span style="display:block;padding:0 4px">${n}</span><span style="display:block;padding:0 4px">${k}</span></span><span style="font-family:'Cambria Math',serif">)</span>`
   );
 
-  // \vec{x} → vector with arrow
+  // \vec{x}
   result = result.replace(/\\vec\{([^}]*)\}/g, (_, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif;position:relative;display:inline-block"><span style="position:absolute;top:-0.4em;left:0;right:0;text-align:center;font-size:0.7em">→</span>${content}</span>`
   );
 
-  // \hat{x} → hat accent
+  // \hat{x}
   result = result.replace(/\\hat\{([^}]*)\}/g, (_, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif;position:relative;display:inline-block"><span style="position:absolute;top:-0.5em;left:0;right:0;text-align:center;font-size:0.7em">^</span>${content}</span>`
   );
 
-  // \bar{x} → overline
+  // \bar{x}
   result = result.replace(/\\bar\{([^}]*)\}/g, (_, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif;text-decoration:overline">${content}</span>`
   );
 
-  // \dot{x} → dot above
+  // \dot{x}
   result = result.replace(/\\dot\{([^}]*)\}/g, (_, content) =>
     `<span class="math-template" style="font-family:'Cambria Math',serif;position:relative;display:inline-block"><span style="position:absolute;top:-0.5em;left:0;right:0;text-align:center">·</span>${content}</span>`
   );
 
-  // \matrix{a & b \\ c & d} → 2D matrix
+  // \matrix{a & b \\ c & d}
   result = result.replace(/\\matrix\{([^}]*)\}/g, (_, content) => {
     const rows = content.split('\\\\').map((row: string) => {
       const cells = row.split('&').map((c: string) => `<td style="border:none;padding:2px 6px">${c.trim()}</td>`).join('');
@@ -150,28 +153,32 @@ function processStructuralCommands(input: string): string {
 // Replace all simple Unicode commands
 function replaceUnicodeCommands(input: string): string {
   let result = input;
-  // Sort by length descending so longer commands match first
-  const sorted = Object.entries(UNICODE_MAP).sort((a, b) => b[0].length - a[0].length);
-  for (const [cmd, char] of sorted) {
-    // Use word boundary-like matching for backslash commands
+  for (const [cmd, char] of SORTED_UNICODE_ENTRIES) {
+    if (!result.includes(cmd.charAt(0) === '\\' ? '\\' : cmd.charAt(0))) continue;
     const escaped = cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     result = result.replace(new RegExp(escaped + '(?![a-zA-Z{])', 'g'), char);
   }
   return result;
 }
 
-function convertMathInput(input: string): string {
-  // First handle structural commands (frac, sqrt, int bounds, etc.)
+export function convertMathInput(input: string): string {
   let result = processStructuralCommands(input);
-  // Then replace remaining Unicode symbol commands
   result = replaceUnicodeCommands(result);
   return result;
 }
 
-// Live preview: render converted math as HTML
+// Debounced preview to avoid lag on every keystroke
 function MathPreview({ input }: { input: string }) {
-  if (!input.trim()) return <span className="text-muted-foreground text-xs italic">Type math here…</span>;
-  const html = convertMathInput(input);
+  const [debouncedInput, setDebouncedInput] = useState(input);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedInput(input), 150);
+    return () => clearTimeout(t);
+  }, [input]);
+
+  if (!debouncedInput.trim()) return <span className="text-muted-foreground text-xs italic">Type math here…</span>;
+
+  const html = convertMathInput(debouncedInput);
   return (
     <span
       className="text-base"
@@ -204,7 +211,7 @@ export default function UnicodeMathEditor({ onInsert, onClose }: UnicodeMathEdit
 
   const handleInsert = useCallback(() => {
     if (!input.trim()) return;
-    const html = `<span class="math-unicode" style="font-family:'Cambria Math','Cambria',serif">${convertMathInput(input)}</span>`;
+    const html = `<span class="math-unicode" style="font-family:'Cambria Math','Cambria',serif">${convertMathInput(input)}</span>\u200B`;
     onInsert(html);
     setInput('');
   }, [input, onInsert]);
@@ -231,7 +238,6 @@ export default function UnicodeMathEditor({ onInsert, onClose }: UnicodeMathEdit
         </button>
       </div>
 
-      {/* Input area */}
       <textarea
         ref={inputRef}
         value={input}
@@ -242,12 +248,10 @@ export default function UnicodeMathEditor({ onInsert, onClose }: UnicodeMathEdit
         spellCheck={false}
       />
 
-      {/* Live preview */}
       <div className="bg-background border border-border rounded px-3 py-2 min-h-[36px] flex items-center">
         <MathPreview input={input} />
       </div>
 
-      {/* Quick examples */}
       <div className="flex flex-wrap gap-1">
         {EXAMPLES.map((ex) => (
           <button
@@ -261,7 +265,6 @@ export default function UnicodeMathEditor({ onInsert, onClose }: UnicodeMathEdit
         ))}
       </div>
 
-      {/* Actions */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] text-muted-foreground">Ctrl+Enter to insert</span>
         <div className="flex gap-1.5">

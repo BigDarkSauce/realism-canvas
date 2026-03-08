@@ -245,13 +245,42 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       }
     });
 
-    // Listen for changes
+    // Listen for changes — debounced to avoid lag
+    let inputDebounce: ReturnType<typeof setTimeout> | null = null;
     iframe.contentDocument.addEventListener('input', () => {
-      setDirty(true);
-      if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
-      autoSaveTimer.current = setTimeout(() => {
-        saveContent();
-      }, 3000);
+      if (inputDebounce) clearTimeout(inputDebounce);
+      inputDebounce = setTimeout(() => {
+        setDirty(true);
+        if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+        autoSaveTimer.current = setTimeout(() => {
+          saveContent();
+        }, 3000);
+      }, 300);
+    });
+
+    // Make math spans editable — clicking next to them allows continued typing
+    iframe.contentDocument.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const mathSpan = target.closest('.math-unicode, .math-template, .math-symbol') as HTMLElement | null;
+      if (!mathSpan) return;
+      // If the math span doesn't have a trailing zero-width space, add one
+      const next = mathSpan.nextSibling;
+      if (!next || (next.nodeType === 3 && next.textContent === '\u200B')) return;
+      const zws = iframe.contentDocument!.createTextNode('\u200B');
+      mathSpan.parentNode?.insertBefore(zws, mathSpan.nextSibling);
+    });
+
+    // Ensure cursor can be placed before/after math elements
+    iframe.contentDocument.body.style.cssText += 'cursor: text;';
+    iframe.contentDocument.querySelectorAll('.math-unicode, .math-template, .math-symbol').forEach(el => {
+      (el as HTMLElement).style.cursor = 'text';
+      // Ensure there's always a text node after each math element for cursor placement
+      if (!el.nextSibling || (el.nextSibling.nodeType !== 3)) {
+        el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el.nextSibling);
+      }
+      if (!el.previousSibling || (el.previousSibling.nodeType !== 3)) {
+        el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el);
+      }
     });
   }, []);
 
