@@ -75,6 +75,7 @@ function ArrowStylePopover({
       style={{ left: position.x, top: position.y, transform: 'translate(-50%, -100%) translateY(-12px)' }}
     >
       <div
+        data-arrow-popover
         className="bg-card border border-border rounded-lg shadow-xl p-3 space-y-3 w-[220px]"
         onClick={(e) => e.stopPropagation()}
       >
