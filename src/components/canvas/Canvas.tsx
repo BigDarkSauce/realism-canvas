@@ -165,6 +165,47 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     setPan(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
   }, []);
 
+  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[]) => {
+    setPendingSections(sections);
+    toast.info('Click on the canvas to place the split sections');
+  }, []);
+
+  const placeSectionsAt = useCallback((startX: number, startY: number) => {
+    if (!pendingSections) return;
+    const blockWidth = 280;
+    const blockHeight = 56;
+    const gap = 80;
+
+    let nextIdLocal = Date.now();
+    const newBlocks: Block[] = pendingSections.map((s, i) => ({
+      id: `split-${nextIdLocal++}`,
+      x: startX,
+      y: startY + i * (blockHeight + gap),
+      width: blockWidth,
+      height: blockHeight,
+      label: s.heading,
+      fileStorageUrl: s.fileUrl,
+      fileName: s.fileName,
+    }));
+
+    const newConnections: { fromId: string; toId: string }[] = [];
+    for (let i = 0; i < newBlocks.length - 1; i++) {
+      newConnections.push({ fromId: newBlocks[i].id, toId: newBlocks[i + 1].id });
+    }
+
+    canvas.addBlocksBatch(newBlocks);
+    canvas.addConnectionsBatch(newConnections);
+
+    const maxY = startY + pendingSections.length * (blockHeight + gap) + 200;
+    const maxX = startX + blockWidth + 200;
+    setCanvasSize(prev => ({
+      width: Math.max(prev.width, maxX),
+      height: Math.max(prev.height, maxY),
+    }));
+
+    setPendingSections(null);
+  }, [pendingSections, canvas.addBlocksBatch, canvas.addConnectionsBatch]);
+
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
     const isCanvas = target === canvasRef.current || target.dataset.canvasBg === 'true';
