@@ -230,6 +230,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Click any paragraph to mark it as a section heading
             </span>
+            <div className="ml-auto flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="icon"
