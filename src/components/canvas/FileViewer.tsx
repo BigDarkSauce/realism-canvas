@@ -213,7 +213,69 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   const downloadAsWord = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
-    const wordContent = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Document</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${editedHtml}</body></html>`;
+
+    // Extract body content from full HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(editedHtml, 'text/html');
+    const bodyHtml = doc.body?.innerHTML || editedHtml;
+
+    // Collect inline styles from the original document's <style> tags
+    let existingStyles = '';
+    doc.querySelectorAll('style').forEach(s => { existingStyles += s.textContent || ''; });
+
+    const wordContent = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns:m="http://schemas.microsoft.com/office/2004/12/omml"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Document</title>
+<!--[if gte mso 9]>
+<xml>
+  <w:WordDocument>
+    <w:View>Print</w:View>
+    <w:Zoom>100</w:Zoom>
+    <w:DoNotOptimizeForBrowser/>
+  </w:WordDocument>
+</xml>
+<![endif]-->
+<style>
+  @font-face {
+    font-family: "Cambria Math";
+    panose-1: 2 4 5 3 5 4 6 3 2 4;
+  }
+  @font-face {
+    font-family: "Cambria";
+    panose-1: 2 4 5 3 5 4 6 3 2 4;
+  }
+  @font-face {
+    font-family: "Calibri";
+    panose-1: 2 15 5 2 2 2 4 3 2 4;
+  }
+  body {
+    font-family: "Calibri", "Arial", sans-serif;
+    font-size: 11pt;
+    line-height: 1.5;
+  }
+  p { margin: 0 0 8pt 0; }
+  table { border-collapse: collapse; }
+  td, th { border: 1px solid #000; padding: 4pt 6pt; }
+  /* Preserve math font styling */
+  [style*="Cambria Math"], .math-symbol, .math-template {
+    font-family: "Cambria Math", "Cambria", serif;
+    mso-font-charset: 0;
+  }
+  sup { font-size: 8pt; vertical-align: super; }
+  sub { font-size: 8pt; vertical-align: sub; }
+  ${existingStyles}
+</style>
+</head>
+<body lang="EN-US" style="tab-interval:.5in">
+${bodyHtml}
+</body>
+</html>`;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
     const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
     const a = document.createElement('a');
