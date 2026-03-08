@@ -67,15 +67,15 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setParseProgress(0);
     try {
       if (ext === 'docx') {
-        const paras = await extractDocxParagraphs(selected);
+        const paras = await extractDocxParagraphs(selected, (p) => setParseProgress(Math.round(p * 100)));
         if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
         setParagraphs(paras);
         const initial = new Set<number>();
         paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
         setHeadingIndices(initial);
       } else {
-        // PDF: render pages as images + extract paragraphs
-        const paras = await extractPdfParagraphs(selected);
+        // PDF: extract paragraphs with progress
+        const paras = await extractPdfParagraphs(selected, (p) => setParseProgress(Math.round(p * 80)));
         if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
         setParagraphs(paras);
         const initial = new Set<number>();
@@ -83,7 +83,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
         setHeadingIndices(initial);
 
         // Render PDF pages to canvas for visual display
+        setParseProgress(85);
         await renderPdfPages(selected);
+        setParseProgress(100);
       }
       setStep('highlight');
     } catch (err) {
