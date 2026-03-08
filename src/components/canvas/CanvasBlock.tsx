@@ -20,15 +20,58 @@ interface CanvasBlockProps {
   groupBlockIds: string[];
 }
 
+type ResizeEdge = 'e' | 'w' | 's' | 'n' | 'ne' | 'nw' | 'se' | 'sw' | null;
+
 export default function CanvasBlock({
   block, isSelected, isGrouped, tool,
   onMove, onSelect, onConnectStart, onConnectEnd,
   onDoubleClick, onMoveGroup, onViewFile, onUpdateBlock, groupBlockIds,
 }: CanvasBlockProps) {
   const [dragging, setDragging] = useState(false);
+  const [resizing, setResizing] = useState(false);
   const [uploading, setUploading] = useState(false);
   const dragStart = useRef({ x: 0, y: 0, bx: 0, by: 0 });
+  const resizeStart = useRef({ x: 0, y: 0, bx: 0, by: 0, bw: 0, bh: 0 });
+  const resizeEdgeRef = useRef<ResizeEdge>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MIN_WIDTH = 80;
+  const MIN_HEIGHT = 36;
+
+  const handleResizeStart = useCallback((e: React.MouseEvent, edge: ResizeEdge) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setResizing(true);
+    resizeEdgeRef.current = edge;
+    resizeStart.current = { x: e.clientX, y: e.clientY, bx: block.x, by: block.y, bw: block.width, bh: block.height };
+
+    const handleMouseMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - resizeStart.current.x;
+      const dy = ev.clientY - resizeStart.current.y;
+      const currentEdge = resizeEdgeRef.current;
+      let { bx, by, bw, bh } = resizeStart.current;
+
+      if (currentEdge?.includes('e')) bw = Math.max(MIN_WIDTH, bw + dx);
+      if (currentEdge?.includes('w')) { bw = Math.max(MIN_WIDTH, bw - dx); bx = bx + (resizeStart.current.bw - bw); }
+      if (currentEdge?.includes('s')) bh = Math.max(MIN_HEIGHT, bh + dy);
+      if (currentEdge?.includes('n')) { bh = Math.max(MIN_HEIGHT, bh - dy); by = by + (resizeStart.current.bh - bh); }
+
+      onUpdateBlock(block.id, { width: bw, height: bh });
+      if (currentEdge?.includes('w') || currentEdge?.includes('n')) {
+        onMove(block.id, bx, by);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setResizing(false);
+      resizeEdgeRef.current = null;
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+  }, [block, onUpdateBlock, onMove]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,9 +116,6 @@ export default function CanvasBlock({
     }
   }, [tool, block.id, onConnectEnd]);
 
-  // Track if mouse moved (drag detection)
-  const didDrag = useRef(false);
-
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === 'o' || e.key === 'O') {
       const url = block.fileStorageUrl || block.fileUrl;
@@ -107,7 +147,6 @@ export default function CanvasBlock({
     }
   }, [block.id, block.label, onUpdateBlock]);
 
-  // Attach keyboard listener for O key to open files
   useEffect(() => {
     if (isSelected) {
       window.addEventListener('keydown', handleKeyDown);
@@ -116,9 +155,18 @@ export default function CanvasBlock({
   }, [isSelected, handleKeyDown]);
 
   const hasFile = !!(block.fileStorageUrl || block.fileUrl);
-
-  // Hint text for blocks with files
   const hintText = hasFile && isSelected ? ' (press O to open)' : '';
+
+  const handleEdges: { edge: ResizeEdge; className: string; cursor: string }[] = [
+    { edge: 'e', className: 'top-0 -right-[4px] w-[8px] h-full', cursor: 'ew-resize' },
+    { edge: 'w', className: 'top-0 -left-[4px] w-[8px] h-full', cursor: 'ew-resize' },
+    { edge: 's', className: '-bottom-[4px] left-0 h-[8px] w-full', cursor: 'ns-resize' },
+    { edge: 'n', className: '-top-[4px] left-0 h-[8px] w-full', cursor: 'ns-resize' },
+    { edge: 'se', className: '-bottom-[5px] -right-[5px] w-[10px] h-[10px]', cursor: 'nwse-resize' },
+    { edge: 'sw', className: '-bottom-[5px] -left-[5px] w-[10px] h-[10px]', cursor: 'nesw-resize' },
+    { edge: 'ne', className: '-top-[5px] -right-[5px] w-[10px] h-[10px]', cursor: 'nesw-resize' },
+    { edge: 'nw', className: '-top-[5px] -left-[5px] w-[10px] h-[10px]', cursor: 'nwse-resize' },
+  ];
 
   return (
     <div
@@ -129,6 +177,7 @@ export default function CanvasBlock({
         isSelected && "border-primary shadow-md ring-2 ring-primary/20",
         isGrouped && "border-group-border",
         dragging && "cursor-grabbing shadow-lg opacity-90 z-50",
+        resizing && "z-50",
         tool === 'connect' && "cursor-crosshair",
       )}
       style={{
@@ -136,7 +185,7 @@ export default function CanvasBlock({
         top: block.y,
         width: block.width,
         height: block.height,
-        zIndex: dragging ? 50 : 10,
+        zIndex: dragging || resizing ? 50 : 10,
         fontSize: block.fontSize || undefined,
       }}
       onMouseDown={handleMouseDown}
@@ -163,6 +212,16 @@ export default function CanvasBlock({
         onChange={handleFileUpload}
         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.webp,.mp4,.webm,.ogg,.svg,.txt"
       />
+
+      {/* Resize handles on edges and corners - visible when selected */}
+      {isSelected && tool === 'select' && handleEdges.map(({ edge, className, cursor }) => (
+        <div
+          key={edge}
+          className={cn("absolute z-20", className)}
+          style={{ cursor }}
+          onMouseDown={(e) => handleResizeStart(e, edge)}
+        />
+      ))}
     </div>
   );
 }
