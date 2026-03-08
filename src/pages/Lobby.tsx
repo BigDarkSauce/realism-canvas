@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { hashSHA256 } from '@/lib/crypto';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { FilePlus, FolderOpen } from 'lucide-react';
+import { FilePlus, FolderOpen, Library } from 'lucide-react';
 
 export default function Lobby() {
   const navigate = useNavigate();
@@ -22,11 +23,14 @@ export default function Lobby() {
       return;
     }
     setLoadingCreate(true);
-    // Check if name already exists
+    const hashedName = await hashSHA256(createName.trim());
+    const hashedKey = await hashSHA256(createKey.trim());
+
+    // Check if name already exists (compare hashed)
     const { data: existing } = await supabase
       .from('canvas_documents')
       .select('id')
-      .eq('name', createName.trim())
+      .eq('name', hashedName)
       .maybeSingle();
     if (existing) {
       toast.error('A file with this name already exists');
@@ -35,7 +39,7 @@ export default function Lobby() {
     }
     const { data, error } = await supabase
       .from('canvas_documents')
-      .insert([{ name: createName.trim(), access_key: createKey.trim() }])
+      .insert([{ name: hashedName, access_key: hashedKey }])
       .select('id')
       .single();
     if (error) {
@@ -53,17 +57,20 @@ export default function Lobby() {
       return;
     }
     setLoadingAccess(true);
+    const hashedName = await hashSHA256(accessName.trim());
+    const hashedKey = await hashSHA256(accessKey.trim());
+
     const { data, error } = await supabase
       .from('canvas_documents')
       .select('id, access_key')
-      .eq('name', accessName.trim())
+      .eq('name', hashedName)
       .maybeSingle();
     if (error || !data) {
       toast.error('File not found');
       setLoadingAccess(false);
       return;
     }
-    if (data.access_key !== accessKey.trim()) {
+    if (data.access_key !== hashedKey) {
       toast.error('Incorrect key');
       setLoadingAccess(false);
       return;
@@ -73,7 +80,7 @@ export default function Lobby() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4 gap-6">
       <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Create new file */}
         <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-lg">
@@ -139,6 +146,17 @@ export default function Lobby() {
           </div>
         </div>
       </div>
+
+      {/* Library button */}
+      <Button
+        variant="outline"
+        size="lg"
+        className="gap-2"
+        onClick={() => navigate('/library')}
+      >
+        <Library className="h-5 w-5" />
+        My Library
+      </Button>
     </div>
   );
 }
