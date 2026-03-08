@@ -279,15 +279,15 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
               <span className="text-[10px]">Math</span>
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-[320px] p-3 z-[200]" align="start">
+          <PopoverContent className="w-[380px] p-3 z-[200]" align="start">
             <div className="space-y-2">
               <p className="text-[11px] font-medium text-muted-foreground">Symbols</p>
-              <div className="grid grid-cols-10 gap-0.5">
+              <div className="grid grid-cols-12 gap-0.5 max-h-[160px] overflow-y-auto">
                 {MATH_SYMBOLS.map((s) => (
                   <button
                     key={s.char}
                     className="h-7 w-7 flex items-center justify-center rounded text-sm hover:bg-muted transition-colors"
-                    onClick={() => insertHtml(s.char)}
+                    onClick={() => insertHtml(`<span class="math-symbol" style="font-family:Cambria Math,serif">${s.char}</span>`)}
                     title={s.label}
                   >
                     {s.char}
@@ -295,8 +295,8 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
                 ))}
               </div>
               <div className="border-t border-border pt-2">
-                <p className="text-[11px] font-medium text-muted-foreground mb-1">Templates</p>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-[11px] font-medium text-muted-foreground mb-1">Templates (editable bounds)</p>
+                <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto">
                   {MATH_TEMPLATES.map((t) => (
                     <button
                       key={t.label}
