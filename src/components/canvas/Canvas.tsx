@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+import YouTubeTranscript from './YouTubeTranscript';
 import { useCanvas } from '@/hooks/useCanvas';
 import { CanvasBackground, Block } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
@@ -19,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Youtube } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeSelector';
 
 function getBgClass(bg: CanvasBackground) {
@@ -276,6 +277,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   };
 
   const [splitterOpen, setSplitterOpen] = useState(false);
+  const [youtubeOpen, setYoutubeOpen] = useState(false);
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
@@ -289,6 +291,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
+      <YouTubeTranscript open={youtubeOpen} onClose={() => setYoutubeOpen(false)} />
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
@@ -332,6 +335,9 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           />
         </div>
         <div className="flex items-center gap-1">
+          <Button variant="outline" size="sm" onClick={() => setYoutubeOpen(true)} className="h-9 gap-2 bg-toolbar border-toolbar-border" title="YouTube Transcript">
+            <Youtube className="h-4 w-4" />
+          </Button>
           <BlockSearch blocks={canvas.blocks} onNavigateTo={handleNavigateToBlock} />
           <DrawingToolbar tool={canvas.tool} setTool={canvas.setTool} color={drawColor} setColor={setDrawColor} brushWidth={brushWidth} setBrushWidth={setBrushWidth} />
         </div>
