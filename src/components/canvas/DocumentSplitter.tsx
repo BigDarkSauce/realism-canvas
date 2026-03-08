@@ -29,6 +29,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [sections, setSections] = useState<DocumentSection[] | null>(null);
   const [step, setStep] = useState<Step>('upload');
   const [parsing, setParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
   const [pdfPageDimensions, setPdfPageDimensions] = useState<{ width: number; height: number }[]>([]);
