@@ -15,21 +15,27 @@ export interface DocumentParagraph {
 /**
  * Extract all paragraphs from a DOCX file with heading hints.
  */
-export async function extractDocxParagraphs(file: File): Promise<DocumentParagraph[]> {
+export async function extractDocxParagraphs(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<DocumentParagraph[]> {
+  onProgress?.(0.1);
   const arrayBuffer = await file.arrayBuffer();
+  onProgress?.(0.2);
   const result = await mammoth.convertToHtml({ arrayBuffer });
+  onProgress?.(0.7);
   const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const elements = Array.from(doc.body.children);
+  onProgress?.(0.85);
 
   const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
 
-  return elements
+  const paragraphs = elements
     .map(el => {
       const text = el.textContent?.trim() || '';
       const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
-      // Keep elements that have text OR contain media (images, gifs, etc.)
       if (!text && !hasMedia) return null;
       return {
         text: text || (hasMedia ? '[Image]' : ''),
@@ -38,22 +44,31 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
       };
     })
     .filter(Boolean) as DocumentParagraph[];
+  onProgress?.(1);
+  return paragraphs;
 }
 
 /**
  * Extract all lines from a PDF file with heading hints.
  */
-export async function extractPdfParagraphs(file: File): Promise<DocumentParagraph[]> {
+export async function extractPdfParagraphs(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<DocumentParagraph[]> {
+  onProgress?.(0.05);
   const arrayBuffer = await file.arrayBuffer();
+  onProgress?.(0.1);
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  onProgress?.(0.15);
 
   interface PdfLine { text: string; fontSize: number; fontName: string; }
   const allLines: PdfLine[] = [];
   const Y_TOLERANCE = 3;
+  const totalPages = pdf.numPages;
 
-  for (let i = 1; i <= pdf.numPages; i++) {
+  for (let i = 1; i <= totalPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
     const lineMap = new Map<number, { text: string; maxFontSize: number; fontNames: Set<string> }>();
@@ -79,6 +94,8 @@ export async function extractPdfParagraphs(file: File): Promise<DocumentParagrap
         lineMap.set(y, { text: (item as any).str, maxFontSize: fontSize, fontNames: names });
       }
     }
+    // Report per-page progress (15% to 85% range for page processing)
+    onProgress?.(0.15 + (i / totalPages) * 0.7);
 
     const sorted = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]);
     for (const [, v] of sorted) {
@@ -105,13 +122,16 @@ export async function extractPdfParagraphs(file: File): Promise<DocumentParagrap
 
   const isBoldFont = (name: string) => /bold|black|heavy|demi|semibold/i.test(name) && !/regular|light|thin/i.test(name);
 
-  return allLines.map(l => ({
+  onProgress?.(0.95);
+  const result = allLines.map(l => ({
     text: l.text,
     isLikelyHeading:
       (l.fontSize / bodyFontSize >= 1.15 || isBoldFont(l.fontName)) &&
       l.text.length < 120 &&
       !/[.,;:]$/.test(l.text),
   }));
+  onProgress?.(1);
+  return result;
 }
 
 /**

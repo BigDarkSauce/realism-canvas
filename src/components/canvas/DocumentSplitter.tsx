@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw } from 'lucide-react';
 import {
   extractDocxParagraphs,
@@ -28,6 +29,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [sections, setSections] = useState<DocumentSection[] | null>(null);
   const [step, setStep] = useState<Step>('upload');
   const [parsing, setParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
   const [pdfPageDimensions, setPdfPageDimensions] = useState<{ width: number; height: number }[]>([]);
@@ -62,18 +64,18 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setFile(selected);
     setFileType(ext);
     setParsing(true);
-
+    setParseProgress(0);
     try {
       if (ext === 'docx') {
-        const paras = await extractDocxParagraphs(selected);
+        const paras = await extractDocxParagraphs(selected, (p) => setParseProgress(Math.round(p * 100)));
         if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
         setParagraphs(paras);
         const initial = new Set<number>();
         paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
         setHeadingIndices(initial);
       } else {
-        // PDF: render pages as images + extract paragraphs
-        const paras = await extractPdfParagraphs(selected);
+        // PDF: extract paragraphs with progress
+        const paras = await extractPdfParagraphs(selected, (p) => setParseProgress(Math.round(p * 80)));
         if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
         setParagraphs(paras);
         const initial = new Set<number>();
@@ -81,7 +83,9 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
         setHeadingIndices(initial);
 
         // Render PDF pages to canvas for visual display
+        setParseProgress(85);
         await renderPdfPages(selected);
+        setParseProgress(100);
       }
       setStep('highlight');
     } catch (err) {
@@ -251,8 +255,14 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 Upload a PDF or Word file. You'll see the full document and highlight section headings.
               </p>
               {parsing ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Parsing document…
+                <div className="space-y-2 py-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Parsing document…
+                    </span>
+                    <span className="font-mono text-primary">{parseProgress}%</span>
+                  </div>
+                  <Progress value={parseProgress} className="h-2" />
                 </div>
               ) : (
                 <>
