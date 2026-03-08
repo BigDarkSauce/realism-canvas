@@ -572,6 +572,8 @@ export function createSectionFile(section: DocumentSection, index: number, forma
   img { max-width: 100%; height: auto; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   td, th { border: 1px solid #ccc; padding: 6px 10px; }
+  math { font-size: 1.1em; }
+  .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
 </style>
 </head>
 <body>
