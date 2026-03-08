@@ -62,9 +62,10 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
       const fromBlock = blockMap.get(conn.fromId);
       const toBlock = blockMap.get(conn.toId);
       if (!fromBlock || !toBlock) return;
-      // Convert screen coords to canvas coords accounting for pan & zoom
-      const canvasX = (ev.clientX - rect.left - pan.x) / zoom;
-      const canvasY = (ev.clientY - rect.top - pan.y) / zoom;
+      // SVG is inside the transformed div, so rect already includes pan.
+      // Just divide by zoom to get canvas coords.
+      const canvasX = (ev.clientX - rect.left) / zoom;
+      const canvasY = (ev.clientY - rect.top) / zoom;
       const midX = (getCenter(fromBlock).x + getCenter(toBlock).x) / 2;
       const midY = (getCenter(fromBlock).y + getCenter(toBlock).y) / 2;
       onUpdateConnection(connId, {
