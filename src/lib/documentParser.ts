@@ -167,7 +167,7 @@ export async function extractPdfParagraphs(
 
   const isBoldFont = (name: string) => /bold|black|heavy|demi|semibold/i.test(name) && !/regular|light|thin/i.test(name);
 
-  onProgress?.(0.95);
+  setTarget(0.95);
   const result = allLines.map(l => ({
     text: l.text,
     isLikelyHeading:
