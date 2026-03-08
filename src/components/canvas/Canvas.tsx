@@ -291,6 +291,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
+      <YouTubeTranscript open={youtubeOpen} onClose={() => setYoutubeOpen(false)} />
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
