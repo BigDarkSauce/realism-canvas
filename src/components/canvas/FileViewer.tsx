@@ -19,16 +19,40 @@ function useHtmlContent(url: string, fileName?: string) {
   const ext = (fileName || url).split('.').pop()?.toLowerCase() || '';
   const isHtml = ext === 'html' || ext === 'htm';
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isHtml) return;
+    setLoading(true);
     fetch(url)
       .then(r => r.text())
-      .then(setHtmlContent)
-      .catch(() => setHtmlContent(null));
+      .then((text) => { setHtmlContent(text); setLoading(false); })
+      .catch(() => { setHtmlContent(null); setLoading(false); });
   }, [url, isHtml]);
 
-  return { isHtml, htmlContent };
+  return { isHtml, htmlContent, loading };
+}
+
+/** Get the iframe-friendly background colors for the current theme */
+function getIframeThemeStyles(): { bg: string; color: string } {
+  const isDark = document.documentElement.classList.contains('dark');
+  return isDark
+    ? { bg: '#2a2d35', color: '#e0e0e0' }
+    : { bg: '#ffffff', color: '#000000' };
+}
+
+/** Inject or update theme styles into an iframe document */
+function applyIframeTheme(doc: Document) {
+  const { bg, color } = getIframeThemeStyles();
+  let style = doc.getElementById('__viewer-theme') as HTMLStyleElement | null;
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = '__viewer-theme';
+    doc.head.appendChild(style);
+  }
+  style.textContent = `
+    html, body { background-color: ${bg} !important; color: ${color} !important; }
+  `;
 }
 
 function getViewerContent(url: string, fileName?: string, htmlContent?: string | null) {
