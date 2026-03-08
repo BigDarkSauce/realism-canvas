@@ -11,8 +11,7 @@ interface DocumentSplitterProps {
   onSectionsCreated: (sections: { heading: string; fileUrl: string; fileName: string }[]) => void;
 }
 
-export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitterProps) {
-  const [open, setOpen] = useState(false);
+export default function DocumentSplitter({ open, onClose, onSectionsCreated }: DocumentSplitterProps) {
   const [file, setFile] = useState<File | null>(null);
   const [sections, setSections] = useState<DocumentSection[] | null>(null);
   const [parsing, setParsing] = useState(false);
