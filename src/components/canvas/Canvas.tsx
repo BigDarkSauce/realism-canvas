@@ -352,7 +352,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           {canvas.blocks.map(block => (
             <CanvasBlock key={block.id} block={block} isSelected={canvas.selectedIds.includes(block.id)} isGrouped={!!block.groupId} tool={canvas.tool}
               onMove={canvas.moveBlock} onSelect={canvas.toggleSelect} onConnectStart={handleConnectStart} onConnectEnd={handleConnectEnd}
-              onDoubleClick={setEditingBlock} onMoveGroup={canvas.moveGroup} onViewFile={(url, fileName) => setViewingFile({ url, fileName })}
+              onDoubleClick={setEditingBlock} onMoveGroup={canvas.moveGroup} onViewFile={(url, fileName) => setFileOpenPrompt({ url, fileName })}
               onUpdateBlock={canvas.updateBlock} groupBlockIds={getGroupBlockIds(block.id)} />
           ))}
         </div>
