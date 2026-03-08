@@ -315,6 +315,18 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
           </PopoverContent>
         </Popover>
 
+        {/* Unicode Math Editor toggle */}
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setShowMathEditor((p) => !p)}
+          title="Unicode Math Editor (LaTeX input)"
+          className={`h-7 px-1.5 flex items-center gap-0.5 rounded text-xs font-medium transition-colors
+            ${showMathEditor ? 'bg-primary/20 text-primary' : 'text-foreground hover:bg-muted'}`}
+        >
+          <span className="text-sm" style={{ fontFamily: "'Cambria Math', serif" }}>𝑓</span>
+          <span className="text-[10px]">LaTeX</span>
+        </button>
+
         <Divider />
 
         {/* Find & Replace toggle */}
@@ -326,6 +338,18 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
           <Search className="h-3.5 w-3.5" />
         </ToolBtn>
       </div>
+
+      {/* Unicode Math Editor panel */}
+      {showMathEditor && (
+        <div className="py-1">
+          <UnicodeMathEditor
+            onInsert={(html) => {
+              insertHtml(html);
+            }}
+            onClose={() => setShowMathEditor(false)}
+          />
+        </div>
+      )}
 
       {/* Search bar */}
       {showSearch && (
