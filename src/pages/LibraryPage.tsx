@@ -307,7 +307,56 @@ export default function LibraryPage() {
           </div>
         </div>
 
-        {/* Create folder */}
+        {/* Create new document form */}
+        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-lg">
+          <button
+            className="w-full flex items-center gap-2 p-5 text-left hover:bg-accent/30 transition-colors"
+            onClick={() => setShowCreateForm(prev => !prev)}
+          >
+            <FilePlus className="h-4 w-4 text-primary" />
+            <h2 className="text-base font-semibold text-foreground">Create New Document</h2>
+            {showCreateForm ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
+            )}
+          </button>
+          {showCreateForm && (
+            <div className="px-5 pb-5 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  value={createName}
+                  onChange={e => setCreateName(e.target.value)}
+                  placeholder="New file name"
+                  maxLength={100}
+                />
+                <Input
+                  type="password"
+                  value={createKey}
+                  onChange={e => setCreateKey(e.target.value)}
+                  placeholder="Create a key"
+                  maxLength={100}
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  className="text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
+                  value={createTargetFolder ?? ''}
+                  onChange={e => setCreateTargetFolder(e.target.value || null)}
+                >
+                  <option value="">Unsorted</option>
+                  {library.folders.map(f => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={handleCreateDocument} disabled={createLoading}>
+                  {createLoading ? 'Creating...' : 'Create & Add to Library'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex items-center gap-2">
           <FolderPlus className="h-4 w-4 text-muted-foreground" />
           <Input
