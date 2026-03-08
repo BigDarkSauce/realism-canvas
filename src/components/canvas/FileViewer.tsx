@@ -110,10 +110,20 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
     return (
       <iframe
         srcDoc={htmlContent}
-        className="w-full h-full bg-white"
+        className="w-full h-full"
         title={fileName || 'Document'}
         sandbox="allow-same-origin"
+        onLoad={(e) => applyIframeTheme((e.target as HTMLIFrameElement).contentDocument!)}
       />
+    );
+  }
+
+  // HTML is loading — show spinner instead of raw code fallback
+  if (isHtml && !htmlContent) {
+    return (
+      <div className="flex items-center justify-center w-full h-full">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
     );
   }
 
