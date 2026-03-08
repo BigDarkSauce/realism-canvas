@@ -90,21 +90,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setUploading(false);
   };
 
-  if (!open) {
-    return (
-      <div className="absolute top-4 left-1/2 translate-x-[calc(50%+60px)] z-50">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setOpen(true)}
-          title="Split Document by Sections"
-          className="h-9 w-9 p-0 bg-toolbar border border-toolbar-border rounded-lg"
-        >
-          <SplitSquareVertical className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[420px] bg-card border border-border rounded-xl shadow-2xl p-4 space-y-3">
