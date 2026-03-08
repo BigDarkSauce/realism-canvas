@@ -230,7 +230,15 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
             <span className="text-xs text-muted-foreground hidden sm:inline">
               Click any paragraph to mark it as a section heading
             </span>
-            <div className="ml-auto flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => { setSearchOpen(o => !o); setTimeout(() => searchInputRef.current?.focus(), 50); }}
+                title="Search (Ctrl+F)"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </Button>
               <span className="text-xs text-primary font-medium">
                 {headingIndices.size} heading{headingIndices.size !== 1 ? 's' : ''}
               </span>
@@ -249,6 +257,39 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 <X className="h-4 w-4" />
               </Button>
             </div>
+          </div>
+
+          {/* Search bar */}
+          {searchOpen && (
+            <div className="flex items-center gap-2 px-4 py-1.5 bg-card border-b border-border shrink-0">
+              <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <Input
+                ref={searchInputRef}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') navigateMatch(e.shiftKey ? -1 : 1);
+                  if (e.key === 'Escape') { setSearchOpen(false); setSearchQuery(''); }
+                }}
+                placeholder="Search in document…"
+                className="h-7 text-xs flex-1"
+              />
+              {searchQuery && (
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {searchMatches.length > 0 ? `${activeMatchIdx + 1}/${searchMatches.length}` : 'No results'}
+                </span>
+              )}
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => navigateMatch(-1)} disabled={searchMatches.length === 0}>
+                <ChevronUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => navigateMatch(1)} disabled={searchMatches.length === 0}>
+                <ChevronDown className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => { setSearchOpen(false); setSearchQuery(''); }}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
           </div>
 
           {/* File name bar */}
