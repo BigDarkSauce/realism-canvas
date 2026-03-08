@@ -259,6 +259,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     onBackToMenu();
   };
 
+  const [splitterOpen, setSplitterOpen] = useState(false);
+
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
       <Toolbar
@@ -267,9 +269,10 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         hasSelection={canvas.selectedIds.length > 0} multiSelected={canvas.selectedIds.length > 1}
         onDelete={handleDeleteSelected} onGroup={canvas.groupSelected} onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
+        onSplitDocument={() => setSplitterOpen(true)}
       />
 
-      <DocumentSplitter onSectionsCreated={handleSectionsCreated} />
+      <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
 
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
