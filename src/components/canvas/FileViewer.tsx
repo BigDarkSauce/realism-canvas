@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
+import { ThemeToggle } from '@/components/ThemeSelector';
 
 export type FileViewerMode = 'view' | 'edit';
 
