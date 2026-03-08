@@ -113,7 +113,17 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
         className="w-full h-full"
         title={fileName || 'Document'}
         sandbox="allow-same-origin"
-        onLoad={(e) => applyIframeTheme((e.target as HTMLIFrameElement).contentDocument!)}
+        onLoad={(e) => {
+          const doc = (e.target as HTMLIFrameElement).contentDocument!;
+          applyIframeTheme(doc);
+          // Inject MathLive static CSS for equation rendering
+          if (!doc.querySelector('link[href*="mathlive"]')) {
+            const link = doc.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+            doc.head.appendChild(link);
+          }
+        }}
       />
     );
   }
