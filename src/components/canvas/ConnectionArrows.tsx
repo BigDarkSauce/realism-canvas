@@ -44,7 +44,7 @@ function getEdgePoint(from: { x: number; y: number }, to: { x: number; y: number
   return { x: px, y: py };
 }
 
-export default function ConnectionArrows({ connections, blocks, tool, zoom, pan, onDelete, onUpdateConnection }: ConnectionArrowsProps) {
+export default function ConnectionArrows({ connections, blocks, tool, zoom, onDelete, onUpdateConnection }: ConnectionArrowsProps) {
   const blockMap = new Map(blocks.map(b => [b.id, b]));
   const [draggingCp, setDraggingCp] = useState<string | null>(null);
 
