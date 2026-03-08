@@ -37,6 +37,19 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [pdfLineRects, setPdfLineRects] = useState<Map<number, { page: number; top: number; height: number }>>(new Map());
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [activeMatchIdx, setActiveMatchIdx] = useState(0);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const searchMatches = useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const q = searchQuery.toLowerCase();
+    return paragraphs
+      .map((p, i) => ({ index: i, match: p.text.toLowerCase().includes(q) }))
+      .filter(m => m.match)
+      .map(m => m.index);
+  }, [searchQuery, paragraphs]);
 
   const reset = () => {
     setFile(null);
