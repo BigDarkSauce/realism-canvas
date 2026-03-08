@@ -1,4 +1,4 @@
-import { X, Pencil, Eye, Save } from 'lucide-react';
+import { X, Pencil, Eye, Save, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -193,6 +193,20 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
   }, [saveContent]);
 
+  const handleDownload = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const blob = new Blob([editedHtml], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (url.split('/').pop() || 'document.html');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast.success('Downloaded');
+  }, [getEditedHtml, url]);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -202,6 +216,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
           {dirty && <span className="text-[10px] text-amber-500 font-medium">• Unsaved</span>}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="h-7 text-xs gap-1"
+            title="Download to PC"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -252,9 +276,17 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
           <Eye className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-mono text-foreground truncate">{fileName || url}</span>
         </div>
-        <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-          <X className="h-5 w-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <a href={url} download={fileName || 'file'} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </Button>
+          </a>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
       <div className="flex-1 overflow-hidden">
         {getViewerContent(url, fileName, htmlContent)}

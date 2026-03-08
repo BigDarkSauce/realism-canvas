@@ -12,6 +12,8 @@ export interface Block {
   fontSize?: string;
 }
 
+export type ArrowStyle = 'solid' | 'dashed' | 'dotted';
+
 export interface Connection {
   id: string;
   fromId: string;
@@ -19,6 +21,10 @@ export interface Connection {
   // Control point offset for bending
   cpX?: number;
   cpY?: number;
+  // Styling
+  color?: string;
+  strokeWidth?: number;
+  arrowStyle?: ArrowStyle;
 }
 
 export interface Group {
