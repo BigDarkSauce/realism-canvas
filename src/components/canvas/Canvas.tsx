@@ -13,6 +13,7 @@ import BlockSearch from './BlockSearch';
 import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
 import SaveLoadPanel from './SaveLoadPanel';
 import OuterBackgroundPicker from './OuterBackgroundPicker';
+import DocumentSplitter from './DocumentSplitter';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
