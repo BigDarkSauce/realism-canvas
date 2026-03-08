@@ -550,6 +550,17 @@ ${processedBody}
 
 export default function FileViewer({ url, fileName, mode, onClose }: FileViewerProps) {
   const { isHtml, htmlContent, loading } = useHtmlContent(url, fileName);
+  const viewerRef = useRef<HTMLDivElement>(null);
+
+  // Listen for theme changes and update any iframe in the viewer
+  useEffect(() => {
+    const handler = () => {
+      const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
+    };
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
+  }, []);
 
   // Still loading HTML content — show loading overlay
   if (isHtml && loading) {
@@ -572,18 +583,6 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
   if (mode === 'edit' && !isHtml) {
     toast.info('Editing is only supported for HTML files. Opening in view mode.');
   }
-
-  const viewerRef = useRef<HTMLDivElement>(null);
-
-  // Listen for theme changes and update any iframe in the viewer
-  useEffect(() => {
-    const handler = () => {
-      const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
-      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
-    };
-    window.addEventListener('themechange', handler);
-    return () => window.removeEventListener('themechange', handler);
-  }, []);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
