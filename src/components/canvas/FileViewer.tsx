@@ -417,28 +417,23 @@ ${processedBody}
     setShowDownloadMenu(false);
   }, [getEditedHtml, url]);
 
-  const downloadAsPdf = useCallback(async () => {
+  const downloadAsPdf = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
-    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const container = document.createElement('div');
-      container.innerHTML = editedHtml;
-      document.body.appendChild(container);
-      await html2pdf().set({
-        margin: 10,
-        filename: `${baseName}.pdf`,
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).from(container).save();
-      document.body.removeChild(container);
-      toast.success('Downloaded as PDF');
-    } catch {
-      toast.error('PDF generation failed');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print as PDF');
+      return;
     }
+    printWindow.document.write(editedHtml);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+    toast.success('Print dialog opened');
     setShowDownloadMenu(false);
-  }, [getEditedHtml, url]);
+  }, [getEditedHtml]);
 
   const downloadAsPdfPrint = useCallback(() => {
     const editedHtml = getEditedHtml();
