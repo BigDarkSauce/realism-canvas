@@ -16,47 +16,88 @@ function extractVideoId(url: string): string | null {
 }
 
 async function fetchCaptions(videoId: string): Promise<string | null> {
-  // Fetch YouTube page HTML
-  const pageRes = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
+  // Use YouTube's internal API endpoint for captions
+  // First, get the video page to extract a valid session
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  
+  const pageRes = await fetch(watchUrl, {
     headers: {
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept-Language": "en-US,en;q=0.9",
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
     },
   });
+  
   const html = await pageRes.text();
-
-  // Find captionTracks in the page
-  const playerMatch = html.match(/ytInitialPlayerResponse\s*=\s*(\{.+?\});/s);
-  if (!playerMatch) {
-    console.error("No ytInitialPlayerResponse found");
+  
+  // Try multiple patterns to find caption tracks
+  const patterns = [
+    /"captionTracks":\s*(\[.*?\])/s,
+    /captionTracks":\s*(\[.*?\])/s,
+  ];
+  
+  let captionTracksJson: string | null = null;
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match) {
+      captionTracksJson = match[1];
+      break;
+    }
+  }
+  
+  if (!captionTracksJson) {
+    // Try finding any timedtext URL directly
+    const timedTextMatch = html.match(/https:\/\/www\.youtube\.com\/api\/timedtext[^"\\]*/);
+    if (timedTextMatch) {
+      const captionUrl = timedTextMatch[0].replace(/\\u0026/g, "&");
+      console.log("Found direct timedtext URL");
+      return await fetchAndParseCaptionXml(captionUrl);
+    }
+    
+    console.error("No caption data found in page HTML");
+    console.log("Page length:", html.length);
+    // Check if we got a consent page
+    if (html.includes("consent.youtube.com") || html.includes("CONSENT")) {
+      console.error("Got consent/cookie page instead of video page");
+    }
     return null;
   }
-
-  let playerResponse;
+  
+  let tracks;
   try {
-    playerResponse = JSON.parse(playerMatch[1]);
-  } catch (e) {
-    console.error("Failed to parse player response:", e);
+    // Clean up the JSON - it may have escaped characters
+    const cleaned = captionTracksJson.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+    tracks = JSON.parse(cleaned);
+  } catch {
+    // Try a more aggressive extraction
+    try {
+      tracks = JSON.parse(captionTracksJson);
+    } catch (e2) {
+      console.error("Failed to parse caption tracks JSON:", e2);
+      return null;
+    }
+  }
+  
+  if (!tracks || tracks.length === 0) {
+    console.error("No caption tracks available");
     return null;
   }
+  
+  // Prefer English, fall back to first
+  const track = tracks.find((t: any) => t.languageCode === "en" || t.vssId?.startsWith(".en")) || tracks[0];
+  console.log("Using caption track:", track.languageCode, track.name?.simpleText || track.name);
+  
+  return await fetchAndParseCaptionXml(track.baseUrl);
+}
 
-  const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-  if (!captionTracks || captionTracks.length === 0) {
-    console.error("No caption tracks found");
-    return null;
-  }
-
-  // Prefer English, fall back to first available
-  let track = captionTracks.find((t: any) => t.languageCode === "en") || captionTracks[0];
-  let captionUrl = track.baseUrl;
-
-  console.log("Found caption track:", track.languageCode, track.name?.simpleText);
-
-  // Fetch the caption XML
-  const captionRes = await fetch(captionUrl);
+async function fetchAndParseCaptionXml(captionUrl: string): Promise<string | null> {
+  const captionRes = await fetch(captionUrl, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    },
+  });
   const captionXml = await captionRes.text();
-
-  // Parse XML and extract text
+  
   const textSegments: string[] = [];
   const regex = /<text[^>]*>([\s\S]*?)<\/text>/g;
   let m;
@@ -71,12 +112,12 @@ async function fetchCaptions(videoId: string): Promise<string | null> {
       .trim();
     if (text) textSegments.push(text);
   }
-
+  
   if (textSegments.length === 0) {
-    console.error("No text segments found in caption XML");
+    console.error("No text segments in caption XML, length:", captionXml.length);
     return null;
   }
-
+  
   console.log(`Extracted ${textSegments.length} text segments`);
   return textSegments.join(" ");
 }
@@ -103,7 +144,7 @@ serve(async (req) => {
       });
     }
 
-    // Fetch video title via oembed
+    // Fetch video title via oembed (works without auth)
     let videoTitle = "YouTube Video";
     try {
       const oembedRes = await fetch(
@@ -120,13 +161,13 @@ serve(async (req) => {
     if (!rawText) {
       return new Response(
         JSON.stringify({
-          error: "No captions available for this video. The video may not have subtitles enabled.",
+          error: "No captions found. The video may not have subtitles enabled, or captions could not be retrieved.",
         }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Use Lovable AI to add punctuation and paragraphing
+    // Use Lovable AI to format with proper punctuation and paragraphing
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) {
       return new Response(JSON.stringify({ transcript: rawText, videoId, videoTitle }), {
@@ -146,7 +187,7 @@ serve(async (req) => {
           {
             role: "system",
             content:
-              "You are a transcript formatter. Take the raw caption text and format it into a clean, readable transcript with proper punctuation, capitalization, and paragraph breaks. Group related sentences into logical paragraphs. Do NOT add any commentary, headers, metadata, or markdown formatting — just output the plain formatted transcript text. Preserve the original words exactly; only fix punctuation, capitalization, and add paragraph spacing (double newlines between paragraphs).",
+              "You are a transcript formatter. Take the raw YouTube caption text and format it into a clean, readable transcript. Add proper punctuation, capitalization, and paragraph breaks. Group related sentences into logical paragraphs separated by double newlines. Do NOT add any commentary, headers, metadata, or markdown formatting — just output the plain formatted transcript text. Preserve the original words exactly; only fix punctuation, capitalization, and add paragraph spacing.",
           },
           { role: "user", content: rawText },
         ],
@@ -167,7 +208,7 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      console.error("AI gateway error:", status, await aiResponse.text());
+      console.error("AI gateway error:", status);
       return new Response(JSON.stringify({ transcript: rawText, videoId, videoTitle }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
