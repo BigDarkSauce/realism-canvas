@@ -13,6 +13,7 @@ import BlockSearch from './BlockSearch';
 import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
 import SaveLoadPanel from './SaveLoadPanel';
 import OuterBackgroundPicker from './OuterBackgroundPicker';
+import DocumentSplitter from './DocumentSplitter';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -211,6 +212,43 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
+  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[]) => {
+    // Find a clear area: place blocks in a column, starting from center of current view
+    const startX = (-pan.x / zoom) + 200;
+    const startY = (-pan.y / zoom) + 100;
+    const blockWidth = 280;
+    const blockHeight = 56;
+    const gap = 80;
+
+    let nextIdLocal = Date.now();
+    const newBlocks: Block[] = sections.map((s, i) => ({
+      id: `split-${nextIdLocal++}`,
+      x: startX,
+      y: startY + i * (blockHeight + gap),
+      width: blockWidth,
+      height: blockHeight,
+      label: s.heading,
+      fileStorageUrl: s.fileUrl,
+      fileName: s.fileName,
+    }));
+
+    const newConnections: { fromId: string; toId: string }[] = [];
+    for (let i = 0; i < newBlocks.length - 1; i++) {
+      newConnections.push({ fromId: newBlocks[i].id, toId: newBlocks[i + 1].id });
+    }
+
+    canvas.addBlocksBatch(newBlocks);
+    canvas.addConnectionsBatch(newConnections);
+
+    // Expand canvas if needed
+    const maxY = startY + sections.length * (blockHeight + gap) + 200;
+    const maxX = startX + blockWidth + 200;
+    setCanvasSize(prev => ({
+      width: Math.max(prev.width, maxX),
+      height: Math.max(prev.height, maxY),
+    }));
+  }, [pan, zoom, canvas.addBlocksBatch, canvas.addConnectionsBatch]);
+
   // Save state before leaving
   const handleBackToMenu = async () => {
     const state = {
@@ -231,7 +269,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onBackgroundImageUpload={handleBackgroundImageUpload}
       />
 
-      {/* Back to menu + zoom slider + theme toggle */}
+      <DocumentSplitter onSectionsCreated={handleSectionsCreated} />
+
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
           <ArrowLeft className="h-4 w-4" /> Menu

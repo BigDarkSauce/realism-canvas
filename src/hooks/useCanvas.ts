@@ -17,7 +17,7 @@ export function useCanvas() {
   const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
 
-  const addBlock = useCallback((x: number, y: number) => {
+  const addBlock = useCallback((x: number, y: number, overrides?: Partial<Block>) => {
     const block: Block = {
       id: genId(),
       x,
@@ -25,9 +25,21 @@ export function useCanvas() {
       width: 160,
       height: 56,
       label: 'New Block',
+      ...overrides,
     };
     setBlocks(prev => [...prev, block]);
     return block;
+  }, []);
+
+  const addBlocksBatch = useCallback((newBlocks: Block[]) => {
+    setBlocks(prev => [...prev, ...newBlocks]);
+  }, []);
+
+  const addConnectionsBatch = useCallback((newConns: { fromId: string; toId: string }[]) => {
+    setConnections(prev => [
+      ...prev,
+      ...newConns.map(c => ({ id: connId(), fromId: c.fromId, toId: c.toId })),
+    ]);
   }, []);
 
   const updateBlock = useCallback((id: string, updates: Partial<Block>) => {
@@ -152,7 +164,8 @@ export function useCanvas() {
     blocks, connections, groups, selectedIds, tool, background,
     connectingFrom, setConnectingFrom,
     strokes, backgroundImage, setBackgroundImage,
-    addBlock, updateBlock, deleteBlock, moveBlock, moveGroup,
+    addBlock, addBlocksBatch, addConnectionsBatch,
+    updateBlock, deleteBlock, moveBlock, moveGroup,
     addConnection, deleteConnection, updateConnection,
     groupSelected, ungroupSelected, renameGroup, updateGroup,
     toggleSelect, clearSelection,
