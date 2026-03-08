@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FilePlus, FolderOpen, Library } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeSelector';
 
 export default function Lobby() {
   const navigate = useNavigate();
