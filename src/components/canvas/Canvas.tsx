@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { ThemeToggle } from '@/components/ThemeSelector';
 
 function getBgClass(bg: CanvasBackground) {
   switch (bg) {
