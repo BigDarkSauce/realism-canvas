@@ -1,4 +1,4 @@
-import mammoth from 'mammoth';
+import mammoth from 'mammoth-plus';
 
 export interface DocumentSection {
   heading: string;
