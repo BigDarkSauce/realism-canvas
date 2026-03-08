@@ -17,6 +17,7 @@ import {
   Pencil,
   Check,
   X,
+  FilePlus,
 } from 'lucide-react';
 
 interface LibraryItem {
