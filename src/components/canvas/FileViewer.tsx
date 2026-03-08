@@ -19,16 +19,40 @@ function useHtmlContent(url: string, fileName?: string) {
   const ext = (fileName || url).split('.').pop()?.toLowerCase() || '';
   const isHtml = ext === 'html' || ext === 'htm';
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!isHtml) return;
+    setLoading(true);
     fetch(url)
       .then(r => r.text())
-      .then(setHtmlContent)
-      .catch(() => setHtmlContent(null));
+      .then((text) => { setHtmlContent(text); setLoading(false); })
+      .catch(() => { setHtmlContent(null); setLoading(false); });
   }, [url, isHtml]);
 
-  return { isHtml, htmlContent };
+  return { isHtml, htmlContent, loading };
+}
+
+/** Get the iframe-friendly background colors for the current theme */
+function getIframeThemeStyles(): { bg: string; color: string } {
+  const isDark = document.documentElement.classList.contains('dark');
+  return isDark
+    ? { bg: '#2a2d35', color: '#e0e0e0' }
+    : { bg: '#ffffff', color: '#000000' };
+}
+
+/** Inject or update theme styles into an iframe document */
+function applyIframeTheme(doc: Document) {
+  const { bg, color } = getIframeThemeStyles();
+  let style = doc.getElementById('__viewer-theme') as HTMLStyleElement | null;
+  if (!style) {
+    style = doc.createElement('style');
+    style.id = '__viewer-theme';
+    doc.head.appendChild(style);
+  }
+  style.textContent = `
+    html, body { background-color: ${bg} !important; color: ${color} !important; }
+  `;
 }
 
 function getViewerContent(url: string, fileName?: string, htmlContent?: string | null) {
@@ -86,10 +110,20 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
     return (
       <iframe
         srcDoc={htmlContent}
-        className="w-full h-full bg-white"
+        className="w-full h-full"
         title={fileName || 'Document'}
         sandbox="allow-same-origin"
+        onLoad={(e) => applyIframeTheme((e.target as HTMLIFrameElement).contentDocument!)}
       />
+    );
+  }
+
+  // HTML is loading — show spinner instead of raw code fallback
+  if (isHtml && !htmlContent) {
+    return (
+      <div className="flex items-center justify-center w-full h-full">
+        <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
     );
   }
 
@@ -131,6 +165,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     if (!iframe?.contentDocument?.body) return;
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
+
+    // Apply theme to iframe content
+    applyIframeTheme(iframe.contentDocument);
 
     // Make images selectable and draggable
     const style = iframe.contentDocument.createElement('style');
@@ -253,6 +290,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
+  }, []);
+
+  // Listen for theme changes and update iframe
+  useEffect(() => {
+    const handler = () => {
+      const doc = iframeRef.current?.contentDocument;
+      if (doc) applyIframeTheme(doc);
+    };
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
   }, []);
 
   // Save on close if dirty
@@ -491,7 +538,7 @@ ${processedBody}
         <iframe
           ref={iframeRef}
           srcDoc={htmlContent}
-          className="w-full h-full bg-white"
+          className="w-full h-full"
           title="Edit Document"
           sandbox="allow-same-origin allow-scripts"
           onLoad={handleLoad}
@@ -502,7 +549,30 @@ ${processedBody}
 }
 
 export default function FileViewer({ url, fileName, mode, onClose }: FileViewerProps) {
-  const { isHtml, htmlContent } = useHtmlContent(url, fileName);
+  const { isHtml, htmlContent, loading } = useHtmlContent(url, fileName);
+  const viewerRef = useRef<HTMLDivElement>(null);
+
+  // Listen for theme changes and update any iframe in the viewer
+  useEffect(() => {
+    const handler = () => {
+      const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
+    };
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
+  }, []);
+
+  // Still loading HTML content — show loading overlay
+  if (isHtml && loading) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+          <span className="text-sm text-muted-foreground">Loading document…</span>
+        </div>
+      </div>
+    );
+  }
 
   // Edit mode for HTML files
   if (mode === 'edit' && isHtml && htmlContent) {
@@ -534,7 +604,7 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div ref={viewerRef} className="flex-1 overflow-hidden">
         {getViewerContent(url, fileName, htmlContent)}
       </div>
     </div>
