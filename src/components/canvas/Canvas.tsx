@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+import YouTubeTranscript from './YouTubeTranscript';
 import { useCanvas } from '@/hooks/useCanvas';
 import { CanvasBackground, Block } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
