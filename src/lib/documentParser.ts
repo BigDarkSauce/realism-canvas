@@ -120,13 +120,17 @@ export function splitBySelectedHeadings(
   headingIndices: Set<number>
 ): DocumentSection[] {
   if (headingIndices.size === 0) {
-    // No headings selected, return as single section
-    return [{ heading: 'Full Document', content: paragraphs.map(p => p.text).join('\n') }];
+    return [{
+      heading: 'Full Document',
+      content: paragraphs.map(p => p.text).join('\n'),
+      htmlParagraphs: paragraphs.map(p => p.html || `<p>${escapeHtml(p.text)}</p>`),
+    }];
   }
 
   const sections: DocumentSection[] = [];
   let currentHeading = '';
   let currentContent: string[] = [];
+  let currentHtml: string[] = [];
 
   for (let i = 0; i < paragraphs.length; i++) {
     if (headingIndices.has(i)) {
@@ -134,12 +138,15 @@ export function splitBySelectedHeadings(
         sections.push({
           heading: currentHeading || 'Introduction',
           content: currentContent.join('\n').trim(),
+          htmlParagraphs: currentHtml,
         });
       }
       currentHeading = paragraphs[i].text;
       currentContent = [];
+      currentHtml = [];
     } else {
       currentContent.push(paragraphs[i].text);
+      currentHtml.push(paragraphs[i].html || `<p>${escapeHtml(paragraphs[i].text)}</p>`);
     }
   }
 
@@ -147,10 +154,18 @@ export function splitBySelectedHeadings(
     sections.push({
       heading: currentHeading || 'Introduction',
       content: currentContent.join('\n').trim(),
+      htmlParagraphs: currentHtml,
     });
   }
 
   return sections;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
