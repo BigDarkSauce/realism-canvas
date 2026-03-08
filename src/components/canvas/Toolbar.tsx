@@ -100,6 +100,10 @@ export default function Toolbar({
         </DropdownMenuContent>
       </DropdownMenu>
 
+      <Button variant="ghost" size="sm" onClick={onSplitDocument} title="Split Document by Sections" className="h-9 w-9 p-0">
+        <SplitSquareVertical className="h-4 w-4" />
+      </Button>
+
       <input
         ref={bgFileRef}
         type="file"
