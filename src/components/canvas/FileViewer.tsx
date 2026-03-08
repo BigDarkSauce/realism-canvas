@@ -435,24 +435,6 @@ ${processedBody}
     setShowDownloadMenu(false);
   }, [getEditedHtml]);
 
-  const downloadAsPdfPrint = useCallback(() => {
-    const editedHtml = getEditedHtml();
-    if (!editedHtml) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print as PDF');
-      return;
-    }
-    printWindow.document.write(editedHtml);
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
-    toast.success('Print dialog opened');
-    setShowDownloadMenu(false);
-  }, [getEditedHtml]);
-
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -479,10 +461,7 @@ ${processedBody}
                   Word (.doc)
                 </button>
                 <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
-                  PDF
-                </button>
-                <button onClick={downloadAsPdfPrint} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
-                  PDF (via Print)
+                  PDF (Print)
                 </button>
                 <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
                   HTML
