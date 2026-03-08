@@ -1,4 +1,4 @@
-import mammoth from 'mammoth';
+import mammoth from 'mammoth-plus';
 
 export interface DocumentSection {
   heading: string;
@@ -28,9 +28,11 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
   return elements
     .map(el => {
       const text = el.textContent?.trim() || '';
-      if (!text) return null;
+      const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
+      // Keep elements that have text OR contain media (images, gifs, etc.)
+      if (!text && !hasMedia) return null;
       return {
-        text,
+        text: text || (hasMedia ? '[Image]' : ''),
         html: (el as HTMLElement).outerHTML,
         isLikelyHeading: isHeadingTag(el.tagName),
       };
@@ -569,6 +571,8 @@ export function createSectionFile(section: DocumentSection, index: number, forma
   img { max-width: 100%; height: auto; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   td, th { border: 1px solid #ccc; padding: 6px 10px; }
+  math { font-size: 1.1em; }
+  .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
 </style>
 </head>
 <body>
