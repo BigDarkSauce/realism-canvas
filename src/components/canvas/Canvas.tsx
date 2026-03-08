@@ -359,7 +359,17 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       </div>
 
       <BlockEditor block={editingBlock} onClose={() => setEditingBlock(null)} onSave={canvas.updateBlock} />
-      {viewingFile && <FileViewer url={viewingFile.url} fileName={viewingFile.fileName} onClose={() => setViewingFile(null)} />}
+      {viewingFile && <FileViewer url={viewingFile.url} fileName={viewingFile.fileName} mode={viewingFile.mode} onClose={() => setViewingFile(null)} />}
+      {fileOpenPrompt && (
+        <FileOpenDialog
+          fileName={fileOpenPrompt.fileName}
+          onSelect={(mode) => {
+            setViewingFile({ url: fileOpenPrompt.url, fileName: fileOpenPrompt.fileName, mode });
+            setFileOpenPrompt(null);
+          }}
+          onClose={() => setFileOpenPrompt(null)}
+        />
+      )}
 
       <div className="absolute bottom-4 left-4 z-50 flex items-center gap-3 px-3 py-1.5 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg text-xs font-mono text-muted-foreground">
         <span>{canvas.blocks.length} blocks</span><span>·</span>
