@@ -40,26 +40,56 @@ const MATH_SYMBOLS = [
   { label: '≠', char: '≠' }, { label: '≈', char: '≈' }, { label: '≤', char: '≤' },
   { label: '≥', char: '≥' }, { label: '∞', char: '∞' }, { label: '√', char: '√' },
   { label: '∑', char: '∑' }, { label: '∏', char: '∏' }, { label: '∫', char: '∫' },
+  { label: '∬', char: '∬' }, { label: '∭', char: '∭' }, { label: '∮', char: '∮' },
   { label: 'π', char: 'π' }, { label: 'θ', char: 'θ' }, { label: 'α', char: 'α' },
   { label: 'β', char: 'β' }, { label: 'γ', char: 'γ' }, { label: 'δ', char: 'δ' },
   { label: 'Δ', char: 'Δ' }, { label: 'λ', char: 'λ' }, { label: 'μ', char: 'μ' },
   { label: 'σ', char: 'σ' }, { label: 'φ', char: 'φ' }, { label: 'ω', char: 'ω' },
+  { label: 'ε', char: 'ε' }, { label: 'ζ', char: 'ζ' }, { label: 'η', char: 'η' },
+  { label: 'ι', char: 'ι' }, { label: 'κ', char: 'κ' }, { label: 'ν', char: 'ν' },
+  { label: 'ξ', char: 'ξ' }, { label: 'ρ', char: 'ρ' }, { label: 'τ', char: 'τ' },
+  { label: 'υ', char: 'υ' }, { label: 'χ', char: 'χ' }, { label: 'ψ', char: 'ψ' },
+  { label: 'Γ', char: 'Γ' }, { label: 'Θ', char: 'Θ' }, { label: 'Λ', char: 'Λ' },
+  { label: 'Ξ', char: 'Ξ' }, { label: 'Π', char: 'Π' }, { label: 'Σ', char: 'Σ' },
+  { label: 'Φ', char: 'Φ' }, { label: 'Ψ', char: 'Ψ' }, { label: 'Ω', char: 'Ω' },
   { label: '∂', char: '∂' }, { label: '∇', char: '∇' }, { label: '∈', char: '∈' },
   { label: '∉', char: '∉' }, { label: '⊂', char: '⊂' }, { label: '⊃', char: '⊃' },
-  { label: '∪', char: '∪' }, { label: '∩', char: '∩' }, { label: '∅', char: '∅' },
-  { label: '∀', char: '∀' }, { label: '∃', char: '∃' }, { label: '⇒', char: '⇒' },
-  { label: '⇔', char: '⇔' }, { label: '→', char: '→' }, { label: '←', char: '←' },
-  { label: '↑', char: '↑' }, { label: '↓', char: '↓' },
+  { label: '⊆', char: '⊆' }, { label: '⊇', char: '⊇' }, { label: '∪', char: '∪' },
+  { label: '∩', char: '∩' }, { label: '∅', char: '∅' }, { label: '∀', char: '∀' },
+  { label: '∃', char: '∃' }, { label: '¬', char: '¬' }, { label: '∧', char: '∧' },
+  { label: '∨', char: '∨' }, { label: '⊕', char: '⊕' }, { label: '⊗', char: '⊗' },
+  { label: '⇒', char: '⇒' }, { label: '⇔', char: '⇔' }, { label: '→', char: '→' },
+  { label: '←', char: '←' }, { label: '↑', char: '↑' }, { label: '↓', char: '↓' },
+  { label: '↔', char: '↔' }, { label: '⟨', char: '⟨' }, { label: '⟩', char: '⟩' },
+  { label: '‖', char: '‖' }, { label: '⌊', char: '⌊' }, { label: '⌋', char: '⌋' },
+  { label: '⌈', char: '⌈' }, { label: '⌉', char: '⌉' }, { label: '°', char: '°' },
+  { label: '′', char: '′' }, { label: '″', char: '″' }, { label: 'ℝ', char: 'ℝ' },
+  { label: 'ℂ', char: 'ℂ' }, { label: 'ℤ', char: 'ℤ' }, { label: 'ℕ', char: 'ℕ' },
+  { label: 'ℚ', char: 'ℚ' }, { label: '∝', char: '∝' }, { label: '⊥', char: '⊥' },
+  { label: '∥', char: '∥' }, { label: '∠', char: '∠' }, { label: '△', char: '△' },
 ];
 
 const MATH_TEMPLATES = [
-  { label: 'Fraction', html: '<span style="display:inline-block;text-align:center;vertical-align:middle"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px">a</span><span style="display:block;padding:0 4px">b</span></span>' },
-  { label: 'x²', html: 'x<sup>2</sup>' },
-  { label: 'x₁', html: 'x<sub>1</sub>' },
-  { label: '√x', html: '√<span style="text-decoration:overline">x</span>' },
-  { label: '∑ᵢ', html: '<span style="display:inline-block;text-align:center;vertical-align:middle;font-size:1.3em">∑</span>' },
-  { label: '∫ₐᵇ', html: '<span style="display:inline-block;text-align:center;vertical-align:middle;font-size:1.3em">∫</span>' },
-  { label: 'lim', html: '<span style="display:inline-block;text-align:center;vertical-align:middle"><span style="display:block;font-size:0.85em">lim</span><span style="display:block;font-size:0.7em">x→∞</span></span>' },
+  { label: 'Fraction', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px" contenteditable="true">a</span><span style="display:block;padding:0 4px" contenteditable="true">b</span></span>' },
+  { label: 'x²', html: '<span class="math-template" style="font-family:Cambria Math,serif">x<sup contenteditable="true">2</sup></span>' },
+  { label: 'x₁', html: '<span class="math-template" style="font-family:Cambria Math,serif">x<sub contenteditable="true">1</sub></span>' },
+  { label: 'xⁿ', html: '<span class="math-template" style="font-family:Cambria Math,serif" contenteditable="true">x</span><sup contenteditable="true" style="font-family:Cambria Math,serif">n</sup>' },
+  { label: '√x', html: '<span class="math-template" style="font-family:Cambria Math,serif">√<span style="text-decoration:overline;padding:0 2px" contenteditable="true">x</span></span>' },
+  { label: 'ⁿ√x', html: '<span class="math-template" style="font-family:Cambria Math,serif"><sup style="font-size:0.7em" contenteditable="true">n</sup>√<span style="text-decoration:overline;padding:0 2px" contenteditable="true">x</span></span>' },
+  { label: '∑ᵢ₌₁ⁿ', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">n</span><span style="display:block;font-size:1.4em;line-height:1">∑</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">i=1</span></span>' },
+  { label: '∏ᵢ₌₁ⁿ', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">n</span><span style="display:block;font-size:1.4em;line-height:1">∏</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">i=1</span></span>' },
+  { label: '∫ₐᵇ', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">b</span><span style="display:block;font-size:1.5em;line-height:1">∫</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">a</span></span><span contenteditable="true" style="font-family:Cambria Math,serif"> f(x)dx</span>' },
+  { label: '∫∫', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">&nbsp;</span><span style="display:block;font-size:1.5em;line-height:1">∬</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">D</span></span><span contenteditable="true" style="font-family:Cambria Math,serif"> f(x,y)dA</span>' },
+  { label: '∮', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">&nbsp;</span><span style="display:block;font-size:1.5em;line-height:1">∮</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">C</span></span><span contenteditable="true" style="font-family:Cambria Math,serif"> F·dr</span>' },
+  { label: 'lim', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.9em;line-height:1">lim</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">x→∞</span></span>' },
+  { label: 'lim₀', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;font-size:0.9em;line-height:1">lim</span><span style="display:block;font-size:0.65em;line-height:1" contenteditable="true">x→0</span></span>' },
+  { label: 'Matrix 2×2', html: '<span class="math-template" style="font-family:Cambria Math,serif">⎡<span style="display:inline-block;text-align:center;vertical-align:middle"><table style="display:inline-table;border:none;border-collapse:collapse"><tr><td style="border:none;padding:2px 6px" contenteditable="true">a</td><td style="border:none;padding:2px 6px" contenteditable="true">b</td></tr><tr><td style="border:none;padding:2px 6px" contenteditable="true">c</td><td style="border:none;padding:2px 6px" contenteditable="true">d</td></tr></table></span>⎤</span>' },
+  { label: 'Vector', html: '<span class="math-template" style="font-family:Cambria Math,serif">⟨<span contenteditable="true">x</span>, <span contenteditable="true">y</span>, <span contenteditable="true">z</span>⟩</span>' },
+  { label: '|x|', html: '<span class="math-template" style="font-family:Cambria Math,serif">|<span contenteditable="true">x</span>|</span>' },
+  { label: '‖x‖', html: '<span class="math-template" style="font-family:Cambria Math,serif">‖<span contenteditable="true">x</span>‖</span>' },
+  { label: 'dy/dx', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px" contenteditable="true">dy</span><span style="display:block;padding:0 4px" contenteditable="true">dx</span></span>' },
+  { label: '∂f/∂x', html: '<span class="math-template" style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;border-bottom:1px solid currentColor;padding:0 4px" contenteditable="true">∂f</span><span style="display:block;padding:0 4px" contenteditable="true">∂x</span></span>' },
+  { label: 'Binomial', html: '<span class="math-template" style="font-family:Cambria Math,serif">(</span><span style="display:inline-block;text-align:center;vertical-align:middle;font-family:Cambria Math,serif"><span style="display:block;padding:0 4px" contenteditable="true">n</span><span style="display:block;padding:0 4px" contenteditable="true">k</span></span><span style="font-family:Cambria Math,serif">)</span>' },
 ];
 
 function execCmd(iframe: HTMLIFrameElement | null, cmd: string, value?: string) {
@@ -249,15 +279,15 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
               <span className="text-[10px]">Math</span>
             </button>
           </PopoverTrigger>
-          <PopoverContent className="w-[320px] p-3 z-[200]" align="start">
+          <PopoverContent className="w-[380px] p-3 z-[200]" align="start">
             <div className="space-y-2">
               <p className="text-[11px] font-medium text-muted-foreground">Symbols</p>
-              <div className="grid grid-cols-10 gap-0.5">
+              <div className="grid grid-cols-12 gap-0.5 max-h-[160px] overflow-y-auto">
                 {MATH_SYMBOLS.map((s) => (
                   <button
                     key={s.char}
                     className="h-7 w-7 flex items-center justify-center rounded text-sm hover:bg-muted transition-colors"
-                    onClick={() => insertHtml(s.char)}
+                    onClick={() => insertHtml(`<span class="math-symbol" style="font-family:Cambria Math,serif">${s.char}</span>`)}
                     title={s.label}
                   >
                     {s.char}
@@ -265,8 +295,8 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
                 ))}
               </div>
               <div className="border-t border-border pt-2">
-                <p className="text-[11px] font-medium text-muted-foreground mb-1">Templates</p>
-                <div className="flex flex-wrap gap-1">
+                <p className="text-[11px] font-medium text-muted-foreground mb-1">Templates (editable bounds)</p>
+                <div className="flex flex-wrap gap-1 max-h-[140px] overflow-y-auto">
                   {MATH_TEMPLATES.map((t) => (
                     <button
                       key={t.label}

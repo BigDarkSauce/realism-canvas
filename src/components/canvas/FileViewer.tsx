@@ -131,10 +131,85 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
 
+    // Make images selectable and draggable
+    const style = iframe.contentDocument.createElement('style');
+    style.textContent = `
+      img {
+        cursor: move;
+        max-width: 100%;
+        user-select: auto;
+      }
+      img:hover {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+      }
+      img::selection, img:focus {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+      }
+    `;
+    iframe.contentDocument.head.appendChild(style);
+
+    // Enable image dragging within the document
+    let draggedImg: HTMLImageElement | null = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    iframe.contentDocument.addEventListener('mousedown', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        e.preventDefault();
+        draggedImg = target as HTMLImageElement;
+        const rect = draggedImg.getBoundingClientRect();
+        dragOffsetX = e.clientX - rect.left;
+        dragOffsetY = e.clientY - rect.top;
+        draggedImg.style.position = draggedImg.style.position || '';
+        draggedImg.style.outline = '2px solid #3b82f6';
+      }
+    });
+
+    iframe.contentDocument.addEventListener('mousemove', (e) => {
+      if (!draggedImg) return;
+      e.preventDefault();
+    });
+
+    iframe.contentDocument.addEventListener('mouseup', (e) => {
+      if (draggedImg) {
+        draggedImg.style.outline = '';
+        // Move image to cursor position in the document flow
+        const doc = iframe.contentDocument!;
+        const range = doc.caretRangeFromPoint?.(e.clientX, e.clientY);
+        if (range && draggedImg.parentNode) {
+          const parent = draggedImg.parentNode;
+          parent.removeChild(draggedImg);
+          range.insertNode(draggedImg);
+          setDirty(true);
+          if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+          autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
+        }
+        draggedImg = null;
+      }
+    });
+
+    // Allow resizing images by selecting
+    iframe.contentDocument.addEventListener('dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        const img = target as HTMLImageElement;
+        const newWidth = prompt('Enter image width (e.g. 300, 50%):', img.style.width || `${img.width}`);
+        if (newWidth) {
+          img.style.width = newWidth.includes('%') ? newWidth : `${newWidth}px`;
+          img.style.height = 'auto';
+          setDirty(true);
+          if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+          autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
+        }
+      }
+    });
+
     // Listen for changes
     iframe.contentDocument.addEventListener('input', () => {
       setDirty(true);
-      // Auto-save after 3 seconds of inactivity
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
         saveContent();
@@ -223,6 +298,53 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     let existingStyles = '';
     doc.querySelectorAll('style').forEach(s => { existingStyles += s.textContent || ''; });
 
+    // Scan for all font families used in the document to preserve them
+    const usedFonts = new Set<string>();
+    doc.body.querySelectorAll('*').forEach(el => {
+      const ff = (el as HTMLElement).style?.fontFamily;
+      if (ff) usedFonts.add(ff.replace(/['"]/g, ''));
+    });
+
+    // Build font-face declarations for detected math/special fonts
+    let dynamicFontFaces = '';
+    const mathFonts = ['Cambria Math', 'Cambria', 'Symbol', 'MT Extra'];
+    mathFonts.forEach(f => {
+      dynamicFontFaces += `
+      @font-face {
+        font-family: "${f}";
+        panose-1: 2 4 5 3 5 4 6 3 2 4;
+      }`;
+    });
+
+    // Process math elements: ensure all elements with math-related content preserve their font
+    const bodyEl = doc.body.cloneNode(true) as HTMLElement;
+    bodyEl.querySelectorAll('*').forEach(el => {
+      const htmlEl = el as HTMLElement;
+      const text = htmlEl.textContent || '';
+      // Check if element contains math unicode characters
+      const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
+      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') || 
+                          htmlEl.style?.fontFamily?.includes('Math') ||
+                          htmlEl.className?.includes('math');
+      
+      if (hasMathChars || hasMathFont) {
+        htmlEl.style.fontFamily = '"Cambria Math", "Cambria", serif';
+        htmlEl.setAttribute('data-mso-font-charset', '0');
+      }
+      
+      // Preserve superscript/subscript styling for Word
+      if (htmlEl.tagName === 'SUP') {
+        htmlEl.style.fontSize = '8pt';
+        htmlEl.style.verticalAlign = 'super';
+      }
+      if (htmlEl.tagName === 'SUB') {
+        htmlEl.style.fontSize = '8pt';
+        htmlEl.style.verticalAlign = 'sub';
+      }
+    });
+
+    const processedBody = bodyEl.innerHTML;
+
     const wordContent = `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -242,14 +364,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 </xml>
 <![endif]-->
 <style>
-  @font-face {
-    font-family: "Cambria Math";
-    panose-1: 2 4 5 3 5 4 6 3 2 4;
-  }
-  @font-face {
-    font-family: "Cambria";
-    panose-1: 2 4 5 3 5 4 6 3 2 4;
-  }
+  ${dynamicFontFaces}
   @font-face {
     font-family: "Calibri";
     panose-1: 2 15 5 2 2 2 4 3 2 4;
@@ -263,17 +378,30 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
   /* Preserve math font styling */
-  [style*="Cambria Math"], .math-symbol, .math-template {
+  [style*="Cambria Math"], .math-symbol, .math-template,
+  [data-mso-font-charset] {
     font-family: "Cambria Math", "Cambria", serif;
     mso-font-charset: 0;
+    mso-generic-font-family: roman;
+    mso-font-pitch: variable;
   }
-  sup { font-size: 8pt; vertical-align: super; }
+  /* Fraction styling for Word */
+  .math-fraction {
+    mso-element: field-begin;
+    font-family: "Cambria Math";
+  }
+  sup { font-size: 8pt; vertical-align: super; mso-text-raise: 30%; }
   sub { font-size: 8pt; vertical-align: sub; }
+  /* Preserve overline for square root notation */
+  [style*="overline"] {
+    text-decoration: overline;
+    font-family: "Cambria Math", serif;
+  }
   ${existingStyles}
 </style>
 </head>
 <body lang="EN-US" style="tab-interval:.5in">
-${bodyHtml}
+${processedBody}
 </body>
 </html>`;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
@@ -289,30 +417,7 @@ ${bodyHtml}
     setShowDownloadMenu(false);
   }, [getEditedHtml, url]);
 
-  const downloadAsPdf = useCallback(async () => {
-    const editedHtml = getEditedHtml();
-    if (!editedHtml) return;
-    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
-    try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      const container = document.createElement('div');
-      container.innerHTML = editedHtml;
-      document.body.appendChild(container);
-      await html2pdf().set({
-        margin: 10,
-        filename: `${baseName}.pdf`,
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      }).from(container).save();
-      document.body.removeChild(container);
-      toast.success('Downloaded as PDF');
-    } catch {
-      toast.error('PDF generation failed');
-    }
-    setShowDownloadMenu(false);
-  }, [getEditedHtml, url]);
-
-  const downloadAsPdfPrint = useCallback(() => {
+  const downloadAsPdf = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
     const printWindow = window.open('', '_blank');
@@ -356,10 +461,7 @@ ${bodyHtml}
                   Word (.doc)
                 </button>
                 <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
-                  PDF
-                </button>
-                <button onClick={downloadAsPdfPrint} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
-                  PDF (via Print)
+                  PDF (Print)
                 </button>
                 <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
                   HTML

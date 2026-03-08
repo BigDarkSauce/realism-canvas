@@ -74,7 +74,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
         paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
         setHeadingIndices(initial);
       } else {
-        // PDF: extract paragraphs with progress
+        // PDF: extract paragraphs with smooth progress
         const paras = await extractPdfParagraphs(selected, (p) => setParseProgress(Math.round(p * 80)));
         if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
         setParagraphs(paras);

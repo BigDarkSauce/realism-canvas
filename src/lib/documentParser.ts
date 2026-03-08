@@ -19,16 +19,37 @@ export async function extractDocxParagraphs(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<DocumentParagraph[]> {
-  onProgress?.(0.1);
+  // Use a smooth continuous progress animation
+  let currentProgress = 0;
+  let targetProgress = 0;
+  let animFrame: number | null = null;
+  
+  const smoothProgress = () => {
+    if (currentProgress < targetProgress) {
+      currentProgress += (targetProgress - currentProgress) * 0.08;
+      if (targetProgress - currentProgress < 0.005) currentProgress = targetProgress;
+      onProgress?.(currentProgress);
+    }
+    if (currentProgress < 1) {
+      animFrame = requestAnimationFrame(smoothProgress);
+    }
+  };
+  
+  const setTarget = (t: number) => {
+    targetProgress = t;
+    if (!animFrame) animFrame = requestAnimationFrame(smoothProgress);
+  };
+  
+  setTarget(0.15);
   const arrayBuffer = await file.arrayBuffer();
-  onProgress?.(0.2);
+  setTarget(0.3);
   const result = await mammoth.convertToHtml({ arrayBuffer });
-  onProgress?.(0.7);
+  setTarget(0.75);
   const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const elements = Array.from(doc.body.children);
-  onProgress?.(0.85);
+  setTarget(0.9);
 
   const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
 
@@ -44,7 +65,10 @@ export async function extractDocxParagraphs(
       };
     })
     .filter(Boolean) as DocumentParagraph[];
+  targetProgress = 1;
+  currentProgress = 1;
   onProgress?.(1);
+  if (animFrame) cancelAnimationFrame(animFrame);
   return paragraphs;
 }
 
@@ -55,13 +79,34 @@ export async function extractPdfParagraphs(
   file: File,
   onProgress?: (progress: number) => void
 ): Promise<DocumentParagraph[]> {
-  onProgress?.(0.05);
+  // Use a smooth continuous progress animation
+  let currentProgress = 0;
+  let targetProgress = 0;
+  let animFrame: number | null = null;
+  
+  const smoothProgress = () => {
+    if (currentProgress < targetProgress) {
+      currentProgress += (targetProgress - currentProgress) * 0.08;
+      if (targetProgress - currentProgress < 0.005) currentProgress = targetProgress;
+      onProgress?.(currentProgress);
+    }
+    if (currentProgress < 1) {
+      animFrame = requestAnimationFrame(smoothProgress);
+    }
+  };
+  
+  const setTarget = (t: number) => {
+    targetProgress = t;
+    if (!animFrame) animFrame = requestAnimationFrame(smoothProgress);
+  };
+  
+  setTarget(0.05);
   const arrayBuffer = await file.arrayBuffer();
-  onProgress?.(0.1);
+  setTarget(0.1);
   const pdfjsLib = await import('pdfjs-dist');
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  onProgress?.(0.15);
+  setTarget(0.15);
 
   interface PdfLine { text: string; fontSize: number; fontName: string; }
   const allLines: PdfLine[] = [];
@@ -95,7 +140,7 @@ export async function extractPdfParagraphs(
       }
     }
     // Report per-page progress (15% to 85% range for page processing)
-    onProgress?.(0.15 + (i / totalPages) * 0.7);
+    setTarget(0.15 + (i / totalPages) * 0.7);
 
     const sorted = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]);
     for (const [, v] of sorted) {
@@ -122,7 +167,7 @@ export async function extractPdfParagraphs(
 
   const isBoldFont = (name: string) => /bold|black|heavy|demi|semibold/i.test(name) && !/regular|light|thin/i.test(name);
 
-  onProgress?.(0.95);
+  setTarget(0.95);
   const result = allLines.map(l => ({
     text: l.text,
     isLikelyHeading:
@@ -130,7 +175,10 @@ export async function extractPdfParagraphs(
       l.text.length < 120 &&
       !/[.,;:]$/.test(l.text),
   }));
+  targetProgress = 1;
+  currentProgress = 1;
   onProgress?.(1);
+  if (animFrame) cancelAnimationFrame(animFrame);
   return result;
 }
 
