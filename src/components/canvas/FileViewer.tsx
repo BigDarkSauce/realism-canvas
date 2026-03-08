@@ -528,7 +528,7 @@ ${processedBody}
         <iframe
           ref={iframeRef}
           srcDoc={htmlContent}
-          className="w-full h-full bg-white"
+          className="w-full h-full"
           title="Edit Document"
           sandbox="allow-same-origin allow-scripts"
           onLoad={handleLoad}
