@@ -145,12 +145,6 @@ export default function CanvasBlock({
     }
   }, [block.id, block.label, onUpdateBlock]);
 
-  useEffect(() => {
-    if (isSelected) {
-      window.addEventListener('keydown', handleKeyDown);
-      return () => window.removeEventListener('keydown', handleKeyDown);
-    }
-  }, [isSelected, handleKeyDown]);
 
   const hasFile = !!(block.fileStorageUrl || block.fileUrl);
 
