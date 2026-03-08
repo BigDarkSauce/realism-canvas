@@ -5,6 +5,151 @@ export interface DocumentSection {
   content: string;
 }
 
+export interface DocumentParagraph {
+  text: string;
+  isLikelyHeading: boolean; // hint from styles, user can override
+}
+
+/**
+ * Extract all paragraphs from a DOCX file with heading hints.
+ */
+export async function extractDocxParagraphs(file: File): Promise<DocumentParagraph[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.convertToHtml({ arrayBuffer });
+  const html = result.value;
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const elements = Array.from(doc.body.children);
+
+  const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
+
+  return elements
+    .map(el => {
+      const text = el.textContent?.trim() || '';
+      if (!text) return null;
+      return {
+        text,
+        isLikelyHeading: isHeadingTag(el.tagName),
+      };
+    })
+    .filter(Boolean) as DocumentParagraph[];
+}
+
+/**
+ * Extract all lines from a PDF file with heading hints.
+ */
+export async function extractPdfParagraphs(file: File): Promise<DocumentParagraph[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  interface PdfLine { text: string; fontSize: number; fontName: string; }
+  const allLines: PdfLine[] = [];
+  const Y_TOLERANCE = 3;
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const lineMap = new Map<number, { text: string; maxFontSize: number; fontNames: Set<string> }>();
+
+    for (const item of textContent.items) {
+      if (!('str' in item) || !(item as any).str) continue;
+      const rawY = (item as any).transform[5];
+      const fontSize = Math.abs((item as any).transform[0]) || 12;
+      const fontName: string = (item as any).fontName || '';
+      let matchedY: number | null = null;
+      for (const [existingY] of lineMap) {
+        if (Math.abs(existingY - rawY) <= Y_TOLERANCE) { matchedY = existingY; break; }
+      }
+      const y = matchedY ?? Math.round(rawY);
+      const existing = lineMap.get(y);
+      if (existing) {
+        existing.text += (item as any).str;
+        existing.maxFontSize = Math.max(existing.maxFontSize, fontSize);
+        if (fontName) existing.fontNames.add(fontName);
+      } else {
+        const names = new Set<string>();
+        if (fontName) names.add(fontName);
+        lineMap.set(y, { text: (item as any).str, maxFontSize: fontSize, fontNames: names });
+      }
+    }
+
+    const sorted = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]);
+    for (const [, v] of sorted) {
+      const text = v.text.trim();
+      if (!text) continue;
+      const primaryFont = Array.from(v.fontNames)[0] || '';
+      allLines.push({ text, fontSize: v.maxFontSize, fontName: primaryFont });
+    }
+  }
+
+  if (allLines.length === 0) return [];
+
+  // Compute body font size
+  const fontSizeCount = new Map<number, number>();
+  for (const l of allLines) {
+    const r = Math.round(l.fontSize * 10) / 10;
+    fontSizeCount.set(r, (fontSizeCount.get(r) || 0) + 1);
+  }
+  let bodyFontSize = 12;
+  let maxCount = 0;
+  for (const [fs, count] of fontSizeCount) {
+    if (count > maxCount) { maxCount = count; bodyFontSize = fs; }
+  }
+
+  const isBoldFont = (name: string) => /bold|black|heavy|demi|semibold/i.test(name) && !/regular|light|thin/i.test(name);
+
+  return allLines.map(l => ({
+    text: l.text,
+    isLikelyHeading:
+      (l.fontSize / bodyFontSize >= 1.15 || isBoldFont(l.fontName)) &&
+      l.text.length < 120 &&
+      !/[.,;:]$/.test(l.text),
+  }));
+}
+
+/**
+ * Split paragraphs into sections using user-selected heading indices.
+ */
+export function splitBySelectedHeadings(
+  paragraphs: DocumentParagraph[],
+  headingIndices: Set<number>
+): DocumentSection[] {
+  if (headingIndices.size === 0) {
+    // No headings selected, return as single section
+    return [{ heading: 'Full Document', content: paragraphs.map(p => p.text).join('\n') }];
+  }
+
+  const sections: DocumentSection[] = [];
+  let currentHeading = '';
+  let currentContent: string[] = [];
+
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (headingIndices.has(i)) {
+      if (currentHeading || currentContent.length > 0) {
+        sections.push({
+          heading: currentHeading || 'Introduction',
+          content: currentContent.join('\n').trim(),
+        });
+      }
+      currentHeading = paragraphs[i].text;
+      currentContent = [];
+    } else {
+      currentContent.push(paragraphs[i].text);
+    }
+  }
+
+  if (currentHeading || currentContent.length > 0) {
+    sections.push({
+      heading: currentHeading || 'Introduction',
+      content: currentContent.join('\n').trim(),
+    });
+  }
+
+  return sections;
+}
+
 /**
  * Parse a DOCX file and split into sections by heading tags OR bold/large styled paragraphs
  */
