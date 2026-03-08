@@ -140,7 +140,7 @@ export async function extractPdfParagraphs(
       }
     }
     // Report per-page progress (15% to 85% range for page processing)
-    onProgress?.(0.15 + (i / totalPages) * 0.7);
+    setTarget(0.15 + (i / totalPages) * 0.7);
 
     const sorted = Array.from(lineMap.entries()).sort((a, b) => b[0] - a[0]);
     for (const [, v] of sorted) {
