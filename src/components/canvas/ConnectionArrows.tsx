@@ -152,6 +152,18 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
   const [draggingCp, setDraggingCp] = useState<string | null>(null);
   const [selectedConn, setSelectedConn] = useState<string | null>(null);
 
+  // Close popover on outside click
+  useEffect(() => {
+    if (!selectedConn) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-arrow-popover]')) return;
+      setSelectedConn(null);
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [selectedConn]);
+
   const handleCpMouseDown = useCallback((e: React.MouseEvent, connId: string) => {
     if (tool !== 'select') return;
     e.stopPropagation();
