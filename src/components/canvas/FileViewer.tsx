@@ -131,10 +131,85 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
 
+    // Make images selectable and draggable
+    const style = iframe.contentDocument.createElement('style');
+    style.textContent = `
+      img {
+        cursor: move;
+        max-width: 100%;
+        user-select: auto;
+      }
+      img:hover {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+      }
+      img::selection, img:focus {
+        outline: 2px solid #3b82f6;
+        outline-offset: 2px;
+      }
+    `;
+    iframe.contentDocument.head.appendChild(style);
+
+    // Enable image dragging within the document
+    let draggedImg: HTMLImageElement | null = null;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    iframe.contentDocument.addEventListener('mousedown', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        e.preventDefault();
+        draggedImg = target as HTMLImageElement;
+        const rect = draggedImg.getBoundingClientRect();
+        dragOffsetX = e.clientX - rect.left;
+        dragOffsetY = e.clientY - rect.top;
+        draggedImg.style.position = draggedImg.style.position || '';
+        draggedImg.style.outline = '2px solid #3b82f6';
+      }
+    });
+
+    iframe.contentDocument.addEventListener('mousemove', (e) => {
+      if (!draggedImg) return;
+      e.preventDefault();
+    });
+
+    iframe.contentDocument.addEventListener('mouseup', (e) => {
+      if (draggedImg) {
+        draggedImg.style.outline = '';
+        // Move image to cursor position in the document flow
+        const doc = iframe.contentDocument!;
+        const range = doc.caretRangeFromPoint?.(e.clientX, e.clientY);
+        if (range && draggedImg.parentNode) {
+          const parent = draggedImg.parentNode;
+          parent.removeChild(draggedImg);
+          range.insertNode(draggedImg);
+          setDirty(true);
+          if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+          autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
+        }
+        draggedImg = null;
+      }
+    });
+
+    // Allow resizing images by selecting
+    iframe.contentDocument.addEventListener('dblclick', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'IMG') {
+        const img = target as HTMLImageElement;
+        const newWidth = prompt('Enter image width (e.g. 300, 50%):', img.style.width || `${img.width}`);
+        if (newWidth) {
+          img.style.width = newWidth.includes('%') ? newWidth : `${newWidth}px`;
+          img.style.height = 'auto';
+          setDirty(true);
+          if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+          autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
+        }
+      }
+    });
+
     // Listen for changes
     iframe.contentDocument.addEventListener('input', () => {
       setDirty(true);
-      // Auto-save after 3 seconds of inactivity
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
         saveContent();
