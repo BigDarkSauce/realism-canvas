@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { FileText, GripVertical, Upload } from 'lucide-react';
+import { FileText, GripVertical, Upload, FolderOpen } from 'lucide-react';
 import { Block, CanvasTool } from '@/types/canvas';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
