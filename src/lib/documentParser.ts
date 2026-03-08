@@ -3,6 +3,7 @@ import mammoth from 'mammoth';
 export interface DocumentSection {
   heading: string;
   content: string;
+  htmlParagraphs?: string[]; // original HTML fragments for rich content
 }
 
 export interface DocumentParagraph {
