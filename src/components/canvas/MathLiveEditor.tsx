@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import 'mathlive';
+import { convertLatexToMarkup } from 'mathlive';
 
 // Extend JSX for math-field web component
 declare global {
@@ -117,19 +118,17 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
     const latex = mf.value;
     if (!latex.trim()) return;
 
-    // Convert to MathML for high-quality rendering in the document
-    let mathml = '';
+    // Convert LaTeX to static HTML markup that renders without MathLive JS
+    let markup = '';
     try {
-      // MathLive can convert to MathML
-      const MathLive = (window as any).MathfieldElement;
-      if (MathLive?.computeEngine) {
-        mathml = mf.getValue('math-ml');
-      }
-    } catch { /* fallback below */ }
+      markup = convertLatexToMarkup(latex);
+    } catch {
+      // fallback: wrap in a styled span
+      markup = `<span style="font-family:'Cambria Math','Cambria',serif">${latex}</span>`;
+    }
 
-    // Build an HTML snippet that renders beautifully
-    // Use an image-based approach via MathLive's static rendering
-    const html = `<span class="math-expression" data-latex="${encodeURIComponent(latex)}" style="font-family:'Cambria Math','Cambria',serif;display:inline-block;vertical-align:middle">${mathml || `<math-field read-only style="display:inline-block;font-size:inherit;border:none;outline:none;background:transparent;padding:0;margin:0">${latex}</math-field>`}</span>\u200B`;
+    // Wrap in a span with data-latex for potential re-editing, plus the static rendered HTML
+    const html = `<span class="math-expression" data-latex="${encodeURIComponent(latex)}" style="display:inline-block;vertical-align:middle">${markup}</span>\u200B`;
     
     onInsert(html);
     mf.value = '';
