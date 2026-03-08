@@ -3,6 +3,7 @@ import mammoth from 'mammoth';
 export interface DocumentSection {
   heading: string;
   content: string;
+  htmlParagraphs?: string[]; // original HTML fragments for rich content
 }
 
 export interface DocumentParagraph {
@@ -119,13 +120,17 @@ export function splitBySelectedHeadings(
   headingIndices: Set<number>
 ): DocumentSection[] {
   if (headingIndices.size === 0) {
-    // No headings selected, return as single section
-    return [{ heading: 'Full Document', content: paragraphs.map(p => p.text).join('\n') }];
+    return [{
+      heading: 'Full Document',
+      content: paragraphs.map(p => p.text).join('\n'),
+      htmlParagraphs: paragraphs.map(p => p.html || `<p>${escapeHtml(p.text)}</p>`),
+    }];
   }
 
   const sections: DocumentSection[] = [];
   let currentHeading = '';
   let currentContent: string[] = [];
+  let currentHtml: string[] = [];
 
   for (let i = 0; i < paragraphs.length; i++) {
     if (headingIndices.has(i)) {
@@ -133,12 +138,15 @@ export function splitBySelectedHeadings(
         sections.push({
           heading: currentHeading || 'Introduction',
           content: currentContent.join('\n').trim(),
+          htmlParagraphs: currentHtml,
         });
       }
       currentHeading = paragraphs[i].text;
       currentContent = [];
+      currentHtml = [];
     } else {
       currentContent.push(paragraphs[i].text);
+      currentHtml.push(paragraphs[i].html || `<p>${escapeHtml(paragraphs[i].text)}</p>`);
     }
   }
 
@@ -146,10 +154,18 @@ export function splitBySelectedHeadings(
     sections.push({
       heading: currentHeading || 'Introduction',
       content: currentContent.join('\n').trim(),
+      htmlParagraphs: currentHtml,
     });
   }
 
   return sections;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 /**
@@ -534,11 +550,38 @@ export async function parsePdfSections(file: File): Promise<DocumentSection[]> {
 }
 
 /**
- * Create a text blob as a file for a section
+ * Create a rich HTML file for a section, preserving original formatting, images, etc.
+ * The HTML file can be opened in Word or any browser.
  */
-export function createSectionFile(section: DocumentSection, index: number, format: 'txt'): File {
+export function createSectionFile(section: DocumentSection, index: number, format: 'txt' | 'html' = 'html'): File {
+  const safeName = section.heading.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 50);
+
+  if (format === 'html' && section.htmlParagraphs && section.htmlParagraphs.length > 0) {
+    const bodyHtml = section.htmlParagraphs.join('\n');
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(section.heading)}</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+  h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
+  img { max-width: 100%; height: auto; }
+  table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+  td, th { border: 1px solid #ccc; padding: 6px 10px; }
+</style>
+</head>
+<body>
+<h1>${escapeHtml(section.heading)}</h1>
+${bodyHtml}
+</body>
+</html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    return new File([blob], `${String(index + 1).padStart(2, '0')}_${safeName}.html`, { type: 'text/html' });
+  }
+
+  // Fallback to plain text
   const content = `${section.heading}\n${'='.repeat(section.heading.length)}\n\n${section.content}`;
   const blob = new Blob([content], { type: 'text/plain' });
-  const safeName = section.heading.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '_').slice(0, 50);
   return new File([blob], `${String(index + 1).padStart(2, '0')}_${safeName}.txt`, { type: 'text/plain' });
 }

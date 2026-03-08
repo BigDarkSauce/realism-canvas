@@ -140,7 +140,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
       const results: { heading: string; fileUrl: string; fileName: string }[] = [];
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i];
-        const sectionFile = createSectionFile(section, i, 'txt');
+        const sectionFile = createSectionFile(section, i, 'html');
         const path = `sections/${Date.now()}-${Math.random().toString(36).slice(2)}-${sectionFile.name}`;
         const { error } = await supabase.storage.from('canvas-files').upload(path, sectionFile);
         if (error) throw error;
