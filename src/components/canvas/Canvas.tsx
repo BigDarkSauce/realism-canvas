@@ -276,7 +276,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   };
 
   const [splitterOpen, setSplitterOpen] = useState(false);
-  const [youtubeOpen, setYoutubeOpen] = useState(false);
+  
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
