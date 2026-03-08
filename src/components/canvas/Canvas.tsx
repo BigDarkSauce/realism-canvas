@@ -320,7 +320,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           <div data-canvas-bg="true" className={cn("absolute inset-0 rounded-sm", getBgClass(canvas.background))} style={{ ...getBgStyle(canvas.background, canvas.backgroundImage), boxShadow: '0 0 0 1px hsl(var(--border))' }} />
           <DrawingCanvas strokes={canvas.strokes} currentColor={drawColor} currentWidth={brushWidth} tool={canvas.tool} onAddStroke={canvas.addStroke} onEraseStroke={canvas.eraseStroke} />
           <GroupOverlays groups={canvas.groups} blocks={canvas.blocks} onRenameGroup={canvas.renameGroup} onUpdateGroup={canvas.updateGroup} />
-          <ConnectionArrows connections={canvas.connections} blocks={canvas.blocks} tool={canvas.tool} zoom={zoom} pan={pan} onDelete={canvas.deleteConnection} onUpdateConnection={canvas.updateConnection} />
+          <ConnectionArrows connections={canvas.connections} blocks={canvas.blocks} tool={canvas.tool} zoom={zoom} onDelete={canvas.deleteConnection} onUpdateConnection={canvas.updateConnection} />
           {canvas.blocks.map(block => (
             <CanvasBlock key={block.id} block={block} isSelected={canvas.selectedIds.includes(block.id)} isGrouped={!!block.groupId} tool={canvas.tool}
               onMove={canvas.moveBlock} onSelect={canvas.toggleSelect} onConnectStart={handleConnectStart} onConnectEnd={handleConnectEnd}
