@@ -179,6 +179,13 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       window.addEventListener('mouseup', handleUp);
       return;
     }
+    if (pendingSections) {
+      const rect = canvasRef.current!.getBoundingClientRect();
+      const x = (e.clientX - rect.left - pan.x) / zoom;
+      const y = (e.clientY - rect.top - pan.y) / zoom;
+      placeSectionsAt(x, y);
+      return;
+    }
     if (canvas.tool === 'add') {
       const rect = canvasRef.current!.getBoundingClientRect();
       canvas.addBlock((e.clientX - rect.left - pan.x) / zoom - 80, (e.clientY - rect.top - pan.y) / zoom - 28);
@@ -187,7 +194,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       canvas.clearSelection();
       canvas.setConnectingFrom(null);
     }
-  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom, zoom, pan]);
+  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom, zoom, pan, pendingSections, placeSectionsAt]);
 
   const handleConnectStart = useCallback((id: string) => { canvas.setConnectingFrom(id); }, [canvas.setConnectingFrom]);
   const handleConnectEnd = useCallback((id: string) => {
