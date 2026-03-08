@@ -57,7 +57,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [brushWidth, setBrushWidth] = useState(3);
   const [outerBg, setOuterBg] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
-  const zoom = 0.4;
+  const [zoom, setZoom] = useState(0.2);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const isPanning = useRef(false);
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
