@@ -166,6 +166,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
 
+    // Apply theme to iframe content
+    applyIframeTheme(iframe.contentDocument);
+
     // Make images selectable and draggable
     const style = iframe.contentDocument.createElement('style');
     style.textContent = `
