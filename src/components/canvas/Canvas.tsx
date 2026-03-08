@@ -269,7 +269,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onBackgroundImageUpload={handleBackgroundImageUpload}
       />
 
-      {/* Back to menu + zoom slider + theme toggle */}
+      <DocumentSplitter onSectionsCreated={handleSectionsCreated} />
+
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
           <ArrowLeft className="h-4 w-4" /> Menu
