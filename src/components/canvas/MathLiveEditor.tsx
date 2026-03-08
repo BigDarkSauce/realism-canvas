@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import 'mathlive';
+import { convertLatexToMarkup } from 'mathlive';
 
 // Extend JSX for math-field web component
 declare global {
