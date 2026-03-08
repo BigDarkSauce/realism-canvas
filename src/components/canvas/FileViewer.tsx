@@ -470,6 +470,7 @@ ${processedBody}
               </div>
             )}
           </div>
+          <ThemeToggle className="h-7 w-7" />
           <Button
             variant="outline"
             size="sm"
