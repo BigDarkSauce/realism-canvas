@@ -528,6 +528,7 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
               Download
             </Button>
           </a>
+          <ThemeToggle className="h-7 w-7" />
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-5 w-5" />
           </Button>
