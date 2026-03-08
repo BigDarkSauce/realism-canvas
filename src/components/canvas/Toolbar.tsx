@@ -39,7 +39,7 @@ const backgrounds: { id: CanvasBackground; label: string }[] = [
 export default function Toolbar({
   tool, setTool, background, setBackground,
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
-  onBackgroundImageUpload,
+  onBackgroundImageUpload, onSplitDocument,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
 
