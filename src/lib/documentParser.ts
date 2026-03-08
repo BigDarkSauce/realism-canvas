@@ -7,7 +7,8 @@ export interface DocumentSection {
 
 export interface DocumentParagraph {
   text: string;
-  isLikelyHeading: boolean; // hint from styles, user can override
+  html?: string; // original HTML for the paragraph (DOCX only)
+  isLikelyHeading: boolean;
 }
 
 /**
