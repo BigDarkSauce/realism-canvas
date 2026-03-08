@@ -15,21 +15,27 @@ export interface DocumentParagraph {
 /**
  * Extract all paragraphs from a DOCX file with heading hints.
  */
-export async function extractDocxParagraphs(file: File): Promise<DocumentParagraph[]> {
+export async function extractDocxParagraphs(
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<DocumentParagraph[]> {
+  onProgress?.(0.1);
   const arrayBuffer = await file.arrayBuffer();
+  onProgress?.(0.2);
   const result = await mammoth.convertToHtml({ arrayBuffer });
+  onProgress?.(0.7);
   const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const elements = Array.from(doc.body.children);
+  onProgress?.(0.85);
 
   const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
 
-  return elements
+  const paragraphs = elements
     .map(el => {
       const text = el.textContent?.trim() || '';
       const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
-      // Keep elements that have text OR contain media (images, gifs, etc.)
       if (!text && !hasMedia) return null;
       return {
         text: text || (hasMedia ? '[Image]' : ''),
@@ -38,6 +44,8 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
       };
     })
     .filter(Boolean) as DocumentParagraph[];
+  onProgress?.(1);
+  return paragraphs;
 }
 
 /**
