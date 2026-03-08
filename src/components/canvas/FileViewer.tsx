@@ -504,18 +504,19 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 ${processedBody}
 </body>
 </html>`;
+    const docFileName = promptFileName('doc');
+    if (!docFileName) return;
     const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
-    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${baseName}.doc`;
+    a.download = docFileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
     toast.success('Downloaded as Word');
     setShowDownloadMenu(false);
-  }, [getEditedHtml, url]);
+  }, [getEditedHtml, promptFileName]);
 
   const downloadAsPdf = useCallback(() => {
     const editedHtml = getEditedHtml();
