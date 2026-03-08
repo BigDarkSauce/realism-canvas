@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
+import { ThemeToggle } from '@/components/ThemeSelector';
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -469,6 +470,7 @@ ${processedBody}
               </div>
             )}
           </div>
+          <ThemeToggle className="h-7 w-7" />
           <Button
             variant="outline"
             size="sm"
@@ -526,6 +528,7 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
               Download
             </Button>
           </a>
+          <ThemeToggle className="h-7 w-7" />
           <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
             <X className="h-5 w-5" />
           </Button>
