@@ -6,6 +6,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface DocumentSplitterProps {
+  open: boolean;
+  onClose: () => void;
   onSectionsCreated: (sections: { heading: string; fileUrl: string; fileName: string }[]) => void;
 }
 
