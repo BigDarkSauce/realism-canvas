@@ -17,18 +17,8 @@ export interface DocumentParagraph {
  */
 export async function extractDocxParagraphs(file: File): Promise<DocumentParagraph[]> {
   const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.convertToHtml(
-    { arrayBuffer },
-    {
-      convertImage: mammoth.images.imgElement(function (image: any) {
-        return image.read('base64').then(function (imageBuffer: string) {
-          return {
-            src: 'data:' + image.contentType + ';base64,' + imageBuffer,
-          };
-        });
-      }),
-    }
-  );
+  const result = await mammoth.convertToHtml({ arrayBuffer });
+  const html = result.value;
   const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
