@@ -231,11 +231,24 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onBackgroundImageUpload={handleBackgroundImageUpload}
       />
 
-      {/* Back to menu button */}
-      <div className="absolute top-4 left-4 z-50">
+      {/* Back to menu + zoom slider + theme toggle */}
+      <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
-          <ArrowLeft className="h-4 w-4" /> Main Menu
+          <ArrowLeft className="h-4 w-4" /> Menu
         </Button>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-toolbar border border-toolbar-border rounded-xl">
+          <span className="text-xs font-mono text-muted-foreground w-8 text-right">{Math.round(zoom * 100)}%</span>
+          <input
+            type="range"
+            min={10}
+            max={50}
+            value={Math.round(zoom * 100)}
+            onChange={e => setZoom(Number(e.target.value) / 100)}
+            className="w-24 h-1.5 accent-primary cursor-pointer"
+            title="Zoom"
+          />
+        </div>
+        <ThemeToggle />
       </div>
 
       {/* Top-right controls */}
