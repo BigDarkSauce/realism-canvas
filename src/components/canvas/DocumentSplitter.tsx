@@ -64,7 +64,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
     setFile(selected);
     setFileType(ext);
     setParsing(true);
-
+    setParseProgress(0);
     try {
       if (ext === 'docx') {
         const paras = await extractDocxParagraphs(selected);
