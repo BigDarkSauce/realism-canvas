@@ -550,4 +550,3 @@ function PdfHighlightView({
     </div>
   );
 }
-}
