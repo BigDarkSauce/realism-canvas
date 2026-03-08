@@ -61,6 +61,13 @@ export default function LibraryPage() {
   const [addLoading, setAddLoading] = useState(false);
   const [targetFolder, setTargetFolder] = useState<string | null>(null);
 
+  // Create document form
+  const [createName, setCreateName] = useState('');
+  const [createKey, setCreateKey] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createTargetFolder, setCreateTargetFolder] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
   // New folder
   const [newFolderName, setNewFolderName] = useState('');
 
