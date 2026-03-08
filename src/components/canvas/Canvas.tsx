@@ -272,9 +272,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
       <CanvasBorderHandles canvasSize={canvasSize} onExtend={handleExtend} pan={pan} zoom={zoom} />
 
-      <div className="absolute bottom-4 right-4 z-50 flex items-center px-2 py-1 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg">
-        <button className="px-2 h-6 flex items-center justify-center rounded hover:bg-accent text-xs font-mono text-muted-foreground" onClick={() => setPan({ x: 0, y: 0 })}>{Math.round(zoom * 100)}%</button>
-      </div>
+
+
 
       <div ref={canvasRef} className={cn("w-full h-full relative overflow-hidden", canvas.tool === 'add' && 'cursor-crosshair')} onMouseDown={handleCanvasMouseDown} onWheel={handleWheel}>
         <div data-canvas-bg="true" className="absolute inset-0 bg-muted/30" style={{ zIndex: 0 }} />
