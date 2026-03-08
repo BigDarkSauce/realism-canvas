@@ -185,9 +185,15 @@ export default function CanvasBlock({
       tabIndex={0}
     >
       <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}{hintText}</span>
+      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
       {hasFile && (
-        <FileText className="h-4 w-4 text-primary shrink-0" />
+        <button
+          className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+          title="Open file"
+          onClick={(e) => { e.stopPropagation(); handleOpenFile(); }}
+        >
+          <FolderOpen className="h-3 w-3 text-primary" />
+        </button>
       )}
       <button
         className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
