@@ -549,7 +549,19 @@ ${processedBody}
 }
 
 export default function FileViewer({ url, fileName, mode, onClose }: FileViewerProps) {
-  const { isHtml, htmlContent } = useHtmlContent(url, fileName);
+  const { isHtml, htmlContent, loading } = useHtmlContent(url, fileName);
+
+  // Still loading HTML content — show loading overlay
+  if (isHtml && loading) {
+    return (
+      <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
+          <span className="text-sm text-muted-foreground">Loading document…</span>
+        </div>
+      </div>
+    );
+  }
 
   // Edit mode for HTML files
   if (mode === 'edit' && isHtml && htmlContent) {
