@@ -193,7 +193,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
   }, [saveContent]);
 
-  const handleDownload = useCallback(() => {
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+
+  const downloadAsHtml = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
     const blob = new Blob([editedHtml], { type: 'text/html' });
@@ -204,8 +206,44 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
-    toast.success('Downloaded');
+    toast.success('Downloaded as HTML');
+    setShowDownloadMenu(false);
   }, [getEditedHtml, url]);
+
+  const downloadAsWord = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const wordContent = `<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><title>Document</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]--></head><body>${editedHtml}</body></html>`;
+    const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
+    const baseName = (url.split('/').pop() || 'document').replace(/\.\w+$/, '');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${baseName}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast.success('Downloaded as Word');
+    setShowDownloadMenu(false);
+  }, [getEditedHtml, url]);
+
+  const downloadAsPdf = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to download as PDF');
+      return;
+    }
+    printWindow.document.write(editedHtml);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+    toast.success('Print dialog opened — choose "Save as PDF"');
+    setShowDownloadMenu(false);
+  }, [getEditedHtml]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
@@ -216,16 +254,31 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
           {dirty && <span className="text-[10px] text-amber-500 font-medium">• Unsaved</span>}
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            className="h-7 text-xs gap-1"
-            title="Download to PC"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Download
-          </Button>
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              className="h-7 text-xs gap-1"
+              title="Download to PC"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Download
+            </Button>
+            {showDownloadMenu && (
+              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px]">
+                <button onClick={downloadAsWord} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  Word (.doc)
+                </button>
+                <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  PDF (via Print)
+                </button>
+                <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
+                  HTML
+                </button>
+              </div>
+            )}
+          </div>
           <Button
             variant="outline"
             size="sm"
