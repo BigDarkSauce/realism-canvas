@@ -315,16 +315,16 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
           </PopoverContent>
         </Popover>
 
-        {/* Unicode Math Editor toggle */}
+        {/* Equation Editor toggle */}
         <button
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => setShowMathEditor((p) => !p)}
-          title="Unicode Math Editor (LaTeX input)"
+          title="Equation Editor (Word-like math input)"
           className={`h-7 px-1.5 flex items-center gap-0.5 rounded text-xs font-medium transition-colors
             ${showMathEditor ? 'bg-primary/20 text-primary' : 'text-foreground hover:bg-muted'}`}
         >
-          <span className="text-sm" style={{ fontFamily: "'Cambria Math', serif" }}>𝑓</span>
-          <span className="text-[10px]">LaTeX</span>
+          <span className="text-sm" style={{ fontFamily: "'Cambria Math', serif" }}>∫</span>
+          <span className="text-[10px]">Equation</span>
         </button>
 
         <Divider />
