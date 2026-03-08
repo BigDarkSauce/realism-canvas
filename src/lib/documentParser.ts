@@ -17,7 +17,18 @@ export interface DocumentParagraph {
  */
 export async function extractDocxParagraphs(file: File): Promise<DocumentParagraph[]> {
   const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.convertToHtml({ arrayBuffer });
+  const result = await mammoth.convertToHtml(
+    { arrayBuffer },
+    {
+      convertImage: mammoth.images.imgElement(function (image: any) {
+        return image.read('base64').then(function (imageBuffer: string) {
+          return {
+            src: 'data:' + image.contentType + ';base64,' + imageBuffer,
+          };
+        });
+      }),
+    }
+  );
   const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
@@ -28,9 +39,11 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
   return elements
     .map(el => {
       const text = el.textContent?.trim() || '';
-      if (!text) return null;
+      const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
+      // Keep elements that have text OR contain media (images, gifs, etc.)
+      if (!text && !hasMedia) return null;
       return {
-        text,
+        text: text || (hasMedia ? '[Image]' : ''),
         html: (el as HTMLElement).outerHTML,
         isLikelyHeading: isHeadingTag(el.tagName),
       };
