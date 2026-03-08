@@ -587,6 +587,7 @@ export function createSectionFile(section: DocumentSection, index: number, forma
 <title>${escapeHtml(section.heading)}</title>
 <style>
   body { font-family: Calibri, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; line-height: 1.6; color: #222; }
+  .section-heading { text-align: center; font-size: 2.5em; font-weight: bold; margin-bottom: 0.8em; margin-top: 0.5em; }
   h1, h2, h3, h4, h5, h6 { margin-top: 1.5em; }
   img { max-width: 100%; height: auto; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
@@ -596,7 +597,7 @@ export function createSectionFile(section: DocumentSection, index: number, forma
 </style>
 </head>
 <body>
-<h1>${escapeHtml(section.heading)}</h1>
+<div class="section-heading">${escapeHtml(section.heading)}</div>
 ${bodyHtml}
 </body>
 </html>`;
