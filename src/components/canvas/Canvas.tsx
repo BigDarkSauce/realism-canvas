@@ -15,6 +15,7 @@ import SaveLoadPanel from './SaveLoadPanel';
 import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
