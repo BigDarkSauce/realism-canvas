@@ -19,7 +19,6 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
   const arrayBuffer = await file.arrayBuffer();
   const result = await mammoth.convertToHtml({ arrayBuffer });
   const html = result.value;
-  const html = result.value;
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
   const elements = Array.from(doc.body.children);
