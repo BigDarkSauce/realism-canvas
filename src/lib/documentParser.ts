@@ -7,7 +7,8 @@ export interface DocumentSection {
 
 export interface DocumentParagraph {
   text: string;
-  isLikelyHeading: boolean; // hint from styles, user can override
+  html?: string; // original HTML for the paragraph (DOCX only)
+  isLikelyHeading: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ export async function extractDocxParagraphs(file: File): Promise<DocumentParagra
       if (!text) return null;
       return {
         text,
+        html: (el as HTMLElement).outerHTML,
         isLikelyHeading: isHeadingTag(el.tagName),
       };
     })

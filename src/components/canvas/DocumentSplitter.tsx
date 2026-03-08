@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye } from 'lucide-react';
+import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw } from 'lucide-react';
 import {
   extractDocxParagraphs,
   extractPdfParagraphs,
@@ -22,57 +22,99 @@ type Step = 'upload' | 'highlight' | 'preview';
 
 export default function DocumentSplitter({ open, onClose, onSectionsCreated }: DocumentSplitterProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [fileType, setFileType] = useState<'pdf' | 'docx' | null>(null);
   const [paragraphs, setParagraphs] = useState<DocumentParagraph[]>([]);
   const [headingIndices, setHeadingIndices] = useState<Set<number>>(new Set());
   const [sections, setSections] = useState<DocumentSection[] | null>(null);
   const [step, setStep] = useState<Step>('upload');
   const [parsing, setParsing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
+  const [pdfPageDimensions, setPdfPageDimensions] = useState<{ width: number; height: number }[]>([]);
+  const [pdfLineRects, setPdfLineRects] = useState<Map<number, { page: number; top: number; height: number }>>(new Map());
   const fileRef = useRef<HTMLInputElement>(null);
+  const [fileObjectUrl, setFileObjectUrl] = useState<string | null>(null);
 
   const reset = () => {
     setFile(null);
+    setFileType(null);
     setParagraphs([]);
     setHeadingIndices(new Set());
     setSections(null);
     setStep('upload');
+    setPdfPageUrls([]);
+    setPdfPageDimensions([]);
+    setPdfLineRects(new Map());
+    if (fileObjectUrl) URL.revokeObjectURL(fileObjectUrl);
+    setFileObjectUrl(null);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
     if (!selected) return;
 
-    const ext = selected.name.split('.').pop()?.toLowerCase();
+    const ext = selected.name.split('.').pop()?.toLowerCase() as 'pdf' | 'docx';
     if (ext !== 'pdf' && ext !== 'docx') {
       toast.error('Only PDF and DOCX files are supported');
       return;
     }
 
     setFile(selected);
+    setFileType(ext);
     setParsing(true);
 
     try {
-      const paras = ext === 'docx'
-        ? await extractDocxParagraphs(selected)
-        : await extractPdfParagraphs(selected);
+      if (ext === 'docx') {
+        const paras = await extractDocxParagraphs(selected);
+        if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
+        setParagraphs(paras);
+        const initial = new Set<number>();
+        paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
+        setHeadingIndices(initial);
+      } else {
+        // PDF: render pages as images + extract paragraphs
+        const paras = await extractPdfParagraphs(selected);
+        if (paras.length === 0) { toast.error('No text found'); setParsing(false); return; }
+        setParagraphs(paras);
+        const initial = new Set<number>();
+        paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
+        setHeadingIndices(initial);
 
-      if (paras.length === 0) {
-        toast.error('No text found in this document');
-        setParsing(false);
-        return;
+        // Render PDF pages to canvas for visual display
+        await renderPdfPages(selected);
       }
-
-      setParagraphs(paras);
-      // Pre-select likely headings
-      const initial = new Set<number>();
-      paras.forEach((p, i) => { if (p.isLikelyHeading) initial.add(i); });
-      setHeadingIndices(initial);
       setStep('highlight');
     } catch (err) {
       console.error('Parse error:', err);
       toast.error('Failed to parse document');
     }
     setParsing(false);
+  };
+
+  const renderPdfPages = async (pdfFile: File) => {
+    const arrayBuffer = await pdfFile.arrayBuffer();
+    const pdfjsLib = await import('pdfjs-dist');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+    const urls: string[] = [];
+    const dims: { width: number; height: number }[] = [];
+    const SCALE = 1.5;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: SCALE });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      urls.push(canvas.toDataURL('image/jpeg', 0.85));
+      dims.push({ width: viewport.width, height: viewport.height });
+    }
+
+    setPdfPageUrls(urls);
+    setPdfPageDimensions(dims);
   };
 
   const toggleHeading = useCallback((index: number) => {
@@ -96,23 +138,15 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
 
     try {
       const results: { heading: string; fileUrl: string; fileName: string }[] = [];
-
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i];
         const sectionFile = createSectionFile(section, i, 'txt');
         const path = `sections/${Date.now()}-${Math.random().toString(36).slice(2)}-${sectionFile.name}`;
-
         const { error } = await supabase.storage.from('canvas-files').upload(path, sectionFile);
         if (error) throw error;
-
         const { data: { publicUrl } } = supabase.storage.from('canvas-files').getPublicUrl(path);
-        results.push({
-          heading: section.heading,
-          fileUrl: publicUrl,
-          fileName: sectionFile.name,
-        });
+        results.push({ heading: section.heading, fileUrl: publicUrl, fileName: sectionFile.name });
       }
-
       onSectionsCreated(results);
       toast.success(`Created ${results.length} blocks on canvas`);
       onClose();
@@ -133,130 +167,250 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
 
   if (!open) return null;
 
+  // Fullscreen overlay for highlight and preview steps
+  const isFullscreen = step === 'highlight';
+
   return (
-    <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[560px] max-w-[90vw] bg-card border border-border rounded-xl shadow-2xl flex flex-col" style={{ maxHeight: '80vh' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-3 pb-2 border-b border-border shrink-0">
-        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-          <SplitSquareVertical className="h-4 w-4 text-primary" />
-          Split Document
-        </h3>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { onClose(); reset(); }}>
-          <X className="h-3.5 w-3.5" />
-        </Button>
-      </div>
-
-      {/* Step: Upload */}
-      {step === 'upload' && (
-        <div className="p-4 space-y-3">
-          <p className="text-xs text-muted-foreground">
-            Upload a PDF or Word file. You'll highlight which lines are section headings.
-          </p>
-          {parsing ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" /> Parsing document…
+    <>
+      {isFullscreen ? (
+        /* FULLSCREEN HIGHLIGHT VIEW */
+        <div className="fixed inset-0 z-[100] bg-background flex flex-col">
+          {/* Top bar */}
+          <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-card shrink-0">
+            <div className="flex items-center gap-2">
+              <Highlighter className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Heading Highlighter</span>
             </div>
-          ) : (
-            <>
-              <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => fileRef.current?.click()}>
-                <FileText className="h-4 w-4" /> Choose PDF or DOCX
-              </Button>
-              <input ref={fileRef} type="file" className="hidden" accept=".pdf,.docx" onChange={handleFileSelect} />
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Step: Highlight headings */}
-      {step === 'highlight' && (
-        <>
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-muted/30 shrink-0">
-            <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-              <Highlighter className="h-3.5 w-3.5" />
-              Heading Highlighter
-            </div>
-            <span className="text-[10px] text-muted-foreground">Click any line to mark/unmark as heading</span>
-            <div className="ml-auto flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={selectSuggested}>
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              Click any paragraph to mark it as a section heading
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="text-xs text-primary font-medium">
+                {headingIndices.size} heading{headingIndices.size !== 1 ? 's' : ''}
+              </span>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={selectSuggested}>
                 Auto-detect
               </Button>
-              <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2" onClick={clearAll}>
+              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={clearAll}>
                 Clear all
+              </Button>
+              <div className="w-px h-5 bg-border mx-1" />
+              <Button size="sm" className="h-7 text-xs gap-1" onClick={handleConfirmHeadings}>
+                <Eye className="h-3.5 w-3.5" />
+                Preview Sections
+              </Button>
+              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { onClose(); reset(); }}>
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
 
-          {/* File name */}
-          <div className="px-3 pt-2 shrink-0">
-            <p className="text-xs text-muted-foreground truncate">
+          {/* File name bar */}
+          <div className="px-4 py-1.5 bg-muted/30 border-b border-border shrink-0">
+            <p className="text-xs text-muted-foreground">
+              <FileText className="h-3 w-3 inline mr-1" />
               <span className="font-medium text-foreground">{file?.name}</span>
-              <span className="mx-2">·</span>
-              <span className="text-primary font-medium">{headingIndices.size}</span> heading{headingIndices.size !== 1 ? 's' : ''} selected
             </p>
           </div>
 
-          {/* Document view */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 min-h-0" style={{ maxHeight: '50vh' }}>
-            <div className="bg-background border border-border rounded-lg p-4 space-y-0">
-              {paragraphs.map((p, i) => {
-                const isHeading = headingIndices.has(i);
-                return (
-                  <div
-                    key={i}
-                    onClick={() => toggleHeading(i)}
-                    className={`
-                      cursor-pointer rounded px-2 py-1 transition-all select-none
-                      ${isHeading
-                        ? 'bg-primary/15 border-l-[3px] border-primary font-bold text-foreground text-sm my-2'
-                        : 'text-muted-foreground text-xs hover:bg-accent/40 border-l-[3px] border-transparent'
-                      }
-                    `}
-                  >
-                    {p.text.length > 300 ? p.text.slice(0, 300) + '…' : p.text}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2 p-3 pt-2 border-t border-border shrink-0">
-            <Button size="sm" onClick={handleConfirmHeadings} className="flex-1 gap-1.5">
-              <Eye className="h-3.5 w-3.5" />
-              Preview {headingIndices.size > 0 ? `${headingIndices.size + (headingIndices.size > 0 && !headingIndices.has(0) ? 1 : 0)} Sections` : ''}
-            </Button>
-            <Button size="sm" variant="outline" onClick={reset}>Reset</Button>
-          </div>
-        </>
-      )}
-
-      {/* Step: Preview sections */}
-      {step === 'preview' && sections && (
-        <div className="p-3 space-y-2">
-          <p className="text-xs text-muted-foreground">
-            {sections.length} section{sections.length !== 1 ? 's' : ''} ready:
-          </p>
-          <div className="max-h-48 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
-            {sections.map((s, i) => (
-              <div key={i} className="flex items-center gap-2 py-1 px-2 rounded text-xs hover:bg-accent/50">
-                <span className="text-muted-foreground font-mono w-5">{i + 1}.</span>
-                <span className="text-foreground truncate">{s.heading}</span>
-                <span className="text-muted-foreground ml-auto shrink-0">{s.content.length} chars</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleCreateBlocks} disabled={uploading} className="flex-1 gap-2">
-              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SplitSquareVertical className="h-3.5 w-3.5" />}
-              {uploading ? 'Creating…' : `Create ${sections.length} Blocks`}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setStep('highlight')} className="gap-1">
-              <ArrowLeft className="h-3 w-3" /> Back
-            </Button>
+          {/* Document content area */}
+          <div className="flex-1 overflow-y-auto">
+            {fileType === 'docx' ? (
+              <DocxHighlightView
+                paragraphs={paragraphs}
+                headingIndices={headingIndices}
+                onToggle={toggleHeading}
+              />
+            ) : (
+              <PdfHighlightView
+                paragraphs={paragraphs}
+                headingIndices={headingIndices}
+                onToggle={toggleHeading}
+                pageUrls={pdfPageUrls}
+                pageDimensions={pdfPageDimensions}
+              />
+            )}
           </div>
         </div>
+      ) : (
+        /* COMPACT PANEL for upload & preview steps */
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[480px] max-w-[90vw] bg-card border border-border rounded-xl shadow-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <SplitSquareVertical className="h-4 w-4 text-primary" />
+              Split Document
+            </h3>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { onClose(); reset(); }}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+
+          {step === 'upload' && (
+            <>
+              <p className="text-xs text-muted-foreground">
+                Upload a PDF or Word file. You'll see the full document and highlight section headings.
+              </p>
+              {parsing ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Parsing document…
+                </div>
+              ) : (
+                <>
+                  <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => fileRef.current?.click()}>
+                    <FileText className="h-4 w-4" /> Choose PDF or DOCX
+                  </Button>
+                  <input ref={fileRef} type="file" className="hidden" accept=".pdf,.docx" onChange={handleFileSelect} />
+                </>
+              )}
+            </>
+          )}
+
+          {step === 'preview' && sections && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {sections.length} section{sections.length !== 1 ? 's' : ''} ready:
+              </p>
+              <div className="max-h-60 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
+                {sections.map((s, i) => (
+                  <div key={i} className="flex items-center gap-2 py-1 px-2 rounded text-xs hover:bg-accent/50">
+                    <span className="text-muted-foreground font-mono w-5">{i + 1}.</span>
+                    <span className="text-foreground truncate">{s.heading}</span>
+                    <span className="text-muted-foreground ml-auto shrink-0">{s.content.length} chars</span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={handleCreateBlocks} disabled={uploading} className="flex-1 gap-2">
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SplitSquareVertical className="h-3.5 w-3.5" />}
+                  {uploading ? 'Creating…' : `Create ${sections.length} Blocks`}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setStep('highlight')} className="gap-1">
+                  <ArrowLeft className="h-3 w-3" /> Back
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       )}
+    </>
+  );
+}
+
+/* ========== DOCX Highlight View ========== */
+function DocxHighlightView({
+  paragraphs,
+  headingIndices,
+  onToggle,
+}: {
+  paragraphs: DocumentParagraph[];
+  headingIndices: Set<number>;
+  onToggle: (i: number) => void;
+}) {
+  return (
+    <div className="max-w-[800px] mx-auto py-8 px-6">
+      <div className="bg-white dark:bg-zinc-900 shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
+        {paragraphs.map((p, i) => {
+          const isHeading = headingIndices.has(i);
+          return (
+            <div
+              key={i}
+              onClick={() => onToggle(i)}
+              className={`
+                cursor-pointer rounded px-3 py-1.5 transition-all select-none relative group
+                ${isHeading
+                  ? 'bg-primary/15 border-l-4 border-primary ring-1 ring-primary/20 my-3'
+                  : 'hover:bg-accent/30 border-l-4 border-transparent'
+                }
+              `}
+            >
+              {/* Render original HTML if available for better formatting */}
+              {p.html ? (
+                <div
+                  className={`pointer-events-none ${isHeading ? 'font-bold' : ''}`}
+                  dangerouslySetInnerHTML={{ __html: p.html }}
+                  style={{ fontSize: isHeading ? undefined : undefined }}
+                />
+              ) : (
+                <p className={`text-sm ${isHeading ? 'font-bold text-foreground text-base' : 'text-foreground/80'}`}>
+                  {p.text}
+                </p>
+              )}
+              {/* Heading badge */}
+              {isHeading && (
+                <span className="absolute -left-1 top-1/2 -translate-y-1/2 -translate-x-full text-[9px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 mr-1">
+                  H
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ========== PDF Highlight View ========== */
+function PdfHighlightView({
+  paragraphs,
+  headingIndices,
+  onToggle,
+  pageUrls,
+  pageDimensions,
+}: {
+  paragraphs: DocumentParagraph[];
+  headingIndices: Set<number>;
+  onToggle: (i: number) => void;
+  pageUrls: string[];
+  pageDimensions: { width: number; height: number }[];
+}) {
+  // For PDF, we show the rendered pages as background images
+  // and overlay the extracted text as clickable paragraphs on the side
+  return (
+    <div className="flex h-full">
+      {/* Left: PDF rendered pages */}
+      <div className="flex-1 overflow-y-auto bg-muted/50 p-4 flex flex-col items-center gap-4">
+        {pageUrls.length > 0 ? (
+          pageUrls.map((url, i) => (
+            <div key={i} className="shadow-lg">
+              <img
+                src={url}
+                alt={`Page ${i + 1}`}
+                className="max-w-full"
+                style={{ maxWidth: '700px' }}
+              />
+            </div>
+          ))
+        ) : (
+          <div className="text-sm text-muted-foreground py-8">Rendering pages…</div>
+        )}
+      </div>
+
+      {/* Right: Clickable text paragraphs */}
+      <div className="w-[380px] border-l border-border overflow-y-auto bg-card p-3">
+        <p className="text-xs text-muted-foreground mb-2 sticky top-0 bg-card py-1 z-10">
+          Click paragraphs to mark as headings:
+        </p>
+        <div className="space-y-0">
+          {paragraphs.map((p, i) => {
+            const isHeading = headingIndices.has(i);
+            return (
+              <div
+                key={i}
+                onClick={() => onToggle(i)}
+                className={`
+                  cursor-pointer rounded px-2 py-1 transition-all select-none text-xs
+                  ${isHeading
+                    ? 'bg-primary/15 border-l-[3px] border-primary font-bold text-foreground my-1.5'
+                    : 'text-muted-foreground hover:bg-accent/40 border-l-[3px] border-transparent'
+                  }
+                `}
+              >
+                {p.text}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
