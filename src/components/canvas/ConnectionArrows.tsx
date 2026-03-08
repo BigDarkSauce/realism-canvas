@@ -5,6 +5,8 @@ interface ConnectionArrowsProps {
   connections: Connection[];
   blocks: Block[];
   tool: CanvasTool;
+  zoom: number;
+  pan: { x: number; y: number };
   onDelete: (id: string) => void;
   onUpdateConnection: (id: string, updates: Partial<Connection>) => void;
 }
