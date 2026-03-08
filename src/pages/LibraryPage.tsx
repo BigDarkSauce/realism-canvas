@@ -5,6 +5,7 @@ import { hashSHA256 } from '@/lib/crypto';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeSelector';
 import {
   ArrowLeft,
   FolderPlus,
