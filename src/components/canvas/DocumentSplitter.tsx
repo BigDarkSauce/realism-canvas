@@ -80,7 +80,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
 
       onSectionsCreated(results);
       toast.success(`Created ${results.length} blocks on canvas`);
-      setOpen(false);
+      onClose();
       setFile(null);
       setSections(null);
     } catch (err) {
