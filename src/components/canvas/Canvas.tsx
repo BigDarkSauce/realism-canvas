@@ -334,9 +334,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           />
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="sm" onClick={() => setYoutubeOpen(true)} className="h-9 gap-2 bg-toolbar border-toolbar-border" title="YouTube Transcript">
-            <Youtube className="h-4 w-4" />
-          </Button>
           <BlockSearch blocks={canvas.blocks} onNavigateTo={handleNavigateToBlock} />
           <DrawingToolbar tool={canvas.tool} setTool={canvas.setTool} color={drawColor} setColor={setDrawColor} brushWidth={brushWidth} setBrushWidth={setBrushWidth} />
         </div>
