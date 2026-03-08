@@ -18,11 +18,12 @@ import {
   Check,
   X,
   FilePlus,
+  Lock,
 } from 'lucide-react';
 
 interface LibraryItem {
   documentId: string;
-  displayName: string; // plaintext name for display
+  displayName: string;
 }
 
 interface LibraryFolder {
@@ -52,8 +53,115 @@ function generateId() {
   return crypto.randomUUID();
 }
 
+function hasLibraryPassword(): boolean {
+  return !!localStorage.getItem('library_password_hash');
+}
+
+function isLibraryUnlocked(): boolean {
+  return sessionStorage.getItem('library_unlocked') === 'true';
+}
+
+function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
+  const navigate = useNavigate();
+  const isSetup = hasLibraryPassword();
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSetup = async () => {
+    if (!password.trim() || password.length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
+    if (password !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    const hash = await hashSHA256(password);
+    localStorage.setItem('library_password_hash', hash);
+    sessionStorage.setItem('library_unlocked', 'true');
+    toast.success('Library password set!');
+    setLoading(false);
+    onUnlocked();
+  };
+
+  const handleUnlock = async () => {
+    if (!password.trim()) {
+      toast.error('Enter your password');
+      return;
+    }
+    setLoading(true);
+    const hash = await hashSHA256(password);
+    const stored = localStorage.getItem('library_password_hash');
+    if (hash !== stored) {
+      toast.error('Incorrect password');
+      setLoading(false);
+      return;
+    }
+    sessionStorage.setItem('library_unlocked', 'true');
+    setLoading(false);
+    onUnlocked();
+  };
+
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Lock className="h-6 w-6 text-primary" />
+          <h1 className="text-xl font-bold text-foreground">
+            {isSetup ? 'Unlock Library' : 'Set Library Password'}
+          </h1>
+        </div>
+        <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
+          {isSetup ? (
+            <>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter library password"
+                onKeyDown={e => e.key === 'Enter' && handleUnlock()}
+                autoFocus
+              />
+              <Button onClick={handleUnlock} disabled={loading} className="w-full">
+                {loading ? 'Checking...' : 'Unlock'}
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">Create a password to protect your library.</p>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Create password (min 4 chars)"
+                autoFocus
+              />
+              <Input
+                type="password"
+                value={confirmPassword}
+                onChange={e => setConfirmPassword(e.target.value)}
+                placeholder="Confirm password"
+                onKeyDown={e => e.key === 'Enter' && handleSetup()}
+              />
+              <Button onClick={handleSetup} disabled={loading} className="w-full">
+                {loading ? 'Setting...' : 'Set Password'}
+              </Button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function LibraryPage() {
   const navigate = useNavigate();
+  const [unlocked, setUnlocked] = useState(isLibraryUnlocked);
   const [library, setLibrary] = useState<LibraryData>(loadLibrary);
 
   // Add document form
@@ -82,6 +190,10 @@ export default function LibraryPage() {
   useEffect(() => {
     saveLibrary(library);
   }, [library]);
+
+  if (!unlocked) {
+    return <LibraryGate onUnlocked={() => setUnlocked(true)} />;
+  }
 
   const handleCreateDocument = async () => {
     if (!createName.trim() || !createKey.trim()) {
