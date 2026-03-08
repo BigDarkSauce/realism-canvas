@@ -255,8 +255,14 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                 Upload a PDF or Word file. You'll see the full document and highlight section headings.
               </p>
               {parsing ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Parsing document…
+                <div className="space-y-2 py-4">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Parsing document…
+                    </span>
+                    <span className="font-mono text-primary">{parseProgress}%</span>
+                  </div>
+                  <Progress value={parseProgress} className="h-2" />
                 </div>
               ) : (
                 <>
