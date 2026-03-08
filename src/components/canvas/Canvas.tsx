@@ -6,7 +6,8 @@ import ConnectionArrows from './ConnectionArrows';
 import Toolbar from './Toolbar';
 import BlockEditor from './BlockEditor';
 import GroupOverlays from './GroupOverlays';
-import FileViewer from './FileViewer';
+import FileViewer, { FileViewerMode } from './FileViewer';
+import FileOpenDialog from './FileOpenDialog';
 import DrawingCanvas from './DrawingCanvas';
 import DrawingToolbar from './DrawingToolbar';
 import BlockSearch from './BlockSearch';
@@ -55,7 +56,8 @@ interface CanvasProps {
 export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const canvas = useCanvas();
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
-  const [viewingFile, setViewingFile] = useState<{ url: string; fileName?: string } | null>(null);
+  const [viewingFile, setViewingFile] = useState<{ url: string; fileName?: string; mode: FileViewerMode } | null>(null);
+  const [fileOpenPrompt, setFileOpenPrompt] = useState<{ url: string; fileName?: string } | null>(null);
   const [drawColor, setDrawColor] = useState('#000000');
   const [brushWidth, setBrushWidth] = useState(3);
   const [outerBg, setOuterBg] = useState('');
@@ -350,14 +352,24 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           {canvas.blocks.map(block => (
             <CanvasBlock key={block.id} block={block} isSelected={canvas.selectedIds.includes(block.id)} isGrouped={!!block.groupId} tool={canvas.tool}
               onMove={canvas.moveBlock} onSelect={canvas.toggleSelect} onConnectStart={handleConnectStart} onConnectEnd={handleConnectEnd}
-              onDoubleClick={setEditingBlock} onMoveGroup={canvas.moveGroup} onViewFile={(url, fileName) => setViewingFile({ url, fileName })}
+              onDoubleClick={setEditingBlock} onMoveGroup={canvas.moveGroup} onViewFile={(url, fileName) => setFileOpenPrompt({ url, fileName })}
               onUpdateBlock={canvas.updateBlock} groupBlockIds={getGroupBlockIds(block.id)} />
           ))}
         </div>
       </div>
 
       <BlockEditor block={editingBlock} onClose={() => setEditingBlock(null)} onSave={canvas.updateBlock} />
-      {viewingFile && <FileViewer url={viewingFile.url} fileName={viewingFile.fileName} onClose={() => setViewingFile(null)} />}
+      {viewingFile && <FileViewer url={viewingFile.url} fileName={viewingFile.fileName} mode={viewingFile.mode} onClose={() => setViewingFile(null)} />}
+      {fileOpenPrompt && (
+        <FileOpenDialog
+          fileName={fileOpenPrompt.fileName}
+          onSelect={(mode) => {
+            setViewingFile({ url: fileOpenPrompt.url, fileName: fileOpenPrompt.fileName, mode });
+            setFileOpenPrompt(null);
+          }}
+          onClose={() => setFileOpenPrompt(null)}
+        />
+      )}
 
       <div className="absolute bottom-4 left-4 z-50 flex items-center gap-3 px-3 py-1.5 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg text-xs font-mono text-muted-foreground">
         <span>{canvas.blocks.length} blocks</span><span>·</span>
