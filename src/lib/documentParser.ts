@@ -122,13 +122,16 @@ export async function extractPdfParagraphs(
 
   const isBoldFont = (name: string) => /bold|black|heavy|demi|semibold/i.test(name) && !/regular|light|thin/i.test(name);
 
-  return allLines.map(l => ({
+  onProgress?.(0.95);
+  const result = allLines.map(l => ({
     text: l.text,
     isLikelyHeading:
       (l.fontSize / bodyFontSize >= 1.15 || isBoldFont(l.fontName)) &&
       l.text.length < 120 &&
       !/[.,;:]$/.test(l.text),
   }));
+  onProgress?.(1);
+  return result;
 }
 
 /**
