@@ -259,6 +259,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     onBackToMenu();
   };
 
+  const [splitterOpen, setSplitterOpen] = useState(false);
+
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
       <Toolbar
@@ -267,9 +269,10 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         hasSelection={canvas.selectedIds.length > 0} multiSelected={canvas.selectedIds.length > 1}
         onDelete={handleDeleteSelected} onGroup={canvas.groupSelected} onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
+        onSplitDocument={() => setSplitterOpen(true)}
       />
 
-      <DocumentSplitter onSectionsCreated={handleSectionsCreated} />
+      <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
 
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
@@ -320,7 +323,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           <div data-canvas-bg="true" className={cn("absolute inset-0 rounded-sm", getBgClass(canvas.background))} style={{ ...getBgStyle(canvas.background, canvas.backgroundImage), boxShadow: '0 0 0 1px hsl(var(--border))' }} />
           <DrawingCanvas strokes={canvas.strokes} currentColor={drawColor} currentWidth={brushWidth} tool={canvas.tool} onAddStroke={canvas.addStroke} onEraseStroke={canvas.eraseStroke} />
           <GroupOverlays groups={canvas.groups} blocks={canvas.blocks} onRenameGroup={canvas.renameGroup} onUpdateGroup={canvas.updateGroup} />
-          <ConnectionArrows connections={canvas.connections} blocks={canvas.blocks} tool={canvas.tool} zoom={zoom} pan={pan} onDelete={canvas.deleteConnection} onUpdateConnection={canvas.updateConnection} />
+          <ConnectionArrows connections={canvas.connections} blocks={canvas.blocks} tool={canvas.tool} zoom={zoom} onDelete={canvas.deleteConnection} onUpdateConnection={canvas.updateConnection} />
           {canvas.blocks.map(block => (
             <CanvasBlock key={block.id} block={block} isSelected={canvas.selectedIds.includes(block.id)} isGrouped={!!block.groupId} tool={canvas.tool}
               onMove={canvas.moveBlock} onSelect={canvas.toggleSelect} onConnectStart={handleConnectStart} onConnectEnd={handleConnectEnd}

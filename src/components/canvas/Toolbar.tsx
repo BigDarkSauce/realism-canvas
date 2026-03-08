@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground } from '@/types/canvas';
 import {
@@ -20,6 +20,7 @@ interface ToolbarProps {
   onGroup: () => void;
   onUngroup: () => void;
   onBackgroundImageUpload: (file: File) => void;
+  onSplitDocument: () => void;
 }
 
 const tools: { id: CanvasTool; icon: typeof MousePointer2; label: string }[] = [
@@ -38,7 +39,7 @@ const backgrounds: { id: CanvasBackground; label: string }[] = [
 export default function Toolbar({
   tool, setTool, background, setBackground,
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
-  onBackgroundImageUpload,
+  onBackgroundImageUpload, onSplitDocument,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
 
@@ -98,6 +99,10 @@ export default function Toolbar({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Button variant="ghost" size="sm" onClick={onSplitDocument} title="Split Document by Sections" className="h-9 w-9 p-0">
+        <SplitSquareVertical className="h-4 w-4" />
+      </Button>
 
       <input
         ref={bgFileRef}

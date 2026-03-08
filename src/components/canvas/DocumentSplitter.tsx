@@ -6,11 +6,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface DocumentSplitterProps {
+  open: boolean;
+  onClose: () => void;
   onSectionsCreated: (sections: { heading: string; fileUrl: string; fileName: string }[]) => void;
 }
 
-export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitterProps) {
-  const [open, setOpen] = useState(false);
+export default function DocumentSplitter({ open, onClose, onSectionsCreated }: DocumentSplitterProps) {
   const [file, setFile] = useState<File | null>(null);
   const [sections, setSections] = useState<DocumentSection[] | null>(null);
   const [parsing, setParsing] = useState(false);
@@ -79,7 +80,7 @@ export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitter
 
       onSectionsCreated(results);
       toast.success(`Created ${results.length} blocks on canvas`);
-      setOpen(false);
+      onClose();
       setFile(null);
       setSections(null);
     } catch (err) {
@@ -89,21 +90,7 @@ export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitter
     setUploading(false);
   };
 
-  if (!open) {
-    return (
-      <div className="absolute top-4 left-1/2 translate-x-[calc(50%+60px)] z-50">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setOpen(true)}
-          title="Split Document by Sections"
-          className="h-9 w-9 p-0 bg-toolbar border border-toolbar-border rounded-lg"
-        >
-          <SplitSquareVertical className="h-4 w-4" />
-        </Button>
-      </div>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] w-[420px] bg-card border border-border rounded-xl shadow-2xl p-4 space-y-3">
@@ -112,7 +99,7 @@ export default function DocumentSplitter({ onSectionsCreated }: DocumentSplitter
           <SplitSquareVertical className="h-4 w-4 text-primary" />
           Split Document by Sections
         </h3>
-        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { setOpen(false); setFile(null); setSections(null); }}>
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => { onClose(); setFile(null); setSections(null); }}>
           <X className="h-3.5 w-3.5" />
         </Button>
       </div>
