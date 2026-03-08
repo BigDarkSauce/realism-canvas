@@ -339,10 +339,10 @@ export default function EditorToolbar({ iframeRef, onContentChange }: EditorTool
         </ToolBtn>
       </div>
 
-      {/* Unicode Math Editor panel */}
+      {/* Equation Editor panel */}
       {showMathEditor && (
         <div className="py-1">
-          <UnicodeMathEditor
+          <MathLiveEditor
             onInsert={(html) => {
               insertHtml(html);
             }}
