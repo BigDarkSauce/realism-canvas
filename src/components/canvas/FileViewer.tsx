@@ -193,6 +193,20 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     autoSaveTimer.current = setTimeout(() => { saveContent(); }, 3000);
   }, [saveContent]);
 
+  const handleDownload = useCallback(() => {
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
+    const blob = new Blob([editedHtml], { type: 'text/html' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (url.split('/').pop() || 'document.html');
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+    toast.success('Downloaded');
+  }, [getEditedHtml, url]);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -202,6 +216,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
           {dirty && <span className="text-[10px] text-amber-500 font-medium">• Unsaved</span>}
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="h-7 text-xs gap-1"
+            title="Download to PC"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Download
+          </Button>
           <Button
             variant="outline"
             size="sm"
