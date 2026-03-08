@@ -294,6 +294,9 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
                   Word (.doc)
                 </button>
                 <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+                  PDF
+                </button>
+                <button onClick={downloadAsPdfPrint} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
                   PDF (via Print)
                 </button>
                 <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
