@@ -20,6 +20,7 @@ interface ToolbarProps {
   onGroup: () => void;
   onUngroup: () => void;
   onBackgroundImageUpload: (file: File) => void;
+  onSplitDocument: () => void;
 }
 
 const tools: { id: CanvasTool; icon: typeof MousePointer2; label: string }[] = [
