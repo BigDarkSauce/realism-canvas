@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Youtube } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeSelector';
 
 function getBgClass(bg: CanvasBackground) {
