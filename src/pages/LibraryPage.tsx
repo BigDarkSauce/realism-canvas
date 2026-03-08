@@ -82,6 +82,58 @@ export default function LibraryPage() {
     saveLibrary(library);
   }, [library]);
 
+  const handleCreateDocument = async () => {
+    if (!createName.trim() || !createKey.trim()) {
+      toast.error('Enter both file name and key');
+      return;
+    }
+    setCreateLoading(true);
+    const hashedName = await hashSHA256(createName.trim());
+    const hashedKey = await hashSHA256(createKey.trim());
+
+    const { data: existing } = await supabase
+      .from('canvas_documents')
+      .select('id')
+      .eq('name', hashedName)
+      .maybeSingle();
+    if (existing) {
+      toast.error('A file with this name already exists');
+      setCreateLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('canvas_documents')
+      .insert([{ name: hashedName, access_key: hashedKey }])
+      .select('id')
+      .single();
+    if (error || !data) {
+      toast.error('Failed to create file');
+      setCreateLoading(false);
+      return;
+    }
+
+    const newItem: LibraryItem = { documentId: data.id, displayName: createName.trim() };
+    setLibrary(prev => {
+      if (createTargetFolder) {
+        return {
+          ...prev,
+          folders: prev.folders.map(f =>
+            f.id === createTargetFolder ? { ...f, items: [...f.items, newItem] } : f
+          ),
+        };
+      }
+      return { ...prev, unsorted: [...prev.unsorted, newItem] };
+    });
+
+    toast.success('File created and added to library!');
+    setCreateName('');
+    setCreateKey('');
+    setCreateTargetFolder(null);
+    setShowCreateForm(false);
+    setCreateLoading(false);
+  };
+
   const handleAddDocument = async (folderId: string | null) => {
     if (!addName.trim() || !addKey.trim()) {
       toast.error('Enter both file name and key');
@@ -108,7 +160,6 @@ export default function LibraryPage() {
       return;
     }
 
-    // Check duplicates
     const allItems = [...library.unsorted, ...library.folders.flatMap(f => f.items)];
     if (allItems.some(i => i.documentId === data.id)) {
       toast.error('Already in your library');
