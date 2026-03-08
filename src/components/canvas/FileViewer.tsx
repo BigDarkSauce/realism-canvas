@@ -573,6 +573,18 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
     toast.info('Editing is only supported for HTML files. Opening in view mode.');
   }
 
+  const viewerRef = useRef<HTMLDivElement>(null);
+
+  // Listen for theme changes and update any iframe in the viewer
+  useEffect(() => {
+    const handler = () => {
+      const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
+    };
+    window.addEventListener('themechange', handler);
+    return () => window.removeEventListener('themechange', handler);
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
@@ -593,7 +605,7 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
           </Button>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden">
+      <div ref={viewerRef} className="flex-1 overflow-hidden">
         {getViewerContent(url, fileName, htmlContent)}
       </div>
     </div>
