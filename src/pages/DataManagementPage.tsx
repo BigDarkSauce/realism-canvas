@@ -77,8 +77,8 @@ export default function DataManagementPage() {
         </div>
 
         {/* Online Status */}
-        <div className={`flex items-center gap-3 p-4 rounded-xl border ${online ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-destructive/10 border-destructive/30'}`}>
-          {online ? <Wifi className="h-5 w-5 text-emerald-500" /> : <WifiOff className="h-5 w-5 text-destructive" />}
+        <div className={`flex items-center gap-3 p-4 rounded-xl border ${online ? 'bg-primary/10 border-primary/30' : 'bg-destructive/10 border-destructive/30'}`}>
+          {online ? <Wifi className="h-5 w-5 text-primary" /> : <WifiOff className="h-5 w-5 text-destructive" />}
           <div>
             <p className="font-medium text-foreground">{online ? 'Online' : 'Offline'}</p>
             <p className="text-sm text-muted-foreground">

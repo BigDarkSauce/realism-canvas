@@ -18,6 +18,7 @@ import DocumentSplitter from './DocumentSplitter';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { cacheDocument, getCachedDocument, addPendingChange, isOnline } from '@/lib/offlineDb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeSelector';
