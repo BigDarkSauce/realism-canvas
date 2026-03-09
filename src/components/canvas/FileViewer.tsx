@@ -509,7 +509,11 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   p { margin: 0 0 8pt 0; }
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
-  /* Preserve math font styling */
+
+  /* Inline MathLive static CSS so formulas keep their layout in Word */
+  ${mathliveStaticCss}
+
+  /* Preserve math font styling (for non-MathLive plain symbols) */
   [style*="Cambria Math"], .math-symbol, .math-template,
   [data-mso-font-charset] {
     font-family: "Cambria Math", "Cambria", serif;
@@ -517,18 +521,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     mso-generic-font-family: roman;
     mso-font-pitch: variable;
   }
-  /* Fraction styling for Word */
-  .math-fraction {
-    mso-element: field-begin;
-    font-family: "Cambria Math";
-  }
+
   sup { font-size: 8pt; vertical-align: super; mso-text-raise: 30%; }
   sub { font-size: 8pt; vertical-align: sub; }
+
   /* Preserve overline for square root notation */
   [style*="overline"] {
     text-decoration: overline;
     font-family: "Cambria Math", serif;
   }
+
   ${existingStyles}
 </style>
 </head>
