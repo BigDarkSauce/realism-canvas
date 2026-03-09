@@ -262,7 +262,7 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
             {QUICK_TEMPLATES.map((t) => (
               <button
                 key={t.label}
-                onClick={() => insertTemplate(t.latex)}
+                onClick={() => insertLatex(t.latex)}
                 className="px-1.5 py-0.5 text-[10px] rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 title={t.latex}
               >
