@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
+import mathliveStaticCss from 'mathlive/mathlive-static.css?raw';
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -436,23 +437,34 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       }`;
     });
 
-    // Process math elements: ensure all elements with math-related content preserve their font
+    // Process math elements:
+    // - DO NOT override MathLive-rendered markup (it relies on its own CSS classes)
+    // - Only apply Cambria Math to plain text math symbols outside of MathLive blocks
     const bodyEl = doc.body.cloneNode(true) as HTMLElement;
     bodyEl.querySelectorAll('*').forEach(el => {
       const htmlEl = el as HTMLElement;
+
+      const className = (htmlEl.getAttribute('class') || '').toString();
+      const isInsideMathExpression = !!htmlEl.closest?.('.math-expression');
+      const isMathLiveNode = /(^|\s)ML__/.test(className);
+
+      if (isInsideMathExpression || isMathLiveNode) {
+        // Let MathLive's CSS control sizing/positioning
+        return;
+      }
+
       const text = htmlEl.textContent || '';
-      // Check if element contains math unicode characters
       const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
-      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') || 
+      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') ||
                           htmlEl.style?.fontFamily?.includes('Math') ||
                           htmlEl.className?.includes('math');
-      
+
       if (hasMathChars || hasMathFont) {
         htmlEl.style.fontFamily = '"Cambria Math", "Cambria", serif';
         htmlEl.setAttribute('data-mso-font-charset', '0');
       }
-      
-      // Preserve superscript/subscript styling for Word
+
+      // Preserve superscript/subscript styling for Word (for normal text only)
       if (htmlEl.tagName === 'SUP') {
         htmlEl.style.fontSize = '8pt';
         htmlEl.style.verticalAlign = 'super';
@@ -497,7 +509,11 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   p { margin: 0 0 8pt 0; }
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
-  /* Preserve math font styling */
+
+  /* Inline MathLive static CSS so formulas keep their layout in Word */
+  ${mathliveStaticCss}
+
+  /* Preserve math font styling (for non-MathLive plain symbols) */
   [style*="Cambria Math"], .math-symbol, .math-template,
   [data-mso-font-charset] {
     font-family: "Cambria Math", "Cambria", serif;
@@ -505,18 +521,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     mso-generic-font-family: roman;
     mso-font-pitch: variable;
   }
-  /* Fraction styling for Word */
-  .math-fraction {
-    mso-element: field-begin;
-    font-family: "Cambria Math";
-  }
+
   sup { font-size: 8pt; vertical-align: super; mso-text-raise: 30%; }
   sub { font-size: 8pt; vertical-align: sub; }
+
   /* Preserve overline for square root notation */
   [style*="overline"] {
     text-decoration: overline;
     font-family: "Cambria Math", serif;
   }
+
   ${existingStyles}
 </style>
 </head>
