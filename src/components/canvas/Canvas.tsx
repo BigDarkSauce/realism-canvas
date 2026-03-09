@@ -74,15 +74,37 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   // Load document state on mount
   useEffect(() => {
     const loadDocument = async () => {
-      const { data } = await supabase
-        .from('canvas_documents')
-        .select('canvas_data')
-        .eq('id', documentId)
-        .maybeSingle();
-      if (data?.canvas_data && typeof data.canvas_data === 'object' && 'blocks' in (data.canvas_data as any)) {
-        const state = data.canvas_data as any;
-        canvas.loadState(state);
-        if (state.canvasSize) setCanvasSize(state.canvasSize);
+      try {
+        if (isOnline()) {
+          const { data } = await supabase
+            .from('canvas_documents')
+            .select('canvas_data')
+            .eq('id', documentId)
+            .maybeSingle();
+          if (data?.canvas_data && typeof data.canvas_data === 'object' && 'blocks' in (data.canvas_data as any)) {
+            const state = data.canvas_data as any;
+            canvas.loadState(state);
+            if (state.canvasSize) setCanvasSize(state.canvasSize);
+            // Cache for offline use
+            await cacheDocument({ id: documentId, canvas_data: data.canvas_data });
+          }
+        } else {
+          // Load from offline cache
+          const cached = await getCachedDocument(documentId);
+          if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
+            canvas.loadState(cached.canvas_data);
+            if (cached.canvas_data.canvasSize) setCanvasSize(cached.canvas_data.canvasSize);
+            toast.info('Loaded from offline cache');
+          }
+        }
+      } catch (err) {
+        // Fallback to offline cache on network error
+        const cached = await getCachedDocument(documentId);
+        if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
+          canvas.loadState(cached.canvas_data);
+          if (cached.canvas_data.canvasSize) setCanvasSize(cached.canvas_data.canvasSize);
+          toast.info('Loaded from offline cache (network error)');
+        }
       }
     };
     loadDocument();
