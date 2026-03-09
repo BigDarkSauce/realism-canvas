@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Lobby from "./pages/Lobby";
 import CanvasPage from "./pages/Index";
 import LibraryPage from "./pages/LibraryPage";
+import DataManagementPage from "./pages/DataManagementPage";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import PasswordGate from "./components/PasswordGate";
