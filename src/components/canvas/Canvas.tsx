@@ -18,6 +18,7 @@ import DocumentSplitter from './DocumentSplitter';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { cacheDocument, getCachedDocument, addPendingChange, isOnline } from '@/lib/offlineDb';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeSelector';
@@ -73,15 +74,37 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   // Load document state on mount
   useEffect(() => {
     const loadDocument = async () => {
-      const { data } = await supabase
-        .from('canvas_documents')
-        .select('canvas_data')
-        .eq('id', documentId)
-        .maybeSingle();
-      if (data?.canvas_data && typeof data.canvas_data === 'object' && 'blocks' in (data.canvas_data as any)) {
-        const state = data.canvas_data as any;
-        canvas.loadState(state);
-        if (state.canvasSize) setCanvasSize(state.canvasSize);
+      try {
+        if (isOnline()) {
+          const { data } = await supabase
+            .from('canvas_documents')
+            .select('canvas_data')
+            .eq('id', documentId)
+            .maybeSingle();
+          if (data?.canvas_data && typeof data.canvas_data === 'object' && 'blocks' in (data.canvas_data as any)) {
+            const state = data.canvas_data as any;
+            canvas.loadState(state);
+            if (state.canvasSize) setCanvasSize(state.canvasSize);
+            // Cache for offline use
+            await cacheDocument({ id: documentId, canvas_data: data.canvas_data });
+          }
+        } else {
+          // Load from offline cache
+          const cached = await getCachedDocument(documentId);
+          if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
+            canvas.loadState(cached.canvas_data);
+            if (cached.canvas_data.canvasSize) setCanvasSize(cached.canvas_data.canvasSize);
+            toast.info('Loaded from offline cache');
+          }
+        }
+      } catch (err) {
+        // Fallback to offline cache on network error
+        const cached = await getCachedDocument(documentId);
+        if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
+          canvas.loadState(cached.canvas_data);
+          if (cached.canvas_data.canvasSize) setCanvasSize(cached.canvas_data.canvasSize);
+          toast.info('Loaded from offline cache (network error)');
+        }
       }
     };
     loadDocument();
@@ -91,18 +114,17 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   useEffect(() => {
     const interval = setInterval(async () => {
       const state = {
-        blocks: canvas.blocks,
-        connections: canvas.connections,
-        groups: canvas.groups,
-        strokes: canvas.strokes,
-        background: canvas.background,
-        backgroundImage: canvas.backgroundImage,
-        canvasSize,
+        blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
+        strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
       };
-      await supabase
-        .from('canvas_documents')
-        .update({ canvas_data: JSON.parse(JSON.stringify(state)) })
-        .eq('id', documentId);
+      const stateJson = JSON.parse(JSON.stringify(state));
+      // Always cache locally
+      await cacheDocument({ id: documentId, canvas_data: stateJson });
+      if (isOnline()) {
+        await supabase.from('canvas_documents').update({ canvas_data: stateJson }).eq('id', documentId);
+      } else {
+        await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
+      }
     }, 30000);
     return () => clearInterval(interval);
   }, [canvas.blocks, canvas.connections, canvas.groups, canvas.strokes, canvas.background, canvas.backgroundImage, canvasSize, documentId]);
@@ -263,6 +285,25 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       canvas.setBackground('image' as CanvasBackground);
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
+  // Sync pending changes when coming back online
+  useEffect(() => {
+    const syncPending = async () => {
+      if (!isOnline()) return;
+      const { getPendingChanges, clearPendingChanges } = await import('@/lib/offlineDb');
+      const pending = await getPendingChanges();
+      if (pending.length === 0) return;
+      for (const change of pending) {
+        if (change.table === 'canvas_documents' && change.type === 'update') {
+          await supabase.from('canvas_documents').update({ canvas_data: change.data.canvas_data }).eq('id', change.data.id);
+        }
+      }
+      await clearPendingChanges();
+      toast.success(`Synced ${pending.length} offline change(s)`);
+    };
+    window.addEventListener('online', syncPending);
+    syncPending(); // Also try on mount
+    return () => window.removeEventListener('online', syncPending);
+  }, []);
 
 
   // Save state before leaving
@@ -271,7 +312,13 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
       strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
     };
-    await supabase.from('canvas_documents').update({ canvas_data: JSON.parse(JSON.stringify(state)) }).eq('id', documentId);
+    const stateJson = JSON.parse(JSON.stringify(state));
+    await cacheDocument({ id: documentId, canvas_data: stateJson });
+    if (isOnline()) {
+      await supabase.from('canvas_documents').update({ canvas_data: stateJson }).eq('id', documentId);
+    } else {
+      await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
+    }
     onBackToMenu();
   };
 
