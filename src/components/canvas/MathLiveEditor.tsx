@@ -283,7 +283,7 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
                 {group.symbols.map((s) => (
                   <button
                     key={s.v}
-                    onClick={() => insertSymbol(s.v)}
+                    onClick={() => insertLatex(s.v)}
                     className="h-7 w-7 flex items-center justify-center rounded text-sm hover:bg-muted transition-colors"
                     title={s.v}
                   >
