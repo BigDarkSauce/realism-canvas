@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
+import mathliveStaticCss from 'mathlive/mathlive-static.css?raw';
 
 export type FileViewerMode = 'view' | 'edit';
 
