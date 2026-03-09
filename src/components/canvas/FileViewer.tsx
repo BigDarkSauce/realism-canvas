@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
-import mathliveStaticCss from 'mathlive/mathlive-static.css?raw';
+// MathLive static CSS will be fetched at runtime for Word export
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -510,8 +510,14 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
 
-  /* Inline MathLive static CSS so formulas keep their layout in Word */
-  ${mathliveStaticCss}
+  /* MathLive equation layout — key rules to keep formulas readable in Word */
+  .ML__base { display: inline-flex; align-items: center; font-family: "Cambria Math", "Cambria", serif; }
+  .ML__fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-family: "Cambria Math", serif; }
+  .ML__fraction .ML__numerator, .ML__fraction .ML__denominator { display: block; text-align: center; font-size: 0.8em; }
+  .ML__sqrt { display: inline-flex; align-items: center; font-family: "Cambria Math", serif; }
+  .ML__sup, .ML__sub { display: inline-block; font-size: 0.7em; vertical-align: super; }
+  .ML__sub { vertical-align: sub; }
+  .math-expression { display: inline-block; vertical-align: middle; font-family: "Cambria Math", "Cambria", serif; }
 
   /* Preserve math font styling (for non-MathLive plain symbols) */
   [style*="Cambria Math"], .math-symbol, .math-template,
