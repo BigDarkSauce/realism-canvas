@@ -151,16 +151,27 @@ export default function Lobby() {
         </div>
       </div>
 
-      {/* Library button */}
-      <Button
-        variant="outline"
-        size="lg"
-        className="gap-2"
-        onClick={() => navigate('/library')}
-      >
-        <Library className="h-5 w-5" />
-        My Library
-      </Button>
+      {/* Bottom buttons */}
+      <div className="flex gap-3">
+        <Button
+          variant="outline"
+          size="lg"
+          className="gap-2"
+          onClick={() => navigate('/library')}
+        >
+          <Library className="h-5 w-5" />
+          My Library
+        </Button>
+        <Button
+          variant="outline"
+          size="lg"
+          className="gap-2"
+          onClick={() => navigate('/data')}
+        >
+          <HardDrive className="h-5 w-5" />
+          Data & Offline
+        </Button>
+      </div>
     </div>
   );
 }
