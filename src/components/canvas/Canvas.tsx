@@ -285,6 +285,25 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       canvas.setBackground('image' as CanvasBackground);
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
+  // Sync pending changes when coming back online
+  useEffect(() => {
+    const syncPending = async () => {
+      if (!isOnline()) return;
+      const { getPendingChanges, clearPendingChanges } = await import('@/lib/offlineDb');
+      const pending = await getPendingChanges();
+      if (pending.length === 0) return;
+      for (const change of pending) {
+        if (change.table === 'canvas_documents' && change.type === 'update') {
+          await supabase.from('canvas_documents').update({ canvas_data: change.data.canvas_data }).eq('id', change.data.id);
+        }
+      }
+      await clearPendingChanges();
+      toast.success(`Synced ${pending.length} offline change(s)`);
+    };
+    window.addEventListener('online', syncPending);
+    syncPending(); // Also try on mount
+    return () => window.removeEventListener('online', syncPending);
+  }, []);
 
 
   // Save state before leaving
