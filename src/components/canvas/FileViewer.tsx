@@ -510,13 +510,16 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   table { border-collapse: collapse; }
   td, th { border: 1px solid #000; padding: 4pt 6pt; }
 
-  /* MathLive equation layout — key rules to keep formulas readable in Word */
-  .ML__base { display: inline-flex; align-items: center; font-family: "Cambria Math", "Cambria", serif; }
-  .ML__fraction { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-family: "Cambria Math", serif; }
-  .ML__fraction .ML__numerator, .ML__fraction .ML__denominator { display: block; text-align: center; font-size: 0.8em; }
-  .ML__sqrt { display: inline-flex; align-items: center; font-family: "Cambria Math", serif; }
-  .ML__sup, .ML__sub { display: inline-block; font-size: 0.7em; vertical-align: super; }
-  .ML__sub { vertical-align: sub; }
+  /* MathLive (static markup) — Word-friendly rules (avoid flexbox) */
+  .ML__base, .ML__is-inline { display: inline-block; vertical-align: baseline; font-family: "Cambria Math", "Cambria", serif; }
+  .ML__latex { direction: ltr; display: inline-block; white-space: nowrap; line-height: 1.2; width: auto; }
+  .ML__latex .ML__vlist-t { border-collapse: collapse; display: inline-table; table-layout: fixed; }
+  .ML__latex .ML__vlist-r { display: table-row; }
+  .ML__latex .ML__vlist { display: table-cell; position: relative; vertical-align: bottom; }
+  .ML__text { white-space: pre; }
+  .ML__frac-line { display: block; width: 100%; border-top: 1px solid currentColor; height: 0; line-height: 0; }
+  .ML__sqrt, .ML__sqrt-sign { display: inline-block; }
+  .ML__sqrt-line { display: inline-block; width: 100%; border-top: 1px solid currentColor; height: 0; line-height: 0; }
   .math-expression { display: inline-block; vertical-align: middle; font-family: "Cambria Math", "Cambria", serif; }
 
   /* Preserve math font styling (for non-MathLive plain symbols) */

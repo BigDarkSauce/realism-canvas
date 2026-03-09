@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import 'mathlive';
 import { convertLatexToMarkup } from 'mathlive';
+import type { MathfieldElement } from 'mathlive';
 
 // Extend JSX for math-field web component
 declare global {
@@ -101,23 +102,44 @@ const SYMBOL_GROUPS = [
 ];
 
 export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProps) {
-  const mathFieldRef = useRef<any>(null);
+  const mathFieldRef = useRef<MathfieldElement | null>(null);
+  const readyRef = useRef(false);
   const [activeTab, setActiveTab] = useState<'editor' | 'symbols'>('editor');
 
   useEffect(() => {
-    // Wait for the math-field web component to fully initialize before focusing.
-    // Calling focus() too early triggers an internal MathLive error ("options" undefined).
-    const timer = setTimeout(() => {
+    const mf = mathFieldRef.current;
+    if (!mf) return;
+
+    let cancelled = false;
+
+    const tryFocus = (attempt = 0) => {
+      if (cancelled) return;
+      const el = mathFieldRef.current;
+      if (!el || typeof (el as any).focus !== 'function') return;
+
       try {
-        const mf = mathFieldRef.current;
-        if (mf && typeof mf.focus === 'function' && mf.isConnected) {
-          mf.focus();
-        }
+        (el as any).focus();
+        readyRef.current = true;
       } catch {
-        // component not yet ready — ignore
+        // MathLive can throw "options undefined" if focused before it's fully mounted.
+        // Retry for a short time; if it never becomes ready, we just skip autofocus.
+        if (attempt < 60) requestAnimationFrame(() => tryFocus(attempt + 1));
       }
-    }, 400);
-    return () => clearTimeout(timer);
+    };
+
+    const onMount = () => {
+      readyRef.current = true;
+      tryFocus();
+    };
+
+    // Prefer the MathLive "mount" event, but also attempt a best-effort focus.
+    mf.addEventListener('mount', onMount as any, { once: true } as any);
+    window.setTimeout(() => tryFocus(), 0);
+
+    return () => {
+      cancelled = true;
+      mf.removeEventListener('mount', onMount as any);
+    };
   }, []);
 
   const handleInsert = useCallback(() => {
@@ -142,18 +164,29 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
     mf.value = '';
   }, [onInsert]);
 
-  const insertSymbol = useCallback((latex: string) => {
+  const insertLatex = useCallback((latex: string) => {
     const mf = mathFieldRef.current;
     if (!mf) return;
-    mf.executeCommand(['insert', latex]);
-    mf.focus();
-  }, []);
 
-  const insertTemplate = useCallback((latex: string) => {
-    const mf = mathFieldRef.current;
-    if (!mf) return;
-    mf.executeCommand(['insert', latex]);
-    mf.focus();
+    const run = () => {
+      try {
+        mf.executeCommand(['insert', latex]);
+      } catch {
+        // Not ready yet
+      }
+      try {
+        mf.focus();
+      } catch {
+        // ignore
+      }
+    };
+
+    if (!readyRef.current) {
+      window.setTimeout(run, 150);
+      return;
+    }
+
+    run();
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -229,7 +262,7 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
             {QUICK_TEMPLATES.map((t) => (
               <button
                 key={t.label}
-                onClick={() => insertTemplate(t.latex)}
+                onClick={() => insertLatex(t.latex)}
                 className="px-1.5 py-0.5 text-[10px] rounded border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
                 title={t.latex}
               >
@@ -250,7 +283,7 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
                 {group.symbols.map((s) => (
                   <button
                     key={s.v}
-                    onClick={() => insertSymbol(s.v)}
+                    onClick={() => insertLatex(s.v)}
                     className="h-7 w-7 flex items-center justify-center rounded text-sm hover:bg-muted transition-colors"
                     title={s.v}
                   >
