@@ -46,6 +46,7 @@ const App = () => {
             <Route path="/" element={<Lobby />} />
             <Route path="/canvas/:documentId" element={<CanvasPage />} />
             <Route path="/library" element={<LibraryPage />} />
+            <Route path="/data" element={<DataManagementPage />} />
             <Route path="/install" element={<Install />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
