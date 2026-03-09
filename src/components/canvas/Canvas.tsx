@@ -114,18 +114,17 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   useEffect(() => {
     const interval = setInterval(async () => {
       const state = {
-        blocks: canvas.blocks,
-        connections: canvas.connections,
-        groups: canvas.groups,
-        strokes: canvas.strokes,
-        background: canvas.background,
-        backgroundImage: canvas.backgroundImage,
-        canvasSize,
+        blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
+        strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
       };
-      await supabase
-        .from('canvas_documents')
-        .update({ canvas_data: JSON.parse(JSON.stringify(state)) })
-        .eq('id', documentId);
+      const stateJson = JSON.parse(JSON.stringify(state));
+      // Always cache locally
+      await cacheDocument({ id: documentId, canvas_data: stateJson });
+      if (isOnline()) {
+        await supabase.from('canvas_documents').update({ canvas_data: stateJson }).eq('id', documentId);
+      } else {
+        await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
+      }
     }, 30000);
     return () => clearInterval(interval);
   }, [canvas.blocks, canvas.connections, canvas.groups, canvas.strokes, canvas.background, canvas.backgroundImage, canvasSize, documentId]);
