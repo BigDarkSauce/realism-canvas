@@ -164,18 +164,29 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
     mf.value = '';
   }, [onInsert]);
 
-  const insertSymbol = useCallback((latex: string) => {
+  const insertLatex = useCallback((latex: string) => {
     const mf = mathFieldRef.current;
     if (!mf) return;
-    mf.executeCommand(['insert', latex]);
-    mf.focus();
-  }, []);
 
-  const insertTemplate = useCallback((latex: string) => {
-    const mf = mathFieldRef.current;
-    if (!mf) return;
-    mf.executeCommand(['insert', latex]);
-    mf.focus();
+    const run = () => {
+      try {
+        mf.executeCommand(['insert', latex]);
+      } catch {
+        // Not ready yet
+      }
+      try {
+        mf.focus();
+      } catch {
+        // ignore
+      }
+    };
+
+    if (!readyRef.current) {
+      window.setTimeout(run, 150);
+      return;
+    }
+
+    run();
   }, []);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
