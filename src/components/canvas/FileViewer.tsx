@@ -437,23 +437,34 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       }`;
     });
 
-    // Process math elements: ensure all elements with math-related content preserve their font
+    // Process math elements:
+    // - DO NOT override MathLive-rendered markup (it relies on its own CSS classes)
+    // - Only apply Cambria Math to plain text math symbols outside of MathLive blocks
     const bodyEl = doc.body.cloneNode(true) as HTMLElement;
     bodyEl.querySelectorAll('*').forEach(el => {
       const htmlEl = el as HTMLElement;
+
+      const className = (htmlEl.getAttribute('class') || '').toString();
+      const isInsideMathExpression = !!htmlEl.closest?.('.math-expression');
+      const isMathLiveNode = /(^|\s)ML__/.test(className);
+
+      if (isInsideMathExpression || isMathLiveNode) {
+        // Let MathLive's CSS control sizing/positioning
+        return;
+      }
+
       const text = htmlEl.textContent || '';
-      // Check if element contains math unicode characters
       const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
-      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') || 
+      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') ||
                           htmlEl.style?.fontFamily?.includes('Math') ||
                           htmlEl.className?.includes('math');
-      
+
       if (hasMathChars || hasMathFont) {
         htmlEl.style.fontFamily = '"Cambria Math", "Cambria", serif';
         htmlEl.setAttribute('data-mso-font-charset', '0');
       }
-      
-      // Preserve superscript/subscript styling for Word
+
+      // Preserve superscript/subscript styling for Word (for normal text only)
       if (htmlEl.tagName === 'SUP') {
         htmlEl.style.fontSize = '8pt';
         htmlEl.style.verticalAlign = 'super';
