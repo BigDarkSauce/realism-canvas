@@ -105,10 +105,18 @@ export default function MathLiveEditor({ onInsert, onClose }: MathLiveEditorProp
   const [activeTab, setActiveTab] = useState<'editor' | 'symbols'>('editor');
 
   useEffect(() => {
-    // Focus the math field after mount
+    // Wait for the math-field web component to fully initialize before focusing.
+    // Calling focus() too early triggers an internal MathLive error ("options" undefined).
     const timer = setTimeout(() => {
-      mathFieldRef.current?.focus();
-    }, 100);
+      try {
+        const mf = mathFieldRef.current;
+        if (mf && typeof mf.focus === 'function' && mf.isConnected) {
+          mf.focus();
+        }
+      } catch {
+        // component not yet ready — ignore
+      }
+    }, 400);
     return () => clearTimeout(timer);
   }, []);
 
