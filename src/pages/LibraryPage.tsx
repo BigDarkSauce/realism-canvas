@@ -267,7 +267,7 @@ export default function LibraryPage() {
       return;
     }
 
-    const newItem: LibraryItem = { documentId: data.id, displayName: addName.trim() };
+    const newItem: LibraryItem = { documentId: data as string, displayName: addName.trim() };
 
     setLibrary(prev => {
       if (folderId) {
