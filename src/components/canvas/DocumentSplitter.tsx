@@ -187,11 +187,8 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
       for (let i = 0; i < sections.length; i++) {
         const section = sections[i];
         const sectionFile = createSectionFile(section, i, 'html');
-        const path = `sections/${Date.now()}-${Math.random().toString(36).slice(2)}-${sectionFile.name}`;
-        const { error } = await supabase.storage.from('canvas-files').upload(path, sectionFile);
-        if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from('canvas-files').getPublicUrl(path);
-        results.push({ heading: section.heading, fileUrl: publicUrl, fileName: sectionFile.name });
+        const { signedUrl } = await uploadAndGetSignedUrl(sectionFile, 'sections/');
+        results.push({ heading: section.heading, fileUrl: signedUrl, fileName: sectionFile.name });
       }
       onSectionsCreated(results);
       toast.success(`Created ${results.length} blocks on canvas`);
