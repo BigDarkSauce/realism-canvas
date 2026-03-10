@@ -114,7 +114,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      rpc_create_document: {
+        Args: { p_access_key: string; p_name: string }
+        Returns: string
+      }
+      rpc_export_documents: {
+        Args: never
+        Returns: {
+          canvas_data: Json
+          created_at: string
+          id: string
+          name: string
+        }[]
+      }
+      rpc_get_document_data: { Args: { p_doc_id: string }; Returns: Json }
+      rpc_update_document_data: {
+        Args: { p_data: Json; p_doc_id: string }
+        Returns: undefined
+      }
+      rpc_upsert_document: {
+        Args: {
+          p_access_key: string
+          p_canvas_data: Json
+          p_created_at: string
+          p_id: string
+          p_name: string
+        }
+        Returns: undefined
+      }
+      rpc_verify_document: {
+        Args: { p_access_key: string; p_name: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
