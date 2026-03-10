@@ -54,20 +54,22 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-function hasLibraryPassword(): boolean {
-  return !!localStorage.getItem('library_password_hash');
-}
-
 function isLibraryUnlocked(): boolean {
   return sessionStorage.getItem('library_unlocked') === 'true';
 }
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   const navigate = useNavigate();
-  const isSetup = hasLibraryPassword();
+  const [isSetup, setIsSetup] = useState<boolean | null>(null);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.rpc('rpc_has_library_password').then(({ data }) => {
+      setIsSetup(!!data);
+    });
+  }, []);
 
   const handleSetup = async () => {
     if (!password.trim() || password.length < 4) {
@@ -80,7 +82,12 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     }
     setLoading(true);
     const hash = await hashSHA256(password);
-    localStorage.setItem('library_password_hash', hash);
+    const { error } = await supabase.rpc('rpc_set_library_password', { p_hash: hash });
+    if (error) {
+      toast.error('Failed to set password');
+      setLoading(false);
+      return;
+    }
     sessionStorage.setItem('library_unlocked', 'true');
     toast.success('Library password set!');
     setLoading(false);
@@ -94,8 +101,8 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     }
     setLoading(true);
     const hash = await hashSHA256(password);
-    const stored = localStorage.getItem('library_password_hash');
-    if (hash !== stored) {
+    const { data: valid, error } = await supabase.rpc('rpc_verify_library_password', { p_hash: hash });
+    if (error || !valid) {
       toast.error('Incorrect password');
       setLoading(false);
       return;
@@ -104,6 +111,14 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     setLoading(false);
     onUnlocked();
   };
+
+  if (isSetup === null) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
