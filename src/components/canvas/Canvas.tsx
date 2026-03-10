@@ -76,17 +76,13 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     const loadDocument = async () => {
       try {
         if (isOnline()) {
-          const { data } = await supabase
-            .from('canvas_documents')
-            .select('canvas_data')
-            .eq('id', documentId)
-            .maybeSingle();
-          if (data?.canvas_data && typeof data.canvas_data === 'object' && 'blocks' in (data.canvas_data as any)) {
-            const state = data.canvas_data as any;
+          const { data } = await supabase.rpc('rpc_get_document_data', { p_doc_id: documentId });
+          if (data && typeof data === 'object' && 'blocks' in (data as any)) {
+            const state = data as any;
             canvas.loadState(state);
             if (state.canvasSize) setCanvasSize(state.canvasSize);
             // Cache for offline use
-            await cacheDocument({ id: documentId, canvas_data: data.canvas_data });
+            await cacheDocument({ id: documentId, canvas_data: data });
           }
         } else {
           // Load from offline cache
