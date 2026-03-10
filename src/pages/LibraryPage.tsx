@@ -261,7 +261,7 @@ export default function LibraryPage() {
     }
 
     const allItems = [...library.unsorted, ...library.folders.flatMap(f => f.items)];
-    if (allItems.some(i => i.documentId === data.id)) {
+    if (allItems.some(i => i.documentId === (data as string))) {
       toast.error('Already in your library');
       setAddLoading(false);
       return;
