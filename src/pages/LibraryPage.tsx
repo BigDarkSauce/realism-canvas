@@ -205,29 +205,21 @@ export default function LibraryPage() {
     const hashedName = await hashSHA256(createName.trim());
     const hashedKey = await hashSHA256(createKey.trim());
 
-    const { data: existing } = await supabase
-      .from('canvas_documents')
-      .select('id')
-      .eq('name', hashedName)
-      .maybeSingle();
-    if (existing) {
-      toast.error('A file with this name already exists');
+    const { data, error } = await supabase.rpc('rpc_create_document', {
+      p_name: hashedName,
+      p_access_key: hashedKey,
+    });
+    if (error) {
+      if (error.message.includes('already exists')) {
+        toast.error('A file with this name already exists');
+      } else {
+        toast.error('Failed to create file');
+      }
       setCreateLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .insert([{ name: hashedName, access_key: hashedKey }])
-      .select('id')
-      .single();
-    if (error || !data) {
-      toast.error('Failed to create file');
-      setCreateLoading(false);
-      return;
-    }
-
-    const newItem: LibraryItem = { documentId: data.id, displayName: createName.trim() };
+    const newItem: LibraryItem = { documentId: data as string, displayName: createName.trim() };
     setLibrary(prev => {
       if (createTargetFolder) {
         return {
@@ -257,31 +249,25 @@ export default function LibraryPage() {
     const hashedName = await hashSHA256(addName.trim());
     const hashedKey = await hashSHA256(addKey.trim());
 
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .select('id, access_key')
-      .eq('name', hashedName)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('rpc_verify_document', {
+      p_name: hashedName,
+      p_access_key: hashedKey,
+    });
 
     if (error || !data) {
-      toast.error('File not found');
-      setAddLoading(false);
-      return;
-    }
-    if (data.access_key !== hashedKey) {
-      toast.error('Incorrect key');
+      toast.error('File not found or incorrect key');
       setAddLoading(false);
       return;
     }
 
     const allItems = [...library.unsorted, ...library.folders.flatMap(f => f.items)];
-    if (allItems.some(i => i.documentId === data.id)) {
+    if (allItems.some(i => i.documentId === (data as string))) {
       toast.error('Already in your library');
       setAddLoading(false);
       return;
     }
 
-    const newItem: LibraryItem = { documentId: data.id, displayName: addName.trim() };
+    const newItem: LibraryItem = { documentId: data as string, displayName: addName.trim() };
 
     setLibrary(prev => {
       if (folderId) {

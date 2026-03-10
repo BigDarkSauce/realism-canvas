@@ -27,29 +27,27 @@ export default function Lobby() {
     const hashedName = await hashSHA256(createName.trim());
     const hashedKey = await hashSHA256(createKey.trim());
 
-    // Check if name already exists (compare hashed)
-    const { data: existing } = await supabase
-      .from('canvas_documents')
-      .select('id')
-      .eq('name', hashedName)
-      .maybeSingle();
-    if (existing) {
-      toast.error('A file with this name already exists');
-      setLoadingCreate(false);
-      return;
-    }
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .insert([{ name: hashedName, access_key: hashedKey }])
-      .select('id')
-      .single();
-    if (error) {
+    try {
+      const { data, error } = await supabase.rpc('rpc_create_document', {
+        p_name: hashedName,
+        p_access_key: hashedKey,
+      });
+      if (error) {
+        if (error.message.includes('already exists')) {
+          toast.error('A file with this name already exists');
+        } else {
+          toast.error('Failed to create file');
+        }
+        setLoadingCreate(false);
+        return;
+      }
+      toast.success('File created!');
+      navigate(`/canvas/${data}`);
+    } catch {
       toast.error('Failed to create file');
+    } finally {
       setLoadingCreate(false);
-      return;
     }
-    toast.success('File created!');
-    navigate(`/canvas/${data.id}`);
   };
 
   const handleAccess = async () => {
@@ -61,23 +59,23 @@ export default function Lobby() {
     const hashedName = await hashSHA256(accessName.trim());
     const hashedKey = await hashSHA256(accessKey.trim());
 
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .select('id, access_key')
-      .eq('name', hashedName)
-      .maybeSingle();
-    if (error || !data) {
-      toast.error('File not found');
+    try {
+      const { data, error } = await supabase.rpc('rpc_verify_document', {
+        p_name: hashedName,
+        p_access_key: hashedKey,
+      });
+      if (error || !data) {
+        toast.error('File not found or incorrect key');
+        setLoadingAccess(false);
+        return;
+      }
+      toast.success('Access granted!');
+      navigate(`/canvas/${data}`);
+    } catch {
+      toast.error('Access failed');
+    } finally {
       setLoadingAccess(false);
-      return;
     }
-    if (data.access_key !== hashedKey) {
-      toast.error('Incorrect key');
-      setLoadingAccess(false);
-      return;
-    }
-    toast.success('Access granted!');
-    navigate(`/canvas/${data.id}`);
   };
 
   return (

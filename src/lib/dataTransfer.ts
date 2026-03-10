@@ -6,17 +6,15 @@ import { supabase } from '@/integrations/supabase/client';
 export interface ExportBundle {
   version: 1;
   exportedAt: string;
-  library: any; // LibraryData from localStorage
+  library: any;
   documents: any[];
   saves: any[];
   folders: any[];
 }
 
 export async function exportAllData(): Promise<ExportBundle> {
-  // Fetch all documents
-  const { data: documents, error: docErr } = await supabase
-    .from('canvas_documents')
-    .select('*');
+  // Fetch documents via RPC (no access_key exposed)
+  const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents');
   if (docErr) throw new Error(`Failed to fetch documents: ${docErr.message}`);
 
   // Fetch all saves
@@ -53,12 +51,16 @@ export async function importAllData(bundle: ExportBundle): Promise<{ documents: 
   let savesImported = 0;
   let foldersImported = 0;
 
-  // Import documents (upsert by id)
+  // Import documents via RPC (upsert)
   if (bundle.documents?.length) {
     for (const doc of bundle.documents) {
-      const { error } = await supabase
-        .from('canvas_documents')
-        .upsert(doc, { onConflict: 'id' });
+      const { error } = await supabase.rpc('rpc_upsert_document', {
+        p_id: doc.id,
+        p_name: doc.name,
+        p_access_key: doc.access_key || '',
+        p_canvas_data: doc.canvas_data || {},
+        p_created_at: doc.created_at,
+      });
       if (!error) docsImported++;
     }
   }
