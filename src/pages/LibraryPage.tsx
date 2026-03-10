@@ -55,7 +55,8 @@ function generateId() {
 }
 
 function isLibraryUnlocked(): boolean {
-  return sessionStorage.getItem('library_unlocked') === 'true';
+  // Token will be verified on mount via RPC
+  return sessionStorage.getItem('library_session_token') !== null;
 }
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
