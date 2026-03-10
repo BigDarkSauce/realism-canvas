@@ -205,24 +205,16 @@ export default function LibraryPage() {
     const hashedName = await hashSHA256(createName.trim());
     const hashedKey = await hashSHA256(createKey.trim());
 
-    const { data: existing } = await supabase
-      .from('canvas_documents')
-      .select('id')
-      .eq('name', hashedName)
-      .maybeSingle();
-    if (existing) {
-      toast.error('A file with this name already exists');
-      setCreateLoading(false);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .insert([{ name: hashedName, access_key: hashedKey }])
-      .select('id')
-      .single();
-    if (error || !data) {
-      toast.error('Failed to create file');
+    const { data, error } = await supabase.rpc('rpc_create_document', {
+      p_name: hashedName,
+      p_access_key: hashedKey,
+    });
+    if (error) {
+      if (error.message.includes('already exists')) {
+        toast.error('A file with this name already exists');
+      } else {
+        toast.error('Failed to create file');
+      }
       setCreateLoading(false);
       return;
     }
