@@ -19,6 +19,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { cacheDocument, getCachedDocument, addPendingChange, isOnline } from '@/lib/offlineDb';
+import { uploadAndGetSignedUrl } from '@/lib/storage';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { ThemeToggle } from '@/components/ThemeSelector';
@@ -71,21 +72,22 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const clipboard = useRef<Block[]>([]);
   const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string }[] | null>(null);
 
+  const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
+
   // Load document state on mount
   useEffect(() => {
     const loadDocument = async () => {
       try {
-        if (isOnline()) {
-          const { data } = await supabase.rpc('rpc_get_document_data', { p_doc_id: documentId });
+        const accessKey = getAccessKey();
+        if (isOnline() && accessKey) {
+          const { data } = await supabase.rpc('rpc_get_document_data', { p_doc_id: documentId, p_access_key: accessKey });
           if (data && typeof data === 'object' && 'blocks' in (data as any)) {
             const state = data as any;
             canvas.loadState(state);
             if (state.canvasSize) setCanvasSize(state.canvasSize);
-            // Cache for offline use
             await cacheDocument({ id: documentId, canvas_data: data });
           }
         } else {
-          // Load from offline cache
           const cached = await getCachedDocument(documentId);
           if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
             canvas.loadState(cached.canvas_data);
@@ -94,7 +96,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
           }
         }
       } catch (err) {
-        // Fallback to offline cache on network error
         const cached = await getCachedDocument(documentId);
         if (cached?.canvas_data && typeof cached.canvas_data === 'object' && 'blocks' in cached.canvas_data) {
           canvas.loadState(cached.canvas_data);
@@ -108,15 +109,14 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
   // Auto-save document state periodically
   useEffect(() => {
-    const accessKey = sessionStorage.getItem(`doc_key_${documentId}`);
-    if (!accessKey) return; // Can't save without access key
+    const accessKey = getAccessKey();
+    if (!accessKey) return;
     const interval = setInterval(async () => {
       const state = {
         blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
         strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
       };
       const stateJson = JSON.parse(JSON.stringify(state));
-      // Always cache locally
       await cacheDocument({ id: documentId, canvas_data: stateJson });
       if (isOnline()) {
         await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_access_key: accessKey, p_data: stateJson });
@@ -275,14 +275,12 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
   const handleBackgroundImageUpload = useCallback(async (file: File) => {
     try {
-      const path = `bg-${Date.now()}.${file.name.split('.').pop()}`;
-      const { error } = await supabase.storage.from('canvas-files').upload(path, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('canvas-files').getPublicUrl(path);
-      canvas.setBackgroundImage(publicUrl);
+      const { signedUrl } = await uploadAndGetSignedUrl(file, 'bg-');
+      canvas.setBackgroundImage(signedUrl);
       canvas.setBackground('image' as CanvasBackground);
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
+
   // Sync pending changes when coming back online
   useEffect(() => {
     const syncPending = async () => {
@@ -292,36 +290,36 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       if (pending.length === 0) return;
       for (const change of pending) {
         if (change.table === 'canvas_documents' && change.type === 'update') {
-          await supabase.rpc('rpc_update_document_data', { p_doc_id: change.data.id, p_data: change.data.canvas_data });
+          const accessKey = change.data.access_key || getAccessKey();
+          await supabase.rpc('rpc_update_document_data', { p_doc_id: change.data.id, p_access_key: accessKey, p_data: change.data.canvas_data });
         }
       }
       await clearPendingChanges();
       toast.success(`Synced ${pending.length} offline change(s)`);
     };
     window.addEventListener('online', syncPending);
-    syncPending(); // Also try on mount
+    syncPending();
     return () => window.removeEventListener('online', syncPending);
   }, []);
 
-
   // Save state before leaving
   const handleBackToMenu = async () => {
+    const accessKey = getAccessKey();
     const state = {
       blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
       strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
     };
     const stateJson = JSON.parse(JSON.stringify(state));
     await cacheDocument({ id: documentId, canvas_data: stateJson });
-    if (isOnline()) {
-      await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_data: stateJson });
+    if (isOnline() && accessKey) {
+      await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_access_key: accessKey, p_data: stateJson });
     } else {
-      await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
+      await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, access_key: accessKey, canvas_data: stateJson } });
     }
     onBackToMenu();
   };
 
   const [splitterOpen, setSplitterOpen] = useState(false);
-  
 
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
@@ -335,7 +333,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
-      
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
@@ -385,9 +382,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       </div>
 
       <CanvasBorderHandles canvasSize={canvasSize} onExtend={handleExtend} pan={pan} zoom={zoom} />
-
-
-
 
       <div ref={canvasRef} className={cn("w-full h-full relative overflow-hidden", canvas.tool === 'add' && 'cursor-crosshair')} onMouseDown={handleCanvasMouseDown} onWheel={handleWheel}>
         <div data-canvas-bg="true" className="absolute inset-0 bg-muted/30" style={{ zIndex: 0 }} />
