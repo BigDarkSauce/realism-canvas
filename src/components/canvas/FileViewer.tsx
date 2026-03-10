@@ -53,6 +53,8 @@ function applyIframeTheme(doc: Document) {
   }
   style.textContent = `
     html, body { background-color: ${bg} !important; color: ${color} !important; }
+    *:not(a):not(img):not(video):not(svg):not(canvas):not(iframe):not(math-field):not([style*="background"]) { color: inherit !important; }
+    a { color: #6ea8fe !important; }
   `;
 }
 
