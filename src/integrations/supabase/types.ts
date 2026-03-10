@@ -14,6 +14,21 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          key: string
+          value: string
+        }
+        Insert: {
+          key: string
+          value: string
+        }
+        Update: {
+          key?: string
+          value?: string
+        }
+        Relationships: []
+      }
       canvas_documents: {
         Row: {
           access_key: string
@@ -128,6 +143,8 @@ export type Database = {
         }[]
       }
       rpc_get_document_data: { Args: { p_doc_id: string }; Returns: Json }
+      rpc_has_library_password: { Args: never; Returns: boolean }
+      rpc_set_library_password: { Args: { p_hash: string }; Returns: undefined }
       rpc_update_document_data: {
         Args: { p_data: Json; p_doc_id: string }
         Returns: undefined
@@ -145,6 +162,10 @@ export type Database = {
       rpc_verify_document: {
         Args: { p_access_key: string; p_name: string }
         Returns: string
+      }
+      rpc_verify_library_password: {
+        Args: { p_hash: string }
+        Returns: boolean
       }
     }
     Enums: {
