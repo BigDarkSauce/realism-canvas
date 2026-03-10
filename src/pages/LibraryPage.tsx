@@ -219,7 +219,7 @@ export default function LibraryPage() {
       return;
     }
 
-    const newItem: LibraryItem = { documentId: data.id, displayName: createName.trim() };
+    const newItem: LibraryItem = { documentId: data as string, displayName: createName.trim() };
     setLibrary(prev => {
       if (createTargetFolder) {
         return {
