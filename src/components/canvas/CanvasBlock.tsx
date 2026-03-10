@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { FileText, GripVertical, Upload, FolderOpen } from 'lucide-react';
 import { Block, CanvasTool } from '@/types/canvas';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadAndGetSignedUrl } from '@/lib/storage';
 
 interface CanvasBlockProps {
   block: Block;
@@ -128,13 +128,9 @@ export default function CanvasBlock({
     if (!file) return;
     setUploading(true);
     try {
-      const ext = file.name.split('.').pop();
-      const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from('canvas-files').upload(path, file);
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from('canvas-files').getPublicUrl(path);
+      const { signedUrl } = await uploadAndGetSignedUrl(file);
       onUpdateBlock(block.id, {
-        fileStorageUrl: publicUrl,
+        fileStorageUrl: signedUrl,
         fileName: file.name,
         label: block.label === 'New Block' ? file.name : block.label,
       });

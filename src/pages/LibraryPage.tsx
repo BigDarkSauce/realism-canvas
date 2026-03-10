@@ -55,7 +55,8 @@ function generateId() {
 }
 
 function isLibraryUnlocked(): boolean {
-  return sessionStorage.getItem('library_unlocked') === 'true';
+  // Token will be verified on mount via RPC
+  return sessionStorage.getItem('library_session_token') !== null;
 }
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
@@ -88,7 +89,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
       setLoading(false);
       return;
     }
-    sessionStorage.setItem('library_unlocked', 'true');
+    sessionStorage.setItem('library_session_token', hash);
     toast.success('Library password set!');
     setLoading(false);
     onUnlocked();
@@ -107,7 +108,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
       setLoading(false);
       return;
     }
-    sessionStorage.setItem('library_unlocked', 'true');
+    sessionStorage.setItem('library_session_token', hash);
     setLoading(false);
     onUnlocked();
   };

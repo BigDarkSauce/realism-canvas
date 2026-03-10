@@ -133,6 +133,27 @@ export type Database = {
         Args: { p_access_key: string; p_name: string }
         Returns: string
       }
+      rpc_create_folder: {
+        Args: { p_access_key: string; p_doc_id: string; p_name: string }
+        Returns: string
+      }
+      rpc_create_save: {
+        Args: {
+          p_access_key: string
+          p_canvas_data: Json
+          p_doc_id: string
+          p_name: string
+        }
+        Returns: string
+      }
+      rpc_delete_folder: {
+        Args: { p_access_key: string; p_folder_id: string }
+        Returns: undefined
+      }
+      rpc_delete_save: {
+        Args: { p_access_key: string; p_save_id: string }
+        Returns: undefined
+      }
       rpc_export_documents: {
         Args: { p_doc_ids: string[] }
         Returns: {
@@ -142,20 +163,89 @@ export type Database = {
           name: string
         }[]
       }
-      rpc_get_document_data: { Args: { p_doc_id: string }; Returns: Json }
+      rpc_export_folders: {
+        Args: { p_doc_ids: string[] }
+        Returns: {
+          created_at: string
+          document_id: string
+          id: string
+          name: string
+        }[]
+      }
+      rpc_export_saves: {
+        Args: { p_doc_ids: string[] }
+        Returns: {
+          canvas_data: Json
+          created_at: string
+          document_id: string
+          folder_id: string
+          id: string
+          name: string
+        }[]
+      }
+      rpc_get_document_data: {
+        Args: { p_access_key: string; p_doc_id: string }
+        Returns: Json
+      }
       rpc_has_library_password: { Args: never; Returns: boolean }
+      rpc_list_folders: {
+        Args: { p_access_key: string; p_doc_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          name: string
+        }[]
+      }
+      rpc_list_saves: {
+        Args: { p_access_key: string; p_doc_id: string }
+        Returns: {
+          canvas_data: Json
+          created_at: string
+          folder_id: string
+          id: string
+          name: string
+        }[]
+      }
+      rpc_move_save: {
+        Args: { p_access_key: string; p_folder_id?: string; p_save_id: string }
+        Returns: undefined
+      }
+      rpc_rename_folder: {
+        Args: { p_access_key: string; p_folder_id: string; p_name: string }
+        Returns: undefined
+      }
       rpc_set_library_password: { Args: { p_hash: string }; Returns: undefined }
-      rpc_update_document_data:
-        | {
-            Args: { p_access_key: string; p_data: Json; p_doc_id: string }
-            Returns: undefined
-          }
-        | { Args: { p_data: Json; p_doc_id: string }; Returns: undefined }
+      rpc_update_document_data: {
+        Args: { p_access_key: string; p_data: Json; p_doc_id: string }
+        Returns: undefined
+      }
       rpc_upsert_document: {
         Args: {
           p_access_key: string
           p_canvas_data: Json
           p_created_at: string
+          p_id: string
+          p_name: string
+        }
+        Returns: undefined
+      }
+      rpc_upsert_folder: {
+        Args: {
+          p_access_key: string
+          p_created_at?: string
+          p_document_id: string
+          p_id: string
+          p_name: string
+        }
+        Returns: undefined
+      }
+      rpc_upsert_save: {
+        Args: {
+          p_access_key: string
+          p_canvas_data: Json
+          p_created_at?: string
+          p_document_id: string
+          p_folder_id?: string
           p_id: string
           p_name: string
         }

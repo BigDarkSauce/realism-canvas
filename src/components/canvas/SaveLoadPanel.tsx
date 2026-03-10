@@ -51,11 +51,14 @@ export default function SaveLoadPanel({ documentId, getCanvasState, loadCanvasSt
   const [editingFolderName, setEditingFolderName] = useState('');
   const [movingSaveId, setMovingSaveId] = useState<string | null>(null);
 
+  const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
+
   const fetchData = async () => {
     setLoading(true);
+    const accessKey = getAccessKey();
     const [savesRes, foldersRes] = await Promise.all([
-      supabase.from('canvas_saves').select('*').eq('document_id', documentId).order('created_at', { ascending: false }),
-      supabase.from('save_folders').select('*').eq('document_id', documentId).order('created_at', { ascending: true }),
+      supabase.rpc('rpc_list_saves', { p_doc_id: documentId, p_access_key: accessKey }),
+      supabase.rpc('rpc_list_folders', { p_doc_id: documentId, p_access_key: accessKey }),
     ]);
     if (!savesRes.error) setSaves((savesRes.data as unknown as SaveRecord[]) || []);
     if (!foldersRes.error) setFolders((foldersRes.data as unknown as SaveFolder[]) || []);
@@ -69,9 +72,13 @@ export default function SaveLoadPanel({ documentId, getCanvasState, loadCanvasSt
   const handleSave = async () => {
     const name = saveName.trim() || `Save ${new Date().toLocaleString()}`;
     const state = getCanvasState();
-    const { error } = await supabase
-      .from('canvas_saves')
-      .insert([{ name, canvas_data: JSON.parse(JSON.stringify(state)), document_id: documentId }]);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_create_save', {
+      p_doc_id: documentId,
+      p_access_key: accessKey,
+      p_name: name,
+      p_canvas_data: JSON.parse(JSON.stringify(state)),
+    });
     if (error) {
       toast.error('Failed to save');
     } else {
@@ -89,34 +96,37 @@ export default function SaveLoadPanel({ documentId, getCanvasState, loadCanvasSt
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from('canvas_saves').delete().eq('id', id);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_delete_save', { p_save_id: id, p_access_key: accessKey });
     if (error) toast.error('Failed to delete');
     else { setSaves(prev => prev.filter(s => s.id !== id)); toast.success('Deleted'); }
   };
 
   const handleCreateFolder = async () => {
     const name = newFolderName.trim() || 'Untitled Folder';
-    const { error } = await supabase.from('save_folders').insert([{ name, document_id: documentId }]);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_create_folder', { p_doc_id: documentId, p_access_key: accessKey, p_name: name });
     if (error) toast.error('Failed to create folder');
     else { toast.success('Folder created'); setNewFolderName(''); setShowNewFolder(false); fetchData(); }
   };
 
   const handleRenameFolder = async (id: string) => {
-    const { error } = await supabase.from('save_folders').update({ name: editingFolderName.trim() }).eq('id', id);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_rename_folder', { p_folder_id: id, p_access_key: accessKey, p_name: editingFolderName.trim() });
     if (error) toast.error('Failed to rename');
     else { setEditingFolderId(null); fetchData(); }
   };
 
   const handleDeleteFolder = async (id: string) => {
-    // Unassign saves from folder first
-    await supabase.from('canvas_saves').update({ folder_id: null }).eq('folder_id', id);
-    const { error } = await supabase.from('save_folders').delete().eq('id', id);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_delete_folder', { p_folder_id: id, p_access_key: accessKey });
     if (error) toast.error('Failed to delete folder');
     else { toast.success('Folder deleted'); fetchData(); }
   };
 
   const handleMoveSave = async (saveId: string, folderId: string | null) => {
-    const { error } = await supabase.from('canvas_saves').update({ folder_id: folderId }).eq('id', saveId);
+    const accessKey = getAccessKey();
+    const { error } = await supabase.rpc('rpc_move_save', { p_save_id: saveId, p_access_key: accessKey, p_folder_id: folderId });
     if (error) toast.error('Failed to move');
     else { setMovingSaveId(null); fetchData(); }
   };

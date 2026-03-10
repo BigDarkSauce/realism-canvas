@@ -28,16 +28,11 @@ export async function exportAllData(): Promise<ExportBundle> {
   const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents', { p_doc_ids: docIds });
   if (docErr) throw new Error(`Failed to fetch documents: ${docErr.message}`);
 
-  // Fetch all saves
-  const { data: saves, error: saveErr } = await supabase
-    .from('canvas_saves')
-    .select('*');
+  // Fetch saves and folders scoped to user's documents via RPC
+  const { data: saves, error: saveErr } = await supabase.rpc('rpc_export_saves', { p_doc_ids: docIds });
   if (saveErr) throw new Error(`Failed to fetch saves: ${saveErr.message}`);
 
-  // Fetch all folders
-  const { data: folders, error: folderErr } = await supabase
-    .from('save_folders')
-    .select('*');
+  const { data: folders, error: folderErr } = await supabase.rpc('rpc_export_folders', { p_doc_ids: docIds });
   if (folderErr) throw new Error(`Failed to fetch folders: ${folderErr.message}`);
 
   // Get library config from localStorage
@@ -97,6 +92,14 @@ function isValidFolder(folder: unknown): folder is { id: string; document_id: st
   return true;
 }
 
+/**
+ * Get access key for a document from sessionStorage.
+ * During import, we may need to look up keys from the library.
+ */
+function getDocAccessKey(docId: string): string {
+  return sessionStorage.getItem(`doc_key_${docId}`) || '';
+}
+
 export async function importAllData(bundle: ExportBundle): Promise<{ documents: number; saves: number; folders: number }> {
   if (!bundle || bundle.version !== 1) {
     throw new Error('Invalid or unsupported backup file version');
@@ -113,10 +116,12 @@ export async function importAllData(bundle: ExportBundle): Promise<{ documents: 
   const validDocs = (bundle.documents || []).filter(isValidDocument).slice(0, MAX_DOCUMENTS);
   for (const doc of validDocs) {
     try {
+      const accessKey = doc.access_key || getDocAccessKey(doc.id);
+      if (!accessKey) continue; // Can't import without access key
       const { error } = await supabase.rpc('rpc_upsert_document', {
         p_id: doc.id,
         p_name: doc.name,
-        p_access_key: doc.access_key || '',
+        p_access_key: accessKey,
         p_canvas_data: doc.canvas_data || {},
         p_created_at: doc.created_at,
       });
@@ -130,9 +135,15 @@ export async function importAllData(bundle: ExportBundle): Promise<{ documents: 
   const validFolders = (bundle.folders || []).filter(isValidFolder).slice(0, MAX_FOLDERS);
   for (const folder of validFolders) {
     try {
-      const { error } = await supabase
-        .from('save_folders')
-        .upsert(folder, { onConflict: 'id' });
+      const accessKey = getDocAccessKey(folder.document_id);
+      if (!accessKey) continue;
+      const { error } = await supabase.rpc('rpc_upsert_folder', {
+        p_access_key: accessKey,
+        p_id: folder.id,
+        p_name: folder.name,
+        p_document_id: folder.document_id,
+        p_created_at: folder.created_at,
+      });
       if (!error) foldersImported++;
     } catch {
       // Skip invalid records
@@ -143,9 +154,19 @@ export async function importAllData(bundle: ExportBundle): Promise<{ documents: 
   const validSaves = (bundle.saves || []).filter(isValidSave).slice(0, MAX_SAVES);
   for (const save of validSaves) {
     try {
-      const { error } = await supabase
-        .from('canvas_saves')
-        .upsert(save, { onConflict: 'id' });
+      const docId = save.document_id;
+      if (!docId) continue;
+      const accessKey = getDocAccessKey(docId);
+      if (!accessKey) continue;
+      const { error } = await supabase.rpc('rpc_upsert_save', {
+        p_access_key: accessKey,
+        p_id: save.id,
+        p_name: save.name,
+        p_canvas_data: save.canvas_data,
+        p_document_id: docId,
+        p_folder_id: save.folder_id || null,
+        p_created_at: save.created_at,
+      });
       if (!error) savesImported++;
     } catch {
       // Skip invalid records

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock } from 'lucide-react';
@@ -13,6 +13,28 @@ export default function PasswordGate({ onUnlock }: PasswordGateProps) {
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
+
+  // On mount, verify existing token
+  useEffect(() => {
+    const token = sessionStorage.getItem('canvas_session_token');
+    if (!token) {
+      setChecking(false);
+      return;
+    }
+    supabase.functions.invoke('verify-password', {
+      body: { action: 'verify_token', token },
+    }).then(({ data }) => {
+      if (data?.valid) {
+        onUnlock();
+      } else {
+        sessionStorage.removeItem('canvas_session_token');
+      }
+      setChecking(false);
+    }).catch(() => {
+      setChecking(false);
+    });
+  }, [onUnlock]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +48,8 @@ export default function PasswordGate({ onUnlock }: PasswordGateProps) {
         setShake(true);
         setTimeout(() => setShake(false), 500);
       } else {
-        sessionStorage.setItem('canvas_unlocked', '1');
+        // Store cryptographic token instead of plain flag
+        sessionStorage.setItem('canvas_session_token', data.token);
         onUnlock();
       }
     } catch {
@@ -37,6 +60,14 @@ export default function PasswordGate({ onUnlock }: PasswordGateProps) {
       setLoading(false);
     }
   };
+
+  if (checking) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Verifying session...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background">
