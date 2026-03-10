@@ -71,6 +71,8 @@ export default function Lobby() {
         setLoadingAccess(false);
         return;
       }
+      // Store hashed access key for this document session
+      sessionStorage.setItem(`doc_key_${data}`, hashedKey);
       toast.success('Access granted!');
       navigate(`/canvas/${data}`);
     } catch {

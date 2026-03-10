@@ -13,8 +13,19 @@ export interface ExportBundle {
 }
 
 export async function exportAllData(): Promise<ExportBundle> {
-  // Fetch documents via RPC (no access_key exposed)
-  const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents');
+  // Get document IDs from library (only export user's own documents)
+  let docIds: string[] = [];
+  try {
+    const raw = localStorage.getItem('canvas_library');
+    if (raw) {
+      const lib = JSON.parse(raw);
+      const items = [...(lib.unsorted || []), ...(lib.folders || []).flatMap((f: any) => f.items || [])];
+      docIds = items.map((i: any) => i.documentId).filter(Boolean);
+    }
+  } catch {}
+
+  // Fetch only the user's documents via RPC
+  const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents', { p_doc_ids: docIds });
   if (docErr) throw new Error(`Failed to fetch documents: ${docErr.message}`);
 
   // Fetch all saves
