@@ -134,7 +134,7 @@ export type Database = {
         Returns: string
       }
       rpc_export_documents: {
-        Args: never
+        Args: { p_doc_ids: string[] }
         Returns: {
           canvas_data: Json
           created_at: string
@@ -145,10 +145,12 @@ export type Database = {
       rpc_get_document_data: { Args: { p_doc_id: string }; Returns: Json }
       rpc_has_library_password: { Args: never; Returns: boolean }
       rpc_set_library_password: { Args: { p_hash: string }; Returns: undefined }
-      rpc_update_document_data: {
-        Args: { p_data: Json; p_doc_id: string }
-        Returns: undefined
-      }
+      rpc_update_document_data:
+        | {
+            Args: { p_access_key: string; p_data: Json; p_doc_id: string }
+            Returns: undefined
+          }
+        | { Args: { p_data: Json; p_doc_id: string }; Returns: undefined }
       rpc_upsert_document: {
         Args: {
           p_access_key: string
