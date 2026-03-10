@@ -11,7 +11,7 @@ import {
   DocumentParagraph,
   DocumentSection,
 } from '@/lib/documentParser';
-import { supabase } from '@/integrations/supabase/client';
+import { uploadAndGetSignedUrl } from '@/lib/storage';
 import { toast } from 'sonner';
 
 interface DocumentSplitterProps {
