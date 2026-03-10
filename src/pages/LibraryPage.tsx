@@ -89,7 +89,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
       setLoading(false);
       return;
     }
-    sessionStorage.setItem('library_unlocked', 'true');
+    sessionStorage.setItem('library_session_token', hash);
     toast.success('Library password set!');
     setLoading(false);
     onUnlocked();
