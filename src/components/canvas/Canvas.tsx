@@ -290,7 +290,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       if (pending.length === 0) return;
       for (const change of pending) {
         if (change.table === 'canvas_documents' && change.type === 'update') {
-          await supabase.from('canvas_documents').update({ canvas_data: change.data.canvas_data }).eq('id', change.data.id);
+          await supabase.rpc('rpc_update_document_data', { p_doc_id: change.data.id, p_data: change.data.canvas_data });
         }
       }
       await clearPendingChanges();
