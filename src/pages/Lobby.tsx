@@ -41,6 +41,8 @@ export default function Lobby() {
         setLoadingCreate(false);
         return;
       }
+      // Store hashed access key for this document session
+      sessionStorage.setItem(`doc_key_${data}`, hashedKey);
       toast.success('File created!');
       navigate(`/canvas/${data}`);
     } catch {
