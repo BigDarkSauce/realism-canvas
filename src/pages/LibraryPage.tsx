@@ -284,6 +284,8 @@ export default function LibraryPage() {
       return;
     }
 
+    // Store hashed access key for this document session
+    sessionStorage.setItem(`doc_key_${data}`, hashedKey);
     const newItem: LibraryItem = { documentId: data as string, displayName: addName.trim() };
 
     setLibrary(prev => {
