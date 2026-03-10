@@ -146,10 +146,6 @@ export type Database = {
         }
         Returns: string
       }
-      rpc_create_signed_url: {
-        Args: { p_bucket: string; p_expires_in?: number; p_path: string }
-        Returns: string
-      }
       rpc_delete_folder: {
         Args: { p_access_key: string; p_folder_id: string }
         Returns: undefined
