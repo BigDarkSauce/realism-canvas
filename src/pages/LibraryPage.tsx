@@ -249,19 +249,13 @@ export default function LibraryPage() {
     const hashedName = await hashSHA256(addName.trim());
     const hashedKey = await hashSHA256(addKey.trim());
 
-    const { data, error } = await supabase
-      .from('canvas_documents')
-      .select('id, access_key')
-      .eq('name', hashedName)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('rpc_verify_document', {
+      p_name: hashedName,
+      p_access_key: hashedKey,
+    });
 
     if (error || !data) {
-      toast.error('File not found');
-      setAddLoading(false);
-      return;
-    }
-    if (data.access_key !== hashedKey) {
-      toast.error('Incorrect key');
+      toast.error('File not found or incorrect key');
       setAddLoading(false);
       return;
     }

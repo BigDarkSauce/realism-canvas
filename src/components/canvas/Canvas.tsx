@@ -311,7 +311,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     const stateJson = JSON.parse(JSON.stringify(state));
     await cacheDocument({ id: documentId, canvas_data: stateJson });
     if (isOnline()) {
-      await supabase.from('canvas_documents').update({ canvas_data: stateJson }).eq('id', documentId);
+      await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_data: stateJson });
     } else {
       await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
     }
