@@ -1,13 +1,19 @@
 /**
  * IndexedDB wrapper for offline caching of canvas data.
- * Stores documents, saves, and pending changes for sync when back online.
+ * Uses a singleton connection pool to avoid repeated open/close overhead.
  */
 
 const DB_NAME = 'canvas_offline';
 const DB_VERSION = 1;
 
+let dbInstance: IDBDatabase | null = null;
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbInstance) return Promise.resolve(dbInstance);
+  if (dbPromise) return dbPromise;
+  
+  dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -21,6 +27,28 @@ function openDb(): Promise<IDBDatabase> {
         db.createObjectStore('pendingChanges', { keyPath: 'id', autoIncrement: true });
       }
     };
+    req.onsuccess = () => {
+      dbInstance = req.result;
+      dbInstance.onclose = () => { dbInstance = null; dbPromise = null; };
+      resolve(dbInstance);
+    };
+    req.onerror = () => {
+      dbPromise = null;
+      reject(req.error);
+    };
+  });
+  return dbPromise;
+}
+
+function txPromise(tx: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function reqPromise<T>(req: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
@@ -30,80 +58,52 @@ export async function cacheDocument(doc: { id: string; [key: string]: any }) {
   const db = await openDb();
   const tx = db.transaction('documents', 'readwrite');
   tx.objectStore('documents').put(doc);
-  return new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  return txPromise(tx);
 }
 
 export async function getCachedDocument(id: string): Promise<any | null> {
   const db = await openDb();
   const tx = db.transaction('documents', 'readonly');
-  const req = tx.objectStore('documents').get(id);
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result || null);
-    req.onerror = () => reject(req.error);
-  });
+  return reqPromise(tx.objectStore('documents').get(id)) ?? null;
 }
 
 export async function getAllCachedDocuments(): Promise<any[]> {
   const db = await openDb();
   const tx = db.transaction('documents', 'readonly');
-  const req = tx.objectStore('documents').getAll();
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
+  return reqPromise(tx.objectStore('documents').getAll()) ?? [];
 }
 
 export async function cacheSave(save: { id: string; [key: string]: any }) {
   const db = await openDb();
   const tx = db.transaction('saves', 'readwrite');
   tx.objectStore('saves').put(save);
-  return new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  return txPromise(tx);
 }
 
 export async function getAllCachedSaves(): Promise<any[]> {
   const db = await openDb();
   const tx = db.transaction('saves', 'readonly');
-  const req = tx.objectStore('saves').getAll();
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
+  return reqPromise(tx.objectStore('saves').getAll()) ?? [];
 }
 
 export async function addPendingChange(change: { type: string; table: string; data: any }) {
   const db = await openDb();
   const tx = db.transaction('pendingChanges', 'readwrite');
   tx.objectStore('pendingChanges').add({ ...change, timestamp: Date.now() });
-  return new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  return txPromise(tx);
 }
 
 export async function getPendingChanges(): Promise<any[]> {
   const db = await openDb();
   const tx = db.transaction('pendingChanges', 'readonly');
-  const req = tx.objectStore('pendingChanges').getAll();
-  return new Promise((resolve, reject) => {
-    req.onsuccess = () => resolve(req.result || []);
-    req.onerror = () => reject(req.error);
-  });
+  return reqPromise(tx.objectStore('pendingChanges').getAll()) ?? [];
 }
 
 export async function clearPendingChanges() {
   const db = await openDb();
   const tx = db.transaction('pendingChanges', 'readwrite');
   tx.objectStore('pendingChanges').clear();
-  return new Promise<void>((resolve, reject) => {
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  return txPromise(tx);
 }
 
 export function isOnline(): boolean {

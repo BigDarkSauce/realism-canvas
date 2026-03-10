@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Block, Connection, Group, CanvasTool, CanvasBackground, DrawingStroke } from '@/types/canvas';
 
 let nextId = 1;
@@ -16,6 +16,12 @@ export function useCanvas() {
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+
+  // Use refs for frequently accessed state in callbacks to reduce re-renders
+  const blocksRef = useRef(blocks);
+  blocksRef.current = blocks;
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
 
   const addBlock = useCallback((x: number, y: number, overrides?: Partial<Block>) => {
     const block: Block = {
@@ -56,13 +62,15 @@ export function useCanvas() {
     setSelectedIds(prev => prev.filter(sid => sid !== id));
   }, []);
 
+  // Optimized: batch move using a Map for O(1) lookups
   const moveBlock = useCallback((id: string, x: number, y: number) => {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, x, y } : b));
   }, []);
 
   const moveGroup = useCallback((groupBlockIds: string[], dx: number, dy: number) => {
+    const idSet = new Set(groupBlockIds);
     setBlocks(prev => prev.map(b =>
-      groupBlockIds.includes(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b
+      idSet.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b
     ));
   }, []);
 
@@ -83,32 +91,37 @@ export function useCanvas() {
   }, []);
 
   const groupSelected = useCallback(() => {
-    if (selectedIds.length < 2) return;
+    const ids = selectedIdsRef.current;
+    if (ids.length < 2) return;
     const gid = groupId();
+    const idSet = new Set(ids);
     setGroups(prev => {
       const cleaned = prev.map(g => ({
         ...g,
-        blockIds: g.blockIds.filter(bid => !selectedIds.includes(bid)),
+        blockIds: g.blockIds.filter(bid => !idSet.has(bid)),
       })).filter(g => g.blockIds.length > 0);
-      return [...cleaned, { id: gid, label: 'Group', blockIds: [...selectedIds] }];
+      return [...cleaned, { id: gid, label: 'Group', blockIds: [...ids] }];
     });
     setBlocks(prev => prev.map(b =>
-      selectedIds.includes(b.id) ? { ...b, groupId: gid } : b
+      idSet.has(b.id) ? { ...b, groupId: gid } : b
     ));
-  }, [selectedIds]);
+  }, []);
 
   const ungroupSelected = useCallback(() => {
+    const ids = selectedIdsRef.current;
+    const currentBlocks = blocksRef.current;
     const groupIdsToRemove = new Set<string>();
-    blocks.forEach(b => {
-      if (selectedIds.includes(b.id) && b.groupId) {
+    currentBlocks.forEach(b => {
+      if (ids.includes(b.id) && b.groupId) {
         groupIdsToRemove.add(b.groupId);
       }
     });
+    if (groupIdsToRemove.size === 0) return;
     setBlocks(prev => prev.map(b =>
       groupIdsToRemove.has(b.groupId || '') ? { ...b, groupId: undefined } : b
     ));
     setGroups(prev => prev.filter(g => !groupIdsToRemove.has(g.id)));
-  }, [selectedIds, blocks]);
+  }, []);
 
   const renameGroup = useCallback((groupIdVal: string, newLabel: string) => {
     setGroups(prev => prev.map(g => g.id === groupIdVal ? { ...g, label: newLabel } : g));

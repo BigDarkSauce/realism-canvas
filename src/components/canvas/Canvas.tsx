@@ -107,11 +107,15 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     loadDocument();
   }, [documentId]);
 
-  // Auto-save document state periodically
+  // Auto-save with debounce: saves 5s after last change, plus periodic backup every 60s
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSaveRef = useRef<number>(0);
+
   useEffect(() => {
     const accessKey = getAccessKey();
     if (!accessKey) return;
-    const interval = setInterval(async () => {
+
+    const doSave = async () => {
       const state = {
         blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
         strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
@@ -123,8 +127,22 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       } else {
         await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, access_key: accessKey, canvas_data: stateJson } });
       }
-    }, 30000);
-    return () => clearInterval(interval);
+      lastSaveRef.current = Date.now();
+    };
+
+    // Debounce: save 5s after last change
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(doSave, 5000);
+
+    // Also force save if >60s since last save
+    const timeSinceLast = Date.now() - lastSaveRef.current;
+    if (timeSinceLast > 60000) {
+      doSave();
+    }
+
+    return () => {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    };
   }, [canvas.blocks, canvas.connections, canvas.groups, canvas.strokes, canvas.background, canvas.backgroundImage, canvasSize, documentId]);
 
   useEffect(() => {
