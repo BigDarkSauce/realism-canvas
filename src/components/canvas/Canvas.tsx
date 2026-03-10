@@ -108,6 +108,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
   // Auto-save document state periodically
   useEffect(() => {
+    const accessKey = sessionStorage.getItem(`doc_key_${documentId}`);
+    if (!accessKey) return; // Can't save without access key
     const interval = setInterval(async () => {
       const state = {
         blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
@@ -117,9 +119,9 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       // Always cache locally
       await cacheDocument({ id: documentId, canvas_data: stateJson });
       if (isOnline()) {
-        await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_data: stateJson });
+        await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_access_key: accessKey, p_data: stateJson });
       } else {
-        await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, canvas_data: stateJson } });
+        await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, access_key: accessKey, canvas_data: stateJson } });
       }
     }, 30000);
     return () => clearInterval(interval);
