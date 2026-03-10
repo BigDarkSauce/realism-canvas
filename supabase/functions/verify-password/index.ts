@@ -36,12 +36,68 @@ async function timingSafeEqual(a: string, b: string): Promise<boolean> {
   return result === 0;
 }
 
+/** Generate a cryptographic session token */
+async function generateSessionToken(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const secret = Deno.env.get('APP_PASSWORD') || '';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const payload = `session:${secret}:${timestamp}`;
+  const keyData = encoder.encode(secret);
+  const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  const token = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return `${timestamp}:${token}`;
+}
+
+/** Verify a session token is valid and not expired (24h) */
+async function verifySessionToken(token: string): Promise<boolean> {
+  try {
+    const [timestamp, sig] = token.split(':');
+    if (!timestamp || !sig) return false;
+    const ts = parseInt(timestamp, 10);
+    const now = Math.floor(Date.now() / 1000);
+    if (now - ts > 86400) return false; // 24 hour expiry
+
+    const encoder = new TextEncoder();
+    const secret = Deno.env.get('APP_PASSWORD') || '';
+    const payload = `session:${secret}:${timestamp}`;
+    const keyData = encoder.encode(secret);
+    const key = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const expectedSig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+    const expectedHex = Array.from(new Uint8Array(expectedSig)).map(b => b.toString(16).padStart(2, '0')).join('');
+    return await timingSafeEqual(sig, expectedHex);
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const body = await req.json();
+
+    // Token verification endpoint
+    if (body.action === 'verify_token') {
+      const token = body.token;
+      if (!token || typeof token !== 'string') {
+        return new Response(JSON.stringify({ valid: false }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      const valid = await verifySessionToken(token);
+      return new Response(JSON.stringify({ valid }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Password verification endpoint
+    const { password } = body;
+
     // Rate limiting by IP
     const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
                req.headers.get('cf-connecting-ip') || 'unknown';
@@ -52,7 +108,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { password } = await req.json();
     if (!password || typeof password !== 'string') {
       return new Response(JSON.stringify({ valid: false }), {
         status: 400,
@@ -69,7 +124,15 @@ Deno.serve(async (req) => {
     }
 
     const valid = await timingSafeEqual(password, appPassword);
-    return new Response(JSON.stringify({ valid }), {
+    if (valid) {
+      const token = await generateSessionToken(password);
+      return new Response(JSON.stringify({ valid: true, token }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    return new Response(JSON.stringify({ valid: false }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

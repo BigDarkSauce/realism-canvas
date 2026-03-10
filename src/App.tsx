@@ -16,9 +16,7 @@ import { ThemeChooser, getStoredTheme, applyTheme } from "./components/ThemeSele
 const queryClient = new QueryClient();
 
 const App = () => {
-  const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem('canvas_unlocked') === '1'
-  );
+  const [unlocked, setUnlocked] = useState(false);
   const [themeChosen, setThemeChosen] = useState(
     () => localStorage.getItem('theme_chosen') === '1'
   );
