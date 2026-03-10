@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Lock } from 'lucide-react';
-
-const CORRECT_HASH = '010710^-35';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PasswordGateProps {
   onUnlock: () => void;
@@ -13,16 +12,29 @@ export default function PasswordGate({ onUnlock }: PasswordGateProps) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(false);
   const [shake, setShake] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === CORRECT_HASH) {
-      sessionStorage.setItem('canvas_unlocked', '1');
-      onUnlock();
-    } else {
+    setLoading(true);
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('verify-password', {
+        body: { password },
+      });
+      if (fnError || !data?.valid) {
+        setError(true);
+        setShake(true);
+        setTimeout(() => setShake(false), 500);
+      } else {
+        sessionStorage.setItem('canvas_unlocked', '1');
+        onUnlock();
+      }
+    } catch {
       setError(true);
       setShake(true);
       setTimeout(() => setShake(false), 500);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -48,7 +60,9 @@ export default function PasswordGate({ onUnlock }: PasswordGateProps) {
             className={error ? 'border-destructive' : ''}
           />
           {error && <p className="text-sm text-destructive text-center">Incorrect password. Try again.</p>}
-          <Button type="submit" className="w-full">Unlock</Button>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Verifying...' : 'Unlock'}
+          </Button>
         </form>
       </div>
     </div>
