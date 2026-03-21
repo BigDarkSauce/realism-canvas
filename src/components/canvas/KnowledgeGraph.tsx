@@ -178,7 +178,7 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
 
       {/* Tabs */}
       <div className="flex items-center gap-1 px-6 py-2 border-b border-border">
-        {(['graph', 'rules', 'mutations', 'convergence', 'summary'] as const).map(t => (
+        {(['graph', 'rules', 'convergence', 'summary'] as const).map(t => (
           <Button key={t} variant={tab === t ? 'default' : 'ghost'} size="sm" onClick={() => setTab(t)} className="capitalize text-xs">
             {t === 'convergence' ? 'Convergence Points' : t}
           </Button>
