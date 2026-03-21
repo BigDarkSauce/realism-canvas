@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
-// MathLive static CSS will be fetched at runtime for Word export
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -42,8 +41,9 @@ function getIframeThemeStyles(): { bg: string; color: string } {
     : { bg: '#ffffff', color: '#000000' };
 }
 
-/** Inject or update theme styles into an iframe document */
-function applyIframeTheme(doc: Document) {
+/** Inject or update theme styles into an iframe document — ONLY for HTML documents we authored, not Word/PDF/external */
+function applyIframeTheme(doc: Document, isOurHtml: boolean) {
+  if (!isOurHtml) return; // Don't override themes for Word docs, PDFs, Google Docs, etc.
   const { bg, color } = getIframeThemeStyles();
   let style = doc.getElementById('__viewer-theme') as HTMLStyleElement | null;
   if (!style) {
@@ -56,6 +56,27 @@ function applyIframeTheme(doc: Document) {
     *:not(a):not(img):not(video):not(svg):not(canvas):not(iframe):not(math-field):not([style*="background"]) { color: inherit !important; }
     a { color: #6ea8fe !important; }
   `;
+}
+
+/** Remove theme overrides from an iframe so the document renders with its own styles */
+function removeIframeTheme(doc: Document) {
+  const style = doc.getElementById('__viewer-theme');
+  if (style) style.remove();
+}
+
+/** Detect if the HTML content was authored by our editor (has our markers or is simple HTML) */
+function isOurHtmlContent(htmlContent: string | null | undefined, fileName?: string): boolean {
+  if (!htmlContent) return false;
+  // Word documents opened via Google Docs viewer won't have htmlContent
+  // Our editor-created HTML files typically don't have Word XML namespaces
+  const isWordDoc = htmlContent.includes('xmlns:o="urn:schemas-microsoft-com:office:office"') ||
+    htmlContent.includes('xmlns:w="urn:schemas-microsoft-com:office:word"') ||
+    htmlContent.includes('mso-');
+  if (isWordDoc) return false;
+  // If it's a .doc/.docx/.xls etc, it's not our HTML
+  const ext = (fileName || '').split('.').pop()?.toLowerCase() || '';
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'pdf'].includes(ext)) return false;
+  return true;
 }
 
 function getViewerContent(url: string, fileName?: string, htmlContent?: string | null) {
@@ -110,6 +131,7 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
   }
 
   if (isHtml && htmlContent) {
+    const ours = isOurHtmlContent(htmlContent, fileName);
     return (
       <iframe
         srcDoc={htmlContent}
@@ -118,7 +140,9 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
         sandbox="allow-same-origin"
         onLoad={(e) => {
           const doc = (e.target as HTMLIFrameElement).contentDocument!;
-          applyIframeTheme(doc);
+          if (ours) {
+            applyIframeTheme(doc, true);
+          }
           // Inject MathLive static CSS for equation rendering
           if (!doc.querySelector('link[href*="mathlive"]')) {
             const link = doc.createElement('link');
@@ -171,6 +195,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   const [dirty, setDirty] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storagePath = extractStoragePath(url);
+  const ours = isOurHtmlContent(htmlContent);
 
   // Make the iframe editable once loaded
   const handleLoad = useCallback(() => {
@@ -179,8 +204,10 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
 
-    // Apply theme to iframe content
-    applyIframeTheme(iframe.contentDocument);
+    // Only apply dark theme to OUR HTML files, not Word docs
+    if (ours) {
+      applyIframeTheme(iframe.contentDocument, true);
+    }
 
     // Inject MathLive static CSS for rendered equations
     const mathLink = iframe.contentDocument.createElement('link');
@@ -238,7 +265,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     iframe.contentDocument.addEventListener('mouseup', (e) => {
       if (draggedImg) {
         draggedImg.style.outline = '';
-        // Move image to cursor position in the document flow
         const doc = iframe.contentDocument!;
         const range = doc.caretRangeFromPoint?.(e.clientX, e.clientY);
         if (range && draggedImg.parentNode) {
@@ -282,23 +308,20 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       }, 300);
     });
 
-    // Make math spans editable — clicking next to them allows continued typing
+    // Make math spans editable
     iframe.contentDocument.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
       const mathSpan = target.closest('.math-unicode, .math-template, .math-symbol') as HTMLElement | null;
       if (!mathSpan) return;
-      // If the math span doesn't have a trailing zero-width space, add one
       const next = mathSpan.nextSibling;
       if (!next || (next.nodeType === 3 && next.textContent === '\u200B')) return;
       const zws = iframe.contentDocument!.createTextNode('\u200B');
       mathSpan.parentNode?.insertBefore(zws, mathSpan.nextSibling);
     });
 
-    // Ensure cursor can be placed before/after math elements
     iframe.contentDocument.body.style.cssText += 'cursor: text;';
     iframe.contentDocument.querySelectorAll('.math-unicode, .math-template, .math-symbol').forEach(el => {
       (el as HTMLElement).style.cursor = 'text';
-      // Ensure there's always a text node after each math element for cursor placement
       if (!el.nextSibling || (el.nextSibling.nodeType !== 3)) {
         el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el.nextSibling);
       }
@@ -306,7 +329,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
         el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el);
       }
     });
-  }, []);
+  }, [ours]);
 
   const getEditedHtml = useCallback((): string | null => {
     const iframe = iframeRef.current;
@@ -337,24 +360,22 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     setSaving(false);
   }, [storagePath, getEditedHtml]);
 
-  // Cleanup timer on unmount & save if dirty
   useEffect(() => {
     return () => {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     };
   }, []);
 
-  // Listen for theme changes and update iframe
+  // Listen for theme changes and update iframe — only for our HTML
   useEffect(() => {
     const handler = () => {
       const doc = iframeRef.current?.contentDocument;
-      if (doc) applyIframeTheme(doc);
+      if (doc && ours) applyIframeTheme(doc, true);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, []);
+  }, [ours]);
 
-  // Save on close if dirty
   const handleClose = useCallback(async () => {
     if (dirty) {
       await saveContent();
@@ -370,7 +391,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 
-  /** Extract the main heading (H1) from the iframe document as default file name */
   const getDefaultFileName = useCallback((): string => {
     const doc = iframeRef.current?.contentDocument;
     if (doc) {
@@ -382,11 +402,10 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     return 'Document';
   }, []);
 
-  /** Prompt the user for a file name, defaulting to the document heading */
   const promptFileName = useCallback((ext: string): string | null => {
     const defaultName = getDefaultFileName();
     const name = prompt(`Enter file name:`, defaultName);
-    if (name === null) return null; // cancelled
+    if (name === null) return null;
     const clean = (name.trim() || defaultName).replace(/[<>:"/\\|?*]/g, '_');
     return `${clean}.${ext}`;
   }, [getDefaultFileName]);
@@ -412,23 +431,19 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
 
-    // Extract body content from full HTML
     const parser = new DOMParser();
     const doc = parser.parseFromString(editedHtml, 'text/html');
     const bodyHtml = doc.body?.innerHTML || editedHtml;
 
-    // Collect inline styles from the original document's <style> tags
     let existingStyles = '';
     doc.querySelectorAll('style').forEach(s => { existingStyles += s.textContent || ''; });
 
-    // Scan for all font families used in the document to preserve them
     const usedFonts = new Set<string>();
     doc.body.querySelectorAll('*').forEach(el => {
       const ff = (el as HTMLElement).style?.fontFamily;
       if (ff) usedFonts.add(ff.replace(/['"]/g, ''));
     });
 
-    // Build font-face declarations for detected math/special fonts
     let dynamicFontFaces = '';
     const mathFonts = ['Cambria Math', 'Cambria', 'Symbol', 'MT Extra'];
     mathFonts.forEach(f => {
@@ -439,21 +454,14 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
       }`;
     });
 
-    // Process math elements:
-    // - DO NOT override MathLive-rendered markup (it relies on its own CSS classes)
-    // - Only apply Cambria Math to plain text math symbols outside of MathLive blocks
     const bodyEl = doc.body.cloneNode(true) as HTMLElement;
     bodyEl.querySelectorAll('*').forEach(el => {
       const htmlEl = el as HTMLElement;
-
       const className = (htmlEl.getAttribute('class') || '').toString();
       const isInsideMathExpression = !!htmlEl.closest?.('.math-expression');
       const isMathLiveNode = /(^|\s)ML__/.test(className);
 
-      if (isInsideMathExpression || isMathLiveNode) {
-        // Let MathLive's CSS control sizing/positioning
-        return;
-      }
+      if (isInsideMathExpression || isMathLiveNode) return;
 
       const text = htmlEl.textContent || '';
       const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
@@ -466,7 +474,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
         htmlEl.setAttribute('data-mso-font-charset', '0');
       }
 
-      // Preserve superscript/subscript styling for Word (for normal text only)
       if (htmlEl.tagName === 'SUP') {
         htmlEl.style.fontSize = '8pt';
         htmlEl.style.verticalAlign = 'super';
@@ -482,79 +489,32 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     const wordContent = `<!DOCTYPE html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns:m="http://schemas.microsoft.com/office/2004/12/omml"
       xmlns="http://www.w3.org/TR/REC-html40">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-<title>Document</title>
-<!--[if gte mso 9]>
-<xml>
-  <w:WordDocument>
-    <w:View>Print</w:View>
-    <w:Zoom>100</w:Zoom>
-    <w:DoNotOptimizeForBrowser/>
-  </w:WordDocument>
-</xml>
-<![endif]-->
+<meta name="ProgId" content="Word.Document">
+<meta name="Generator" content="Microsoft Word 15">
+<meta name="Originator" content="Microsoft Word 15">
 <style>
-  ${dynamicFontFaces}
-  @font-face {
-    font-family: "Calibri";
-    panose-1: 2 15 5 2 2 2 4 3 2 4;
-  }
-  body {
-    font-family: "Calibri", "Arial", sans-serif;
-    font-size: 11pt;
-    line-height: 1.5;
-  }
-  p { margin: 0 0 8pt 0; }
-  table { border-collapse: collapse; }
-  td, th { border: 1px solid #000; padding: 4pt 6pt; }
-
-  /* MathLive (static markup) — Word-friendly rules (avoid flexbox) */
-  .ML__base, .ML__is-inline { display: inline-block; vertical-align: baseline; font-family: "Cambria Math", "Cambria", serif; }
-  .ML__latex { direction: ltr; display: inline-block; white-space: nowrap; line-height: 1.2; width: auto; }
-  .ML__latex .ML__vlist-t { border-collapse: collapse; display: inline-table; table-layout: fixed; }
-  .ML__latex .ML__vlist-r { display: table-row; }
-  .ML__latex .ML__vlist { display: table-cell; position: relative; vertical-align: bottom; }
-  .ML__text { white-space: pre; }
-  .ML__frac-line { display: block; width: 100%; border-top: 1px solid currentColor; height: 0; line-height: 0; }
-  .ML__sqrt, .ML__sqrt-sign { display: inline-block; }
-  .ML__sqrt-line { display: inline-block; width: 100%; border-top: 1px solid currentColor; height: 0; line-height: 0; }
-  .math-expression { display: inline-block; vertical-align: middle; font-family: "Cambria Math", "Cambria", serif; }
-
-  /* Preserve math font styling (for non-MathLive plain symbols) */
-  [style*="Cambria Math"], .math-symbol, .math-template,
-  [data-mso-font-charset] {
-    font-family: "Cambria Math", "Cambria", serif;
-    mso-font-charset: 0;
-    mso-generic-font-family: roman;
-    mso-font-pitch: variable;
-  }
-
-  sup { font-size: 8pt; vertical-align: super; mso-text-raise: 30%; }
-  sub { font-size: 8pt; vertical-align: sub; }
-
-  /* Preserve overline for square root notation */
-  [style*="overline"] {
-    text-decoration: overline;
-    font-family: "Cambria Math", serif;
-  }
-
-  ${existingStyles}
+${dynamicFontFaces}
+${existingStyles}
+@page { margin: 1in; }
+body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; }
+table { border-collapse: collapse; }
+td, th { border: 1px solid #000; padding: 4px 8px; }
 </style>
 </head>
-<body lang="EN-US" style="tab-interval:.5in">
+<body>
 ${processedBody}
 </body>
 </html>`;
-    const docFileName = promptFileName('doc');
-    if (!docFileName) return;
-    const blob = new Blob(['\ufeff', wordContent], { type: 'application/msword' });
+
+    const fileName = promptFileName('doc');
+    if (!fileName) return;
+    const blob = new Blob([wordContent], { type: 'application/msword' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = docFileName;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -563,75 +523,70 @@ ${processedBody}
     setShowDownloadMenu(false);
   }, [getEditedHtml, promptFileName]);
 
-  const downloadAsPdf = useCallback(() => {
-    const editedHtml = getEditedHtml();
-    if (!editedHtml) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print as PDF');
-      return;
+  const downloadAsPdf = useCallback(async () => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentDocument) return;
+    const fileName = promptFileName('pdf');
+    if (!fileName) return;
+
+    try {
+      const { default: html2pdf } = await import('html2pdf.js');
+      const element = iframe.contentDocument.body;
+      await html2pdf().set({
+        margin: 0.5,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+      }).from(element).save();
+      toast.success('Downloaded as PDF');
+    } catch (err) {
+      console.error('PDF export error:', err);
+      toast.error('PDF export failed');
     }
-    printWindow.document.write(editedHtml);
-    printWindow.document.close();
-    setTimeout(() => {
-      printWindow.print();
-      printWindow.close();
-    }, 500);
-    toast.success('Print dialog opened');
     setShowDownloadMenu(false);
-  }, [getEditedHtml]);
+  }, [promptFileName]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
-      <div className="flex items-center justify-between px-4 py-3 bg-card border-b border-border">
+      <div className="flex items-center justify-between px-4 py-2 bg-card border-b border-border">
         <div className="flex items-center gap-2">
-          <Pencil className="h-4 w-4 text-primary" />
-          <span className="text-sm font-mono text-foreground truncate">Editing: {url.split('/').pop()}</span>
-          {dirty && <span className="text-[10px] text-amber-500 font-medium">• Unsaved</span>}
+          <Pencil className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-mono text-foreground truncate">Editing</span>
+          {dirty && <span className="text-xs text-primary">(unsaved)</span>}
+          {saving && <span className="text-xs text-muted-foreground">(saving…)</span>}
         </div>
         <div className="flex items-center gap-2">
+          <EditorToolbar iframeRef={iframeRef} onContentChange={markDirty} />
+
           <div className="relative">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-              className="h-7 text-xs gap-1"
-              title="Download to PC"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Download
+            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowDownloadMenu(!showDownloadMenu)}>
+              <Download className="h-3.5 w-3.5" /> Download
             </Button>
             {showDownloadMenu && (
-              <div className="absolute right-0 top-full mt-1 bg-popover border border-border rounded-md shadow-lg z-50 min-w-[160px]">
-                <button onClick={downloadAsWord} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
+              <div className="absolute top-full right-0 mt-1 bg-popover border border-border rounded-md shadow-lg py-1 z-10 min-w-[140px]">
+                <button className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground" onClick={downloadAsHtml}>
+                  HTML
+                </button>
+                <button className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground" onClick={downloadAsWord}>
                   Word (.doc)
                 </button>
-                <button onClick={downloadAsPdf} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground">
-                  PDF (Print)
-                </button>
-                <button onClick={downloadAsHtml} className="w-full text-left px-3 py-2 text-sm hover:bg-accent text-popover-foreground border-t border-border">
-                  HTML
+                <button className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground" onClick={downloadAsPdf}>
+                  PDF
                 </button>
               </div>
             )}
           </div>
-          <ThemeToggle className="h-7 w-7" />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={saveContent}
-            disabled={saving || !dirty}
-            className="h-7 text-xs gap-1"
-          >
-            <Save className="h-3.5 w-3.5" />
-            {saving ? 'Saving…' : 'Save'}
+
+          <Button variant="outline" size="sm" onClick={() => saveContent()} disabled={saving || !dirty} className="h-7 text-xs gap-1">
+            <Save className="h-3.5 w-3.5" /> Save
           </Button>
+          <ThemeToggle className="h-7 w-7" />
           <Button variant="ghost" size="sm" onClick={handleClose} className="h-8 w-8 p-0">
             <X className="h-5 w-5" />
           </Button>
         </div>
       </div>
-      <EditorToolbar iframeRef={iframeRef} onContentChange={markDirty} />
       <div className="flex-1 overflow-hidden">
         <iframe
           ref={iframeRef}
@@ -649,18 +604,19 @@ ${processedBody}
 export default function FileViewer({ url, fileName, mode, onClose }: FileViewerProps) {
   const { isHtml, htmlContent, loading } = useHtmlContent(url, fileName);
   const viewerRef = useRef<HTMLDivElement>(null);
+  const ours = isOurHtmlContent(htmlContent, fileName);
 
-  // Listen for theme changes and update any iframe in the viewer
+  // Listen for theme changes and update any iframe in the viewer — only for our HTML
   useEffect(() => {
     const handler = () => {
+      if (!ours) return;
       const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
-      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument, true);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, []);
+  }, [ours]);
 
-  // Still loading HTML content — show loading overlay
   if (isHtml && loading) {
     return (
       <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
@@ -672,12 +628,10 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
     );
   }
 
-  // Edit mode for HTML files
   if (mode === 'edit' && isHtml && htmlContent) {
     return <HtmlEditor url={url} htmlContent={htmlContent} onClose={onClose} />;
   }
 
-  // Edit mode for non-HTML: fall back to view with a notice
   if (mode === 'edit' && !isHtml) {
     toast.info('Editing is only supported for HTML files. Opening in view mode.');
   }

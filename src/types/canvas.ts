@@ -68,13 +68,14 @@ export interface CanvasComment {
   blockId?: string;
 }
 
-// Knowledge Graph types
+// Knowledge Graph types — deeply elaborated
 export interface KnowledgeConcept {
   id: string;
   label: string;
+  description?: string;
   sourceBlockIds: string[];
-  weight: number;
   domain: string;
+  epistemicStatus?: 'established' | 'hypothetical' | 'contested' | 'emergent';
   x?: number;
   y?: number;
 }
@@ -82,9 +83,10 @@ export interface KnowledgeConcept {
 export interface KnowledgeRule {
   id: string;
   description: string;
-  weight: number;
+  elaboration?: string;
   domain: string;
   sourceConceptIds: string[];
+  isGeneralizable?: boolean;
 }
 
 export interface KnowledgeMutation {
@@ -93,6 +95,7 @@ export interface KnowledgeMutation {
   previousState: string;
   newState: string;
   reason: string;
+  mutationType?: 'refined' | 'reversed' | 'expanded' | 'narrowed' | 'merged' | 'split';
   timestamp: string;
 }
 
@@ -100,8 +103,15 @@ export interface CausalLink {
   id: string;
   fromId: string;
   toId: string;
-  type: 'causes' | 'derives' | 'contradicts' | 'supports' | 'evolves';
-  weight: number;
+  type: 'causes' | 'derives' | 'contradicts' | 'supports' | 'evolves' | 'enables' | 'constrains' | 'transforms';
+  description: string;
+  isBidirectional?: boolean;
+  confidence?: 'high' | 'medium' | 'low' | 'speculative';
+}
+
+export interface ConvergencePoint {
+  id: string;
+  conceptIds: string[];
   description: string;
 }
 
@@ -110,6 +120,7 @@ export interface KnowledgeGraphData {
   rules: KnowledgeRule[];
   mutations: KnowledgeMutation[];
   causalLinks: CausalLink[];
+  convergencePoints?: ConvergencePoint[];
   lastAnalyzedAt: string | null;
   summary?: string;
 }
