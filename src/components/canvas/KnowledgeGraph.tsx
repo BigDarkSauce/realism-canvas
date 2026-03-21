@@ -3,7 +3,7 @@ import { KnowledgeGraphData, KnowledgeConcept, CausalLink, KnowledgeRule, Block,
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Brain, RefreshCw, Clock, Zap, AlertTriangle, ArrowRight, GitBranch, Target, Lightbulb, ArrowLeftRight, ShieldCheck, HelpCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { X, Brain, RefreshCw, Zap, ArrowRight, Target, Lightbulb, ArrowLeftRight, ShieldCheck, HelpCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface KnowledgeGraphProps {
