@@ -26,8 +26,6 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
-  onAIAnalyze: () => void;
   onShortcuts: () => void;
   onToggleMinimap: () => void;
   showMinimap: boolean;
