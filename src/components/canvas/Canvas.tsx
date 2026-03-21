@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useCanvas } from '@/hooks/useCanvas';
-import { CanvasBackground, Block, BlockShape, KnowledgeGraphData } from '@/types/canvas';
+import { CanvasBackground, Block, BlockShape } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
 import ConnectionArrows from './ConnectionArrows';
 import Toolbar from './Toolbar';
