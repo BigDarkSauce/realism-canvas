@@ -41,9 +41,8 @@ function getIframeThemeStyles(): { bg: string; color: string } {
     : { bg: '#ffffff', color: '#000000' };
 }
 
-/** Inject or update theme styles into an iframe document — ONLY for HTML documents we authored, not Word/PDF/external */
-function applyIframeTheme(doc: Document, isOurHtml: boolean) {
-  if (!isOurHtml) return; // Don't override themes for Word docs, PDFs, Google Docs, etc.
+/** Inject or update theme styles into an iframe document for ALL same-origin HTML */
+function applyIframeTheme(doc: Document) {
   const { bg, color } = getIframeThemeStyles();
   let style = doc.getElementById('__viewer-theme') as HTMLStyleElement | null;
   if (!style) {
@@ -53,8 +52,9 @@ function applyIframeTheme(doc: Document, isOurHtml: boolean) {
   }
   style.textContent = `
     html, body { background-color: ${bg} !important; color: ${color} !important; }
-    *:not(a):not(img):not(video):not(svg):not(canvas):not(iframe):not(math-field):not([style*="background"]) { color: inherit !important; }
+    * { color: ${color} !important; }
     a { color: #6ea8fe !important; }
+    img, video, svg, canvas, iframe, math-field { color: unset !important; }
   `;
 }
 
