@@ -198,11 +198,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     if (!iframe?.contentDocument?.body) return;
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
-
-    // Only apply dark theme to OUR HTML files, not Word docs
-    if (ours) {
-      applyIframeTheme(iframe.contentDocument, true);
-    }
+    applyIframeTheme(iframe.contentDocument);
 
     // Inject MathLive static CSS for rendered equations
     const mathLink = iframe.contentDocument.createElement('link');
