@@ -320,7 +320,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
         el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el);
       }
     });
-  }, [ours]);
+  }, []);
 
   const getEditedHtml = useCallback((): string | null => {
     const iframe = iframeRef.current;
