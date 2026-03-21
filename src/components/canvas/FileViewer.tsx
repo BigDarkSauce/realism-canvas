@@ -600,13 +600,12 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
   // Listen for theme changes and update any iframe in the viewer — only for our HTML
   useEffect(() => {
     const handler = () => {
-      if (!ours) return;
       const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
-      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument, true);
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, [ours]);
+  }, []);
 
   if (isHtml && loading) {
     return (
