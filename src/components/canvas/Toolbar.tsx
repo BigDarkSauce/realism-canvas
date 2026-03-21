@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Download, Brain, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground, BlockShape } from '@/types/canvas';
 import {
@@ -26,8 +26,6 @@ interface ToolbarProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
-  onExport: () => void;
-  onAIAnalyze: () => void;
   onShortcuts: () => void;
   onToggleMinimap: () => void;
   showMinimap: boolean;
@@ -60,7 +58,7 @@ export default function Toolbar({
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
   onBackgroundImageUpload, onSplitDocument,
   onUndo, onRedo, canUndo, canRedo,
-  onExport, onAIAnalyze, onShortcuts, onToggleMinimap, showMinimap,
+  onShortcuts, onToggleMinimap, showMinimap,
   onAddShape,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
@@ -133,12 +131,6 @@ export default function Toolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onExport}>
-            <Download className="h-4 w-4 mr-2" /> Export Canvas
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAIAnalyze}>
-            <Brain className="h-4 w-4 mr-2" /> AI Knowledge Graph
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSplitDocument}>
             <SplitSquareVertical className="h-4 w-4 mr-2" /> Split Document
           </DropdownMenuItem>

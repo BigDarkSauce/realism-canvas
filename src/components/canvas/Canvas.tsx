@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useCanvas } from '@/hooks/useCanvas';
-import { CanvasBackground, Block, BlockShape, KnowledgeGraphData } from '@/types/canvas';
+import { CanvasBackground, Block, BlockShape } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
 import ConnectionArrows from './ConnectionArrows';
 import Toolbar from './Toolbar';
@@ -15,10 +15,8 @@ import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
 import SaveLoadPanel from './SaveLoadPanel';
 import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
-import KnowledgeGraph from './KnowledgeGraph';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
-import CanvasExport from './CanvasExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,8 +71,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   // New feature state
   const [showMinimap, setShowMinimap] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
 
@@ -394,8 +390,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onSplitDocument={() => setSplitterOpen(true)}
         onUndo={canvas.undo} onRedo={canvas.redo}
         canUndo={canvas.canUndo} canRedo={canvas.canRedo}
-        onExport={() => setShowExport(true)}
-        onAIAnalyze={() => setShowKnowledgeGraph(true)}
         onShortcuts={() => setShowShortcuts(true)}
         onToggleMinimap={() => setShowMinimap(p => !p)}
         showMinimap={showMinimap}
@@ -486,16 +480,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         />
       )}
 
-      <KnowledgeGraph
-        open={showKnowledgeGraph}
-        onClose={() => setShowKnowledgeGraph(false)}
-        blocks={canvas.blocks}
-        connections={canvas.connections}
-        knowledgeGraph={canvas.knowledgeGraph}
-        onUpdateGraph={canvas.setKnowledgeGraph}
-      />
       <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
-      <CanvasExport open={showExport} onClose={() => setShowExport(false)} canvasElement={canvasRef.current} />
 
       <div className="absolute bottom-4 left-4 z-50 flex items-center gap-3 px-3 py-1.5 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg text-xs font-mono text-muted-foreground">
         <span>{canvas.blocks.length} blocks</span><span>·</span>
