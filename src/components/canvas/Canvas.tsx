@@ -392,8 +392,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onSplitDocument={() => setSplitterOpen(true)}
         onUndo={canvas.undo} onRedo={canvas.redo}
         canUndo={canvas.canUndo} canRedo={canvas.canRedo}
-        onExport={() => setShowExport(true)}
-        onAIAnalyze={() => setShowKnowledgeGraph(true)}
         onShortcuts={() => setShowShortcuts(true)}
         onToggleMinimap={() => setShowMinimap(p => !p)}
         showMinimap={showMinimap}
