@@ -191,7 +191,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   const [dirty, setDirty] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storagePath = extractStoragePath(url);
-  const ours = isOurHtmlContent(htmlContent);
 
   // Make the iframe editable once loaded
   const handleLoad = useCallback(() => {
