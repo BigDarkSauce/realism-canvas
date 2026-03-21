@@ -131,12 +131,6 @@ export default function Toolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={onExport}>
-            <Download className="h-4 w-4 mr-2" /> Export Canvas
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAIAnalyze}>
-            <Brain className="h-4 w-4 mr-2" /> AI Knowledge Graph
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSplitDocument}>
             <SplitSquareVertical className="h-4 w-4 mr-2" /> Split Document
           </DropdownMenuItem>
