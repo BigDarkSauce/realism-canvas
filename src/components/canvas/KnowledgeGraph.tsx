@@ -294,11 +294,10 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
                 {selectedConcept ? (() => {
                   const c = graph.concepts.find(x => x.id === selectedConcept);
                   if (!c) return null;
-                  const inLinks = graph.causalLinks.filter(l => l.toId === c.id);
-                  const outLinks = graph.causalLinks.filter(l => l.fromId === c.id);
-                  const relatedRules = graph.rules.filter(r => r.sourceConceptIds.includes(c.id));
-                  const muts = graph.mutations.filter(m => m.conceptId === c.id);
-                  const StatusIcon = STATUS_ICONS[c.epistemicStatus || 'established'] || ShieldCheck;
+                   const inLinks = graph.causalLinks.filter(l => l.toId === c.id);
+                   const outLinks = graph.causalLinks.filter(l => l.fromId === c.id);
+                   const relatedRules = graph.rules.filter(r => r.sourceConceptIds.includes(c.id));
+                   const StatusIcon = STATUS_ICONS[c.epistemicStatus || 'established'] || ShieldCheck;
                   const statusColor = STATUS_COLORS[c.epistemicStatus || 'established'] || '';
                   return (
                     <div className="space-y-4">
