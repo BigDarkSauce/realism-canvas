@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { KnowledgeGraphData, KnowledgeConcept, CausalLink, KnowledgeRule, KnowledgeMutation, Block, Connection, ConvergencePoint } from '@/types/canvas';
+import { KnowledgeGraphData, KnowledgeConcept, CausalLink, KnowledgeRule, Block, Connection, ConvergencePoint } from '@/types/canvas';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { X, Brain, RefreshCw, Clock, Zap, AlertTriangle, ArrowRight, GitBranch, Target, Lightbulb, ArrowLeftRight, ShieldCheck, HelpCircle, AlertCircle, Sparkles } from 'lucide-react';
+import { X, Brain, RefreshCw, Zap, ArrowRight, Target, Lightbulb, ArrowLeftRight, ShieldCheck, HelpCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface KnowledgeGraphProps {
@@ -107,7 +107,7 @@ function forceLayout(concepts: KnowledgeConcept[], links: CausalLink[], width: n
 export default function KnowledgeGraph({ open, onClose, blocks, connections, knowledgeGraph, onUpdateGraph }: KnowledgeGraphProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
-  const [tab, setTab] = useState<'graph' | 'rules' | 'mutations' | 'convergence' | 'summary'>('graph');
+  const [tab, setTab] = useState<'graph' | 'rules' | 'convergence' | 'summary'>('graph');
   const svgRef = useRef<SVGSVGElement>(null);
 
   const layoutConcepts = useMemo(() => {
@@ -178,7 +178,7 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
 
       {/* Tabs */}
       <div className="flex items-center gap-1 px-6 py-2 border-b border-border">
-        {(['graph', 'rules', 'mutations', 'convergence', 'summary'] as const).map(t => (
+        {(['graph', 'rules', 'convergence', 'summary'] as const).map(t => (
           <Button key={t} variant={tab === t ? 'default' : 'ghost'} size="sm" onClick={() => setTab(t)} className="capitalize text-xs">
             {t === 'convergence' ? 'Convergence Points' : t}
           </Button>
@@ -294,11 +294,10 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
                 {selectedConcept ? (() => {
                   const c = graph.concepts.find(x => x.id === selectedConcept);
                   if (!c) return null;
-                  const inLinks = graph.causalLinks.filter(l => l.toId === c.id);
-                  const outLinks = graph.causalLinks.filter(l => l.fromId === c.id);
-                  const relatedRules = graph.rules.filter(r => r.sourceConceptIds.includes(c.id));
-                  const muts = graph.mutations.filter(m => m.conceptId === c.id);
-                  const StatusIcon = STATUS_ICONS[c.epistemicStatus || 'established'] || ShieldCheck;
+                   const inLinks = graph.causalLinks.filter(l => l.toId === c.id);
+                   const outLinks = graph.causalLinks.filter(l => l.fromId === c.id);
+                   const relatedRules = graph.rules.filter(r => r.sourceConceptIds.includes(c.id));
+                   const StatusIcon = STATUS_ICONS[c.epistemicStatus || 'established'] || ShieldCheck;
                   const statusColor = STATUS_COLORS[c.epistemicStatus || 'established'] || '';
                   return (
                     <div className="space-y-4">
@@ -365,26 +364,6 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
                           ))}
                         </div>
                       )}
-                      {muts.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                            <GitBranch className="h-3 w-3" /> Mutations ({muts.length})
-                          </h4>
-                          {muts.map(m => (
-                            <div key={m.id} className="text-xs py-2 px-2 rounded bg-destructive/10 mb-2">
-                              <div className="flex items-center gap-1 mb-1">
-                                <span className="capitalize bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{m.mutationType || 'refined'}</span>
-                              </div>
-                              <div className="flex items-start gap-2 my-1">
-                                <span className="bg-destructive/20 text-destructive px-2 py-0.5 rounded flex-1">{m.previousState}</span>
-                                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
-                                <span className="bg-primary/20 text-primary px-2 py-0.5 rounded flex-1">{m.newState}</span>
-                              </div>
-                              <p className="text-muted-foreground mt-1 leading-relaxed">{m.reason}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })() : (
@@ -441,45 +420,6 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
                   </div>
                 </div>
               ))}
-            </div>
-          </ScrollArea>
-        ) : tab === 'mutations' ? (
-          <ScrollArea className="flex-1 p-6">
-            <div className="max-w-3xl mx-auto space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><GitBranch className="h-4 w-4" /> Concept Mutations ({graph.mutations.length})</h3>
-                <p className="text-xs text-muted-foreground mt-1">How hypotheses and theories evolved. Real discovery happens when we reconsider things — tracking these shifts reveals the development trajectory.</p>
-              </div>
-              {graph.mutations.length === 0 ? (
-                <div className="text-center py-8">
-                  <AlertTriangle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No mutations tracked yet. Run analysis multiple times to see how concepts evolve and hypotheses shift.</p>
-                </div>
-              ) : graph.mutations.map(mut => {
-                const concept = graph.concepts.find(c => c.id === mut.conceptId);
-                return (
-                  <div key={mut.id} className="p-4 border border-border rounded-lg bg-card">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-medium text-foreground">{concept?.label || mut.conceptId}</span>
-                      <span className="capitalize text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground ml-auto">{mut.mutationType || 'refined'}</span>
-                    </div>
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="flex-1 p-2 bg-destructive/10 rounded text-xs text-destructive">
-                        <div className="font-medium mb-0.5">Previous Understanding</div>
-                        {mut.previousState}
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-4" />
-                      <div className="flex-1 p-2 bg-primary/10 rounded text-xs text-primary">
-                        <div className="font-medium mb-0.5">Current Understanding</div>
-                        {mut.newState}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed"><span className="font-medium">Why this shifted:</span> {mut.reason}</p>
-                    {mut.timestamp && <p className="text-xs text-muted-foreground mt-1"><Clock className="h-3 w-3 inline mr-1" />{new Date(mut.timestamp).toLocaleString()}</p>}
-                  </div>
-                );
-              })}
             </div>
           </ScrollArea>
         ) : tab === 'convergence' ? (

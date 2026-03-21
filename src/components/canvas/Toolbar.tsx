@@ -34,6 +34,7 @@ interface ToolbarProps {
   onAddShape: (shape: BlockShape) => void;
 }
 
+
 const tools: { id: CanvasTool; icon: typeof MousePointer2; label: string }[] = [
   { id: 'select', icon: MousePointer2, label: 'Select' },
   { id: 'connect', icon: Link, label: 'Connect' },
@@ -120,18 +121,11 @@ export default function Toolbar({
 
       {hasSelection && <div className="w-px h-5 bg-border mx-0.5 shrink-0" />}
 
-      {/* Canvas actions - consolidated into dropdown on smaller screens */}
-      <Button variant="ghost" size="sm" onClick={onExport} title="Export" className="h-8 w-8 p-0 shrink-0">
-        <Download className="h-3.5 w-3.5" />
-      </Button>
-      <Button variant="ghost" size="sm" onClick={onAIAnalyze} title="AI Knowledge Graph" className="h-8 w-8 p-0 shrink-0">
-        <Brain className="h-3.5 w-3.5" />
-      </Button>
       <Button variant={showMinimap ? 'default' : 'ghost'} size="sm" onClick={onToggleMinimap} title="Toggle Minimap" className="h-8 w-8 p-0 shrink-0">
         <Map className="h-3.5 w-3.5" />
       </Button>
 
-      {/* More dropdown for less-used actions */}
+      {/* More dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" title="More" className="h-8 w-8 p-0 shrink-0">
@@ -139,6 +133,12 @@ export default function Toolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onExport}>
+            <Download className="h-4 w-4 mr-2" /> Export Canvas
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAIAnalyze}>
+            <Brain className="h-4 w-4 mr-2" /> AI Knowledge Graph
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSplitDocument}>
             <SplitSquareVertical className="h-4 w-4 mr-2" /> Split Document
           </DropdownMenuItem>

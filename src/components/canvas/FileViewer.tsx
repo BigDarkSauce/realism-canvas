@@ -41,9 +41,8 @@ function getIframeThemeStyles(): { bg: string; color: string } {
     : { bg: '#ffffff', color: '#000000' };
 }
 
-/** Inject or update theme styles into an iframe document — ONLY for HTML documents we authored, not Word/PDF/external */
-function applyIframeTheme(doc: Document, isOurHtml: boolean) {
-  if (!isOurHtml) return; // Don't override themes for Word docs, PDFs, Google Docs, etc.
+/** Inject or update theme styles into an iframe document for ALL same-origin HTML */
+function applyIframeTheme(doc: Document) {
   const { bg, color } = getIframeThemeStyles();
   let style = doc.getElementById('__viewer-theme') as HTMLStyleElement | null;
   if (!style) {
@@ -53,8 +52,9 @@ function applyIframeTheme(doc: Document, isOurHtml: boolean) {
   }
   style.textContent = `
     html, body { background-color: ${bg} !important; color: ${color} !important; }
-    *:not(a):not(img):not(video):not(svg):not(canvas):not(iframe):not(math-field):not([style*="background"]) { color: inherit !important; }
+    * { color: ${color} !important; }
     a { color: #6ea8fe !important; }
+    img, video, svg, canvas, iframe, math-field { color: unset !important; }
   `;
 }
 
@@ -131,7 +131,6 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
   }
 
   if (isHtml && htmlContent) {
-    const ours = isOurHtmlContent(htmlContent, fileName);
     return (
       <iframe
         srcDoc={htmlContent}
@@ -140,10 +139,7 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
         sandbox="allow-same-origin"
         onLoad={(e) => {
           const doc = (e.target as HTMLIFrameElement).contentDocument!;
-          if (ours) {
-            applyIframeTheme(doc, true);
-          }
-          // Inject MathLive static CSS for equation rendering
+          applyIframeTheme(doc);
           if (!doc.querySelector('link[href*="mathlive"]')) {
             const link = doc.createElement('link');
             link.rel = 'stylesheet';
@@ -195,7 +191,6 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   const [dirty, setDirty] = useState(false);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const storagePath = extractStoragePath(url);
-  const ours = isOurHtmlContent(htmlContent);
 
   // Make the iframe editable once loaded
   const handleLoad = useCallback(() => {
@@ -203,11 +198,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     if (!iframe?.contentDocument?.body) return;
     iframe.contentDocument.designMode = 'on';
     iframe.contentDocument.body.contentEditable = 'true';
-
-    // Only apply dark theme to OUR HTML files, not Word docs
-    if (ours) {
-      applyIframeTheme(iframe.contentDocument, true);
-    }
+    applyIframeTheme(iframe.contentDocument);
 
     // Inject MathLive static CSS for rendered equations
     const mathLink = iframe.contentDocument.createElement('link');
@@ -329,7 +320,7 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
         el.parentNode?.insertBefore(iframe.contentDocument!.createTextNode('\u200B'), el);
       }
     });
-  }, [ours]);
+  }, []);
 
   const getEditedHtml = useCallback((): string | null => {
     const iframe = iframeRef.current;
@@ -370,11 +361,11 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   useEffect(() => {
     const handler = () => {
       const doc = iframeRef.current?.contentDocument;
-      if (doc && ours) applyIframeTheme(doc, true);
+      if (doc) applyIframeTheme(doc);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, [ours]);
+  }, []);
 
   const handleClose = useCallback(async () => {
     if (dirty) {
@@ -609,13 +600,12 @@ export default function FileViewer({ url, fileName, mode, onClose }: FileViewerP
   // Listen for theme changes and update any iframe in the viewer — only for our HTML
   useEffect(() => {
     const handler = () => {
-      if (!ours) return;
       const iframe = viewerRef.current?.querySelector('iframe') as HTMLIFrameElement | null;
-      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument, true);
+      if (iframe?.contentDocument) applyIframeTheme(iframe.contentDocument);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, [ours]);
+  }, []);
 
   if (isHtml && loading) {
     return (
