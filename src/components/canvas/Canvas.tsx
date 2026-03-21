@@ -71,8 +71,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   // New feature state
   const [showMinimap, setShowMinimap] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
 
