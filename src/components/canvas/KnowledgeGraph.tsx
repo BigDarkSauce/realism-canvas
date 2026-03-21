@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { KnowledgeGraphData, KnowledgeConcept, CausalLink, KnowledgeRule, KnowledgeMutation, Block, Connection, ConvergencePoint } from '@/types/canvas';
+import { KnowledgeGraphData, KnowledgeConcept, CausalLink, KnowledgeRule, Block, Connection, ConvergencePoint } from '@/types/canvas';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
