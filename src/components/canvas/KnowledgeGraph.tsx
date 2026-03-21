@@ -107,7 +107,7 @@ function forceLayout(concepts: KnowledgeConcept[], links: CausalLink[], width: n
 export default function KnowledgeGraph({ open, onClose, blocks, connections, knowledgeGraph, onUpdateGraph }: KnowledgeGraphProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [selectedConcept, setSelectedConcept] = useState<string | null>(null);
-  const [tab, setTab] = useState<'graph' | 'rules' | 'mutations' | 'convergence' | 'summary'>('graph');
+  const [tab, setTab] = useState<'graph' | 'rules' | 'convergence' | 'summary'>('graph');
   const svgRef = useRef<SVGSVGElement>(null);
 
   const layoutConcepts = useMemo(() => {
