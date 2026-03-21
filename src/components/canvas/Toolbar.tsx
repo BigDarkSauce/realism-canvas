@@ -34,6 +34,7 @@ interface ToolbarProps {
   onAddShape: (shape: BlockShape) => void;
 }
 
+
 const tools: { id: CanvasTool; icon: typeof MousePointer2; label: string }[] = [
   { id: 'select', icon: MousePointer2, label: 'Select' },
   { id: 'connect', icon: Link, label: 'Connect' },
