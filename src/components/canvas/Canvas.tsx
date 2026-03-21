@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useCanvas } from '@/hooks/useCanvas';
-import { CanvasBackground, Block } from '@/types/canvas';
+import { CanvasBackground, Block, BlockShape, KnowledgeGraphData } from '@/types/canvas';
 import CanvasBlock from './CanvasBlock';
 import ConnectionArrows from './ConnectionArrows';
 import Toolbar from './Toolbar';
@@ -15,6 +15,10 @@ import CanvasBorderHandles, { EXTEND_AMOUNT } from './CanvasBorderHandles';
 import SaveLoadPanel from './SaveLoadPanel';
 import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
+import KnowledgeGraph from './KnowledgeGraph';
+import Minimap from './Minimap';
+import KeyboardShortcuts from './KeyboardShortcuts';
+import CanvasExport from './CanvasExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -36,15 +40,9 @@ function getBgClass(bg: CanvasBackground) {
 }
 
 function getBgStyle(bg: CanvasBackground, bgImage?: string | null): React.CSSProperties {
-  if (bg === 'image' && bgImage) {
-    return { backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' };
-  }
-  if (bg === 'dots') {
-    return { backgroundSize: '20px 20px', backgroundImage: 'radial-gradient(circle, hsl(var(--canvas-grid)) 1px, transparent 1px)' };
-  }
-  if (bg === 'blueprint') {
-    return { backgroundSize: '20px 20px', backgroundImage: 'linear-gradient(to right, hsl(173 58% 39% / 0.08) 1px, transparent 1px), linear-gradient(to bottom, hsl(173 58% 39% / 0.08) 1px, transparent 1px)' };
-  }
+  if (bg === 'image' && bgImage) return { backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' };
+  if (bg === 'dots') return { backgroundSize: '20px 20px', backgroundImage: 'radial-gradient(circle, hsl(var(--canvas-grid)) 1px, transparent 1px)' };
+  if (bg === 'blueprint') return { backgroundSize: '20px 20px', backgroundImage: 'linear-gradient(to right, hsl(173 58% 39% / 0.08) 1px, transparent 1px), linear-gradient(to bottom, hsl(173 58% 39% / 0.08) 1px, transparent 1px)' };
   return {};
 }
 
@@ -71,6 +69,14 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [canvasSize, setCanvasSize] = useState(INITIAL_CANVAS_SIZE);
   const clipboard = useRef<Block[]>([]);
   const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string }[] | null>(null);
+
+  // New feature state
+  const [showMinimap, setShowMinimap] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
+  const [splitterOpen, setSplitterOpen] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
@@ -107,18 +113,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     loadDocument();
   }, [documentId]);
 
-  // Auto-save with debounce: saves 5s after last change, plus periodic backup every 60s
+  // Auto-save
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSaveRef = useRef<number>(0);
 
   useEffect(() => {
     const accessKey = getAccessKey();
     if (!accessKey) return;
-
     const doSave = async () => {
       const state = {
         blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
-        strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
+        strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage,
+        knowledgeGraph: canvas.knowledgeGraph, canvasSize,
       };
       const stateJson = JSON.parse(JSON.stringify(state));
       await cacheDocument({ id: documentId, canvas_data: stateJson });
@@ -129,26 +135,30 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       }
       lastSaveRef.current = Date.now();
     };
-
-    // Debounce: save 5s after last change
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(doSave, 5000);
+    if (Date.now() - lastSaveRef.current > 60000) doSave();
+    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current); };
+  }, [canvas.blocks, canvas.connections, canvas.groups, canvas.strokes, canvas.background, canvas.backgroundImage, canvas.knowledgeGraph, canvasSize, documentId]);
 
-    // Also force save if >60s since last save
-    const timeSinceLast = Date.now() - lastSaveRef.current;
-    if (timeSinceLast > 60000) {
-      doSave();
-    }
-
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
-  }, [canvas.blocks, canvas.connections, canvas.groups, canvas.strokes, canvas.background, canvas.backgroundImage, canvasSize, documentId]);
-
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return;
+
+      if (e.key === '?') { e.preventDefault(); setShowShortcuts(p => !p); return; }
+
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault(); canvas.undo(); return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && e.shiftKey) {
+        e.preventDefault(); canvas.redo(); return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+        e.preventDefault(); canvas.redo(); return;
+      }
+
       if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
         e.preventDefault();
         const selected = canvas.blocks.filter(b => canvas.selectedIds.includes(b.id));
@@ -159,8 +169,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         if (clipboard.current.length > 0) {
           const newIds: string[] = [];
           clipboard.current.forEach(b => {
-            const newBlock = canvas.addBlock(b.x + 30, b.y + 30);
-            canvas.updateBlock(newBlock.id, { label: b.label, width: b.width, height: b.height, fontSize: b.fontSize, fileUrl: b.fileUrl, fileStorageUrl: b.fileStorageUrl, fileName: b.fileName });
+            const newBlock = canvas.addBlock(b.x + 30, b.y + 30, { label: b.label, width: b.width, height: b.height, fontSize: b.fontSize, shape: b.shape, bgColor: b.bgColor, borderColor: b.borderColor, textColor: b.textColor });
             newIds.push(newBlock.id);
           });
           canvas.clearSelection();
@@ -174,7 +183,59 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canvas.blocks, canvas.selectedIds, canvas.addBlock, canvas.updateBlock, canvas.clearSelection, canvas.toggleSelect, canvas.deleteBlock]);
+  }, [canvas.blocks, canvas.selectedIds, canvas.addBlock, canvas.clearSelection, canvas.toggleSelect, canvas.deleteBlock, canvas.undo, canvas.redo]);
+
+  // Drag and drop file upload
+  const handleDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }, []);
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) return;
+    const rect = canvasRef.current!.getBoundingClientRect();
+    const x = (e.clientX - rect.left - pan.x) / zoom;
+    const y = (e.clientY - rect.top - pan.y) / zoom;
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const file = files[i];
+        const { signedUrl } = await uploadAndGetSignedUrl(file);
+        canvas.addBlock(x + i * 30, y + i * 30, {
+          label: file.name, fileStorageUrl: signedUrl, fileName: file.name,
+          width: 200, height: 56,
+        });
+        toast.success(`Uploaded ${file.name}`);
+      } catch (err) {
+        toast.error(`Failed to upload ${files[i].name}`);
+      }
+    }
+  }, [pan, zoom, canvas.addBlock]);
+
+  // Touch support
+  const lastTouchRef = useRef<{ x: number; y: number; dist: number } | null>(null);
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      lastTouchRef.current = {
+        x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+        y: (e.touches[0].clientY + e.touches[1].clientY) / 2,
+        dist: Math.sqrt(dx * dx + dy * dy),
+      };
+    }
+  }, []);
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastTouchRef.current) {
+      e.preventDefault();
+      const dx = e.touches[1].clientX - e.touches[0].clientX;
+      const dy = e.touches[1].clientY - e.touches[0].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const scaleDelta = dist / lastTouchRef.current.dist;
+      setZoom(z => Math.max(0.05, Math.min(1.5, z * scaleDelta)));
+      setPan(p => ({ x: p.x + (cx - lastTouchRef.current!.x), y: p.y + (cy - lastTouchRef.current!.y) }));
+      lastTouchRef.current = { x: cx, y: cy, dist };
+    }
+  }, []);
 
   const handleExtend = useCallback((direction: 'top' | 'bottom' | 'left' | 'right') => {
     setCanvasSize(prev => {
@@ -212,37 +273,19 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
   const placeSectionsAt = useCallback((startX: number, startY: number) => {
     if (!pendingSections) return;
-    const blockWidth = 280;
-    const blockHeight = 56;
-    const gap = 80;
-
+    const blockWidth = 280; const blockHeight = 56; const gap = 80;
     let nextIdLocal = Date.now();
     const newBlocks: Block[] = pendingSections.map((s, i) => ({
-      id: `split-${nextIdLocal++}`,
-      x: startX,
-      y: startY + i * (blockHeight + gap),
-      width: blockWidth,
-      height: blockHeight,
-      label: s.heading,
-      fileStorageUrl: s.fileUrl,
-      fileName: s.fileName,
+      id: `split-${nextIdLocal++}`, x: startX, y: startY + i * (blockHeight + gap),
+      width: blockWidth, height: blockHeight, label: s.heading, fileStorageUrl: s.fileUrl, fileName: s.fileName,
     }));
-
-    const newConnections: { fromId: string; toId: string }[] = [];
-    for (let i = 0; i < newBlocks.length - 1; i++) {
-      newConnections.push({ fromId: newBlocks[i].id, toId: newBlocks[i + 1].id });
-    }
-
+    const newConnections = newBlocks.slice(0, -1).map((b, i) => ({ fromId: b.id, toId: newBlocks[i + 1].id }));
     canvas.addBlocksBatch(newBlocks);
     canvas.addConnectionsBatch(newConnections);
-
-    const maxY = startY + pendingSections.length * (blockHeight + gap) + 200;
-    const maxX = startX + blockWidth + 200;
     setCanvasSize(prev => ({
-      width: Math.max(prev.width, maxX),
-      height: Math.max(prev.height, maxY),
+      width: Math.max(prev.width, startX + blockWidth + 200),
+      height: Math.max(prev.height, startY + pendingSections.length * (blockHeight + gap) + 200),
     }));
-
     setPendingSections(null);
   }, [pendingSections, canvas.addBlocksBatch, canvas.addConnectionsBatch]);
 
@@ -262,20 +305,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     }
     if (pendingSections) {
       const rect = canvasRef.current!.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
-      placeSectionsAt(x, y);
+      placeSectionsAt((e.clientX - rect.left - pan.x) / zoom, (e.clientY - rect.top - pan.y) / zoom);
       return;
     }
     if (canvas.tool === 'add') {
       const rect = canvasRef.current!.getBoundingClientRect();
-      canvas.addBlock((e.clientX - rect.left - pan.x) / zoom - 80, (e.clientY - rect.top - pan.y) / zoom - 28);
+      canvas.addBlock((e.clientX - rect.left - pan.x) / zoom - 80, (e.clientY - rect.top - pan.y) / zoom - 28, { shape: pendingShape });
       canvas.setTool('select');
     } else if (canvas.tool === 'select') {
       canvas.clearSelection();
       canvas.setConnectingFrom(null);
     }
-  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom, zoom, pan, pendingSections, placeSectionsAt]);
+  }, [canvas.tool, canvas.addBlock, canvas.setTool, canvas.clearSelection, canvas.setConnectingFrom, zoom, pan, pendingSections, placeSectionsAt, pendingShape]);
 
   const handleConnectStart = useCallback((id: string) => { canvas.setConnectingFrom(id); }, [canvas.setConnectingFrom]);
   const handleConnectEnd = useCallback((id: string) => {
@@ -299,6 +340,11 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
+  const handleAddShape = useCallback((shape: BlockShape) => {
+    setPendingShape(shape);
+    canvas.setTool('add');
+  }, [canvas.setTool]);
+
   // Sync pending changes when coming back online
   useEffect(() => {
     const syncPending = async () => {
@@ -320,12 +366,12 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     return () => window.removeEventListener('online', syncPending);
   }, []);
 
-  // Save state before leaving
   const handleBackToMenu = async () => {
     const accessKey = getAccessKey();
     const state = {
       blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
-      strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage, canvasSize,
+      strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage,
+      knowledgeGraph: canvas.knowledgeGraph, canvasSize,
     };
     const stateJson = JSON.parse(JSON.stringify(state));
     await cacheDocument({ id: documentId, canvas_data: stateJson });
@@ -337,8 +383,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     onBackToMenu();
   };
 
-  const [splitterOpen, setSplitterOpen] = useState(false);
-
   return (
     <div className="relative w-full h-screen overflow-hidden" style={outerBg ? { backgroundColor: outerBg } : undefined}>
       <Toolbar
@@ -348,6 +392,14 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onDelete={handleDeleteSelected} onGroup={canvas.groupSelected} onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
         onSplitDocument={() => setSplitterOpen(true)}
+        onUndo={canvas.undo} onRedo={canvas.redo}
+        canUndo={canvas.canUndo} canRedo={canvas.canRedo}
+        onExport={() => setShowExport(true)}
+        onAIAnalyze={() => setShowKnowledgeGraph(true)}
+        onShortcuts={() => setShowShortcuts(true)}
+        onToggleMinimap={() => setShowMinimap(p => !p)}
+        showMinimap={showMinimap}
+        onAddShape={handleAddShape}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
@@ -355,9 +407,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
           <span className="text-sm font-medium">Click on the canvas to place {pendingSections.length} section blocks</span>
-          <Button variant="secondary" size="sm" onClick={() => setPendingSections(null)} className="h-7 text-xs">
-            Cancel
-          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setPendingSections(null)} className="h-7 text-xs">Cancel</Button>
         </div>
       )}
 
@@ -367,20 +417,11 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         </Button>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-toolbar border border-toolbar-border rounded-xl">
           <span className="text-xs font-mono text-muted-foreground w-8 text-right">{Math.round(zoom * 100)}%</span>
-          <input
-            type="range"
-            min={5}
-            max={150}
-            value={Math.round(zoom * 100)}
-            onChange={e => setZoom(Number(e.target.value) / 100)}
-            className="w-24 h-1.5 accent-primary cursor-pointer"
-            title="Zoom"
-          />
+          <input type="range" min={5} max={150} value={Math.round(zoom * 100)} onChange={e => setZoom(Number(e.target.value) / 100)} className="w-24 h-1.5 accent-primary cursor-pointer" title="Zoom" />
         </div>
         <ThemeToggle />
       </div>
 
-      {/* Top-right controls */}
       <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2">
         <div className="flex items-center gap-1">
           <OuterBackgroundPicker value={outerBg} onChange={setOuterBg} />
@@ -401,7 +442,25 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
       <CanvasBorderHandles canvasSize={canvasSize} onExtend={handleExtend} pan={pan} zoom={zoom} />
 
-      <div ref={canvasRef} className={cn("w-full h-full relative overflow-hidden", canvas.tool === 'add' && 'cursor-crosshair')} onMouseDown={handleCanvasMouseDown} onWheel={handleWheel}>
+      {showMinimap && (
+        <Minimap
+          blocks={canvas.blocks} canvasSize={canvasSize}
+          pan={pan} zoom={zoom}
+          viewportWidth={window.innerWidth} viewportHeight={window.innerHeight}
+          onNavigate={setPan}
+        />
+      )}
+
+      <div
+        ref={canvasRef}
+        className={cn("w-full h-full relative overflow-hidden", canvas.tool === 'add' && 'cursor-crosshair')}
+        onMouseDown={handleCanvasMouseDown}
+        onWheel={handleWheel}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+      >
         <div data-canvas-bg="true" className="absolute inset-0 bg-muted/30" style={{ zIndex: 0 }} />
         <div style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', position: 'absolute', top: 0, left: 0, width: canvasSize.width, height: canvasSize.height }}>
           <div data-canvas-bg="true" className={cn("absolute inset-0 rounded-sm", getBgClass(canvas.background))} style={{ ...getBgStyle(canvas.background, canvas.backgroundImage), boxShadow: '0 0 0 1px hsl(var(--border))' }} />
@@ -422,13 +481,21 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       {fileOpenPrompt && (
         <FileOpenDialog
           fileName={fileOpenPrompt.fileName}
-          onSelect={(mode) => {
-            setViewingFile({ url: fileOpenPrompt.url, fileName: fileOpenPrompt.fileName, mode });
-            setFileOpenPrompt(null);
-          }}
+          onSelect={(mode) => { setViewingFile({ url: fileOpenPrompt.url, fileName: fileOpenPrompt.fileName, mode }); setFileOpenPrompt(null); }}
           onClose={() => setFileOpenPrompt(null)}
         />
       )}
+
+      <KnowledgeGraph
+        open={showKnowledgeGraph}
+        onClose={() => setShowKnowledgeGraph(false)}
+        blocks={canvas.blocks}
+        connections={canvas.connections}
+        knowledgeGraph={canvas.knowledgeGraph}
+        onUpdateGraph={canvas.setKnowledgeGraph}
+      />
+      <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <CanvasExport open={showExport} onClose={() => setShowExport(false)} canvasElement={canvasRef.current} />
 
       <div className="absolute bottom-4 left-4 z-50 flex items-center gap-3 px-3 py-1.5 bg-toolbar/80 backdrop-blur border border-toolbar-border rounded-lg text-xs font-mono text-muted-foreground">
         <span>{canvas.blocks.length} blocks</span><span>·</span>
