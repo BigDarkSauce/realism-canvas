@@ -131,7 +131,6 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
   }
 
   if (isHtml && htmlContent) {
-    const ours = isOurHtmlContent(htmlContent, fileName);
     return (
       <iframe
         srcDoc={htmlContent}
@@ -140,10 +139,7 @@ function getViewerContent(url: string, fileName?: string, htmlContent?: string |
         sandbox="allow-same-origin"
         onLoad={(e) => {
           const doc = (e.target as HTMLIFrameElement).contentDocument!;
-          if (ours) {
-            applyIframeTheme(doc, true);
-          }
-          // Inject MathLive static CSS for equation rendering
+          applyIframeTheme(doc);
           if (!doc.querySelector('link[href*="mathlive"]')) {
             const link = doc.createElement('link');
             link.rel = 'stylesheet';
