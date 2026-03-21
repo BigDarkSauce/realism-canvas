@@ -1,10 +1,19 @@
-import { useState, useCallback, useRef } from 'react';
-import { Block, Connection, Group, CanvasTool, CanvasBackground, DrawingStroke } from '@/types/canvas';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { Block, Connection, Group, CanvasTool, CanvasBackground, DrawingStroke, KnowledgeGraphData } from '@/types/canvas';
 
 let nextId = 1;
 const genId = () => `block-${nextId++}`;
 const connId = () => `conn-${nextId++}`;
 const groupId = () => `group-${nextId++}`;
+
+interface CanvasSnapshot {
+  blocks: Block[];
+  connections: Connection[];
+  groups: Group[];
+  strokes: DrawingStroke[];
+}
+
+const MAX_HISTORY = 50;
 
 export function useCanvas() {
   const [blocks, setBlocks] = useState<Block[]>([]);
@@ -16,23 +25,68 @@ export function useCanvas() {
   const [connectingFrom, setConnectingFrom] = useState<string | null>(null);
   const [strokes, setStrokes] = useState<DrawingStroke[]>([]);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
+  const [knowledgeGraph, setKnowledgeGraph] = useState<KnowledgeGraphData | null>(null);
 
-  // Use refs for frequently accessed state in callbacks to reduce re-renders
+  // Refs for callbacks
   const blocksRef = useRef(blocks);
   blocksRef.current = blocks;
   const selectedIdsRef = useRef(selectedIds);
   selectedIdsRef.current = selectedIds;
 
+  // Undo/Redo
+  const historyRef = useRef<CanvasSnapshot[]>([]);
+  const historyIndexRef = useRef(-1);
+  const historyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isRestoringRef = useRef(false);
+
+  // Push snapshot on state change (debounced)
+  useEffect(() => {
+    if (isRestoringRef.current) { isRestoringRef.current = false; return; }
+    if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+    historyTimerRef.current = setTimeout(() => {
+      const snapshot: CanvasSnapshot = {
+        blocks: JSON.parse(JSON.stringify(blocks)),
+        connections: JSON.parse(JSON.stringify(connections)),
+        groups: JSON.parse(JSON.stringify(groups)),
+        strokes: JSON.parse(JSON.stringify(strokes)),
+      };
+      const history = historyRef.current.slice(0, historyIndexRef.current + 1);
+      history.push(snapshot);
+      if (history.length > MAX_HISTORY) history.shift();
+      historyRef.current = history;
+      historyIndexRef.current = history.length - 1;
+    }, 400);
+  }, [blocks, connections, groups, strokes]);
+
+  const undo = useCallback(() => {
+    if (historyIndexRef.current <= 0) return false;
+    historyIndexRef.current--;
+    const snap = historyRef.current[historyIndexRef.current];
+    isRestoringRef.current = true;
+    setBlocks(snap.blocks);
+    setConnections(snap.connections);
+    setGroups(snap.groups);
+    setStrokes(snap.strokes);
+    return true;
+  }, []);
+
+  const redo = useCallback(() => {
+    if (historyIndexRef.current >= historyRef.current.length - 1) return false;
+    historyIndexRef.current++;
+    const snap = historyRef.current[historyIndexRef.current];
+    isRestoringRef.current = true;
+    setBlocks(snap.blocks);
+    setConnections(snap.connections);
+    setGroups(snap.groups);
+    setStrokes(snap.strokes);
+    return true;
+  }, []);
+
+  const canUndo = historyIndexRef.current > 0;
+  const canRedo = historyIndexRef.current < historyRef.current.length - 1;
+
   const addBlock = useCallback((x: number, y: number, overrides?: Partial<Block>) => {
-    const block: Block = {
-      id: genId(),
-      x,
-      y,
-      width: 160,
-      height: 56,
-      label: 'New Block',
-      ...overrides,
-    };
+    const block: Block = { id: genId(), x, y, width: 160, height: 56, label: 'New Block', ...overrides };
     setBlocks(prev => [...prev, block]);
     return block;
   }, []);
@@ -42,10 +96,7 @@ export function useCanvas() {
   }, []);
 
   const addConnectionsBatch = useCallback((newConns: { fromId: string; toId: string }[]) => {
-    setConnections(prev => [
-      ...prev,
-      ...newConns.map(c => ({ id: connId(), fromId: c.fromId, toId: c.toId })),
-    ]);
+    setConnections(prev => [...prev, ...newConns.map(c => ({ id: connId(), fromId: c.fromId, toId: c.toId }))]);
   }, []);
 
   const updateBlock = useCallback((id: string, updates: Partial<Block>) => {
@@ -55,23 +106,17 @@ export function useCanvas() {
   const deleteBlock = useCallback((id: string) => {
     setBlocks(prev => prev.filter(b => b.id !== id));
     setConnections(prev => prev.filter(c => c.fromId !== id && c.toId !== id));
-    setGroups(prev => prev.map(g => ({
-      ...g,
-      blockIds: g.blockIds.filter(bid => bid !== id),
-    })).filter(g => g.blockIds.length > 0));
+    setGroups(prev => prev.map(g => ({ ...g, blockIds: g.blockIds.filter(bid => bid !== id) })).filter(g => g.blockIds.length > 0));
     setSelectedIds(prev => prev.filter(sid => sid !== id));
   }, []);
 
-  // Optimized: batch move using a Map for O(1) lookups
   const moveBlock = useCallback((id: string, x: number, y: number) => {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, x, y } : b));
   }, []);
 
   const moveGroup = useCallback((groupBlockIds: string[], dx: number, dy: number) => {
     const idSet = new Set(groupBlockIds);
-    setBlocks(prev => prev.map(b =>
-      idSet.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b
-    ));
+    setBlocks(prev => prev.map(b => idSet.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b));
   }, []);
 
   const addConnection = useCallback((fromId: string, toId: string) => {
@@ -96,30 +141,19 @@ export function useCanvas() {
     const gid = groupId();
     const idSet = new Set(ids);
     setGroups(prev => {
-      const cleaned = prev.map(g => ({
-        ...g,
-        blockIds: g.blockIds.filter(bid => !idSet.has(bid)),
-      })).filter(g => g.blockIds.length > 0);
+      const cleaned = prev.map(g => ({ ...g, blockIds: g.blockIds.filter(bid => !idSet.has(bid)) })).filter(g => g.blockIds.length > 0);
       return [...cleaned, { id: gid, label: 'Group', blockIds: [...ids] }];
     });
-    setBlocks(prev => prev.map(b =>
-      idSet.has(b.id) ? { ...b, groupId: gid } : b
-    ));
+    setBlocks(prev => prev.map(b => idSet.has(b.id) ? { ...b, groupId: gid } : b));
   }, []);
 
   const ungroupSelected = useCallback(() => {
     const ids = selectedIdsRef.current;
     const currentBlocks = blocksRef.current;
     const groupIdsToRemove = new Set<string>();
-    currentBlocks.forEach(b => {
-      if (ids.includes(b.id) && b.groupId) {
-        groupIdsToRemove.add(b.groupId);
-      }
-    });
+    currentBlocks.forEach(b => { if (ids.includes(b.id) && b.groupId) groupIdsToRemove.add(b.groupId); });
     if (groupIdsToRemove.size === 0) return;
-    setBlocks(prev => prev.map(b =>
-      groupIdsToRemove.has(b.groupId || '') ? { ...b, groupId: undefined } : b
-    ));
+    setBlocks(prev => prev.map(b => groupIdsToRemove.has(b.groupId || '') ? { ...b, groupId: undefined } : b));
     setGroups(prev => prev.filter(g => !groupIdsToRemove.has(g.id)));
   }, []);
 
@@ -132,39 +166,29 @@ export function useCanvas() {
   }, []);
 
   const toggleSelect = useCallback((id: string, multi: boolean) => {
-    setSelectedIds(prev => {
-      if (multi) {
-        return prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id];
-      }
-      return [id];
-    });
+    setSelectedIds(prev => multi ? (prev.includes(id) ? prev.filter(s => s !== id) : [...prev, id]) : [id]);
   }, []);
 
   const clearSelection = useCallback(() => setSelectedIds([]), []);
 
-  const addStroke = useCallback((stroke: DrawingStroke) => {
-    setStrokes(prev => [...prev, stroke]);
-  }, []);
-
-  const eraseStroke = useCallback((id: string) => {
-    setStrokes(prev => prev.filter(s => s.id !== id));
-  }, []);
+  const addStroke = useCallback((stroke: DrawingStroke) => { setStrokes(prev => [...prev, stroke]); }, []);
+  const eraseStroke = useCallback((id: string) => { setStrokes(prev => prev.filter(s => s.id !== id)); }, []);
 
   const loadState = useCallback((state: {
-    blocks: Block[];
-    connections: Connection[];
-    groups: Group[];
-    strokes: DrawingStroke[];
-    background: CanvasBackground;
-    backgroundImage: string | null;
+    blocks: Block[]; connections: Connection[]; groups: Group[]; strokes: DrawingStroke[];
+    background: CanvasBackground; backgroundImage: string | null; knowledgeGraph?: KnowledgeGraphData | null;
   }) => {
+    isRestoringRef.current = true;
     setBlocks(state.blocks || []);
     setConnections(state.connections || []);
     setGroups(state.groups || []);
     setStrokes(state.strokes || []);
     setBackground(state.background || 'grid');
     setBackgroundImage(state.backgroundImage || null);
+    setKnowledgeGraph(state.knowledgeGraph || null);
     setSelectedIds([]);
+    historyRef.current = [];
+    historyIndexRef.current = -1;
     const allIds = [...(state.blocks || []), ...(state.connections || []), ...(state.groups || [])];
     const maxNum = allIds.reduce((max, item) => {
       const match = item.id.match(/\d+/);
@@ -177,6 +201,7 @@ export function useCanvas() {
     blocks, connections, groups, selectedIds, tool, background,
     connectingFrom, setConnectingFrom,
     strokes, backgroundImage, setBackgroundImage,
+    knowledgeGraph, setKnowledgeGraph,
     addBlock, addBlocksBatch, addConnectionsBatch,
     updateBlock, deleteBlock, moveBlock, moveGroup,
     addConnection, deleteConnection, updateConnection,
@@ -184,6 +209,7 @@ export function useCanvas() {
     toggleSelect, clearSelection,
     setTool, setBackground,
     addStroke, eraseStroke,
+    undo, redo, canUndo, canRedo,
     loadState,
   };
 }
