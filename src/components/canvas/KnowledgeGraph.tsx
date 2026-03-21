@@ -422,45 +422,6 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
               ))}
             </div>
           </ScrollArea>
-        ) : tab === 'mutations' ? (
-          <ScrollArea className="flex-1 p-6">
-            <div className="max-w-3xl mx-auto space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold text-foreground flex items-center gap-2"><GitBranch className="h-4 w-4" /> Concept Mutations ({graph.mutations.length})</h3>
-                <p className="text-xs text-muted-foreground mt-1">How hypotheses and theories evolved. Real discovery happens when we reconsider things — tracking these shifts reveals the development trajectory.</p>
-              </div>
-              {graph.mutations.length === 0 ? (
-                <div className="text-center py-8">
-                  <AlertTriangle className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">No mutations tracked yet. Run analysis multiple times to see how concepts evolve and hypotheses shift.</p>
-                </div>
-              ) : graph.mutations.map(mut => {
-                const concept = graph.concepts.find(c => c.id === mut.conceptId);
-                return (
-                  <div key={mut.id} className="p-4 border border-border rounded-lg bg-card">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      <span className="text-sm font-medium text-foreground">{concept?.label || mut.conceptId}</span>
-                      <span className="capitalize text-xs bg-muted px-1.5 py-0.5 rounded text-muted-foreground ml-auto">{mut.mutationType || 'refined'}</span>
-                    </div>
-                    <div className="flex items-start gap-3 mb-3">
-                      <div className="flex-1 p-2 bg-destructive/10 rounded text-xs text-destructive">
-                        <div className="font-medium mb-0.5">Previous Understanding</div>
-                        {mut.previousState}
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 mt-4" />
-                      <div className="flex-1 p-2 bg-primary/10 rounded text-xs text-primary">
-                        <div className="font-medium mb-0.5">Current Understanding</div>
-                        {mut.newState}
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed"><span className="font-medium">Why this shifted:</span> {mut.reason}</p>
-                    {mut.timestamp && <p className="text-xs text-muted-foreground mt-1"><Clock className="h-3 w-3 inline mr-1" />{new Date(mut.timestamp).toLocaleString()}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
         ) : tab === 'convergence' ? (
           <ScrollArea className="flex-1 p-6">
             <div className="max-w-3xl mx-auto space-y-4">

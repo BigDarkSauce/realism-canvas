@@ -361,11 +361,11 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
   useEffect(() => {
     const handler = () => {
       const doc = iframeRef.current?.contentDocument;
-      if (doc && ours) applyIframeTheme(doc, true);
+      if (doc) applyIframeTheme(doc);
     };
     window.addEventListener('themechange', handler);
     return () => window.removeEventListener('themechange', handler);
-  }, [ours]);
+  }, []);
 
   const handleClose = useCallback(async () => {
     if (dirty) {
