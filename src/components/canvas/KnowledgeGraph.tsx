@@ -364,26 +364,6 @@ export default function KnowledgeGraph({ open, onClose, blocks, connections, kno
                           ))}
                         </div>
                       )}
-                      {muts.length > 0 && (
-                        <div>
-                          <h4 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                            <GitBranch className="h-3 w-3" /> Mutations ({muts.length})
-                          </h4>
-                          {muts.map(m => (
-                            <div key={m.id} className="text-xs py-2 px-2 rounded bg-destructive/10 mb-2">
-                              <div className="flex items-center gap-1 mb-1">
-                                <span className="capitalize bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{m.mutationType || 'refined'}</span>
-                              </div>
-                              <div className="flex items-start gap-2 my-1">
-                                <span className="bg-destructive/20 text-destructive px-2 py-0.5 rounded flex-1">{m.previousState}</span>
-                                <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0 mt-1" />
-                                <span className="bg-primary/20 text-primary px-2 py-0.5 rounded flex-1">{m.newState}</span>
-                              </div>
-                              <p className="text-muted-foreground mt-1 leading-relaxed">{m.reason}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
                   );
                 })() : (
