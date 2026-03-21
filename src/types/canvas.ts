@@ -1,3 +1,5 @@
+export type BlockShape = 'rectangle' | 'circle' | 'diamond' | 'sticky' | 'text' | 'image';
+
 export interface Block {
   id: string;
   x: number;
@@ -10,6 +12,15 @@ export interface Block {
   fileStorageUrl?: string;
   groupId?: string;
   fontSize?: string;
+  shape?: BlockShape;
+  bgColor?: string;
+  borderColor?: string;
+  borderStyle?: 'solid' | 'dashed' | 'dotted';
+  textColor?: string;
+  markdown?: string;
+  linkedDocumentId?: string;
+  comment?: string;
+  icon?: string;
 }
 
 export type ArrowStyle = 'solid' | 'dashed' | 'dotted';
@@ -18,10 +29,8 @@ export interface Connection {
   id: string;
   fromId: string;
   toId: string;
-  // Control point offset for bending
   cpX?: number;
   cpY?: number;
-  // Styling
   color?: string;
   strokeWidth?: number;
   arrowStyle?: ArrowStyle;
@@ -47,6 +56,62 @@ export interface DrawingStroke {
   points: DrawingPoint[];
   color: string;
   width: number;
+}
+
+export interface CanvasComment {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  author: string;
+  timestamp: string;
+  blockId?: string;
+}
+
+// Knowledge Graph types
+export interface KnowledgeConcept {
+  id: string;
+  label: string;
+  sourceBlockIds: string[];
+  weight: number;
+  domain: string;
+  x?: number;
+  y?: number;
+}
+
+export interface KnowledgeRule {
+  id: string;
+  description: string;
+  weight: number;
+  domain: string;
+  sourceConceptIds: string[];
+}
+
+export interface KnowledgeMutation {
+  id: string;
+  conceptId: string;
+  previousState: string;
+  newState: string;
+  reason: string;
+  timestamp: string;
+}
+
+export interface CausalLink {
+  id: string;
+  fromId: string;
+  toId: string;
+  type: 'causes' | 'derives' | 'contradicts' | 'supports' | 'evolves';
+  weight: number;
+  description: string;
+}
+
+export interface KnowledgeGraphData {
+  concepts: KnowledgeConcept[];
+  rules: KnowledgeRule[];
+  mutations: KnowledgeMutation[];
+  causalLinks: CausalLink[];
+  lastAnalyzedAt: string | null;
+  summary?: string;
 }
 
 export type CanvasTool = 'select' | 'connect' | 'add' | 'draw' | 'eraser';
