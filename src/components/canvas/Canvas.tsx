@@ -17,8 +17,6 @@ import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
-import InteractiveExport from './InteractiveExport';
-import WordExport from './WordExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
