@@ -33,6 +33,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [parsing, setParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [selectedShape, setSelectedShape] = useState<BlockShape>('rectangle');
   const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
   const [pdfPageDimensions, setPdfPageDimensions] = useState<{ width: number; height: number }[]>([]);
   const [pdfLineRects, setPdfLineRects] = useState<Map<number, { page: number; top: number; height: number }>>(new Map());
