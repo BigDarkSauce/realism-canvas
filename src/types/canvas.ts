@@ -1,4 +1,4 @@
-export type BlockShape = 'rectangle' | 'circle' | 'diamond' | 'sticky' | 'text' | 'image';
+export type BlockShape = 'rectangle' | 'circle' | 'sticky' | 'text' | 'image';
 
 export interface Block {
   id: string;
@@ -13,6 +13,7 @@ export interface Block {
   groupId?: string;
   fontSize?: string;
   shape?: BlockShape;
+  rotation?: number;
   bgColor?: string;
   borderColor?: string;
   borderStyle?: 'solid' | 'dashed' | 'dotted';

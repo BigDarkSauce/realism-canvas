@@ -17,8 +17,6 @@ import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
-import InteractiveExport from './InteractiveExport';
-import WordExport from './WordExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -68,15 +66,13 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const [canvasSize, setCanvasSize] = useState(INITIAL_CANVAS_SIZE);
   const clipboard = useRef<Block[]>([]);
-  const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string }[] | null>(null);
+  const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string; shape?: BlockShape }[] | null>(null);
 
   // New feature state
   const [showMinimap, setShowMinimap] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
-  const [showExport, setShowExport] = useState(false);
-  const [showWordExport, setShowWordExport] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
@@ -266,8 +262,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     setPan(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
   }, []);
 
-  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[]) => {
-    setPendingSections(sections);
+  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[], shape: BlockShape) => {
+    setPendingSections(sections.map(s => ({ ...s, shape })));
     toast.info('Click on the canvas to place the split sections');
   }, []);
 
@@ -277,7 +273,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     let nextIdLocal = Date.now();
     const newBlocks: Block[] = pendingSections.map((s, i) => ({
       id: `split-${nextIdLocal++}`, x: startX, y: startY + i * (blockHeight + gap),
-      width: blockWidth, height: blockHeight, label: s.heading, fileStorageUrl: s.fileUrl, fileName: s.fileName,
+      width: blockWidth, height: blockHeight, label: s.heading, fileStorageUrl: s.fileUrl, fileName: s.fileName, shape: s.shape,
     }));
     const newConnections = newBlocks.slice(0, -1).map((b, i) => ({ fromId: b.id, toId: newBlocks[i + 1].id }));
     canvas.addBlocksBatch(newBlocks);
@@ -410,26 +406,9 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onToggleMinimap={() => setShowMinimap(p => !p)}
         showMinimap={showMinimap}
         onAddShape={handleAddShape}
-        onInteractiveExport={() => setShowExport(true)}
-        onWordExport={() => setShowWordExport(true)}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
-      <InteractiveExport
-        open={showExport}
-        onClose={() => setShowExport(false)}
-        getState={() => ({
-          blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
-          strokes: canvas.strokes, background: canvas.background, canvasSize,
-        })}
-      />
-      <WordExport
-        open={showWordExport}
-        onClose={() => setShowWordExport(false)}
-        getState={() => ({
-          blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
-        })}
-      />
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">

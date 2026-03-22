@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
 
 const FONT_SIZE_OPTIONS = [
   '10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px',
@@ -35,11 +36,12 @@ export default function BlockEditor({ block, onClose, onSave }: BlockEditorProps
   const [width, setWidth] = useState(block?.width || 160);
   const [height, setHeight] = useState(block?.height || 56);
   const [fontSize, setFontSize] = useState(block?.fontSize || '14px');
+  const [rotation, setRotation] = useState(block?.rotation || 0);
 
   if (!block) return null;
 
   const handleSave = () => {
-    onSave(block.id, { label, fileUrl, fileName, width, height, fontSize });
+    onSave(block.id, { label, fileUrl, fileName, width, height, fontSize, rotation });
     onClose();
   };
 
@@ -66,6 +68,17 @@ export default function BlockEditor({ block, onClose, onSave }: BlockEditorProps
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Rotation: {rotation}°</Label>
+            <Slider
+              value={[rotation]}
+              onValueChange={([v]) => setRotation(v)}
+              min={0}
+              max={360}
+              step={1}
+              className="w-full"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="fileName">File Name (display)</Label>

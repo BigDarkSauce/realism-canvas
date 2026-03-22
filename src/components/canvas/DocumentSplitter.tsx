@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { BlockShape } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw, Search, ChevronUp, ChevronDown } from 'lucide-react';
@@ -17,7 +18,7 @@ import { toast } from 'sonner';
 interface DocumentSplitterProps {
   open: boolean;
   onClose: () => void;
-  onSectionsCreated: (sections: { heading: string; fileUrl: string; fileName: string }[]) => void;
+  onSectionsCreated: (sections: { heading: string; fileUrl: string; fileName: string }[], shape: BlockShape) => void;
 }
 
 type Step = 'upload' | 'highlight' | 'preview';
@@ -32,6 +33,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
   const [parsing, setParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [selectedShape, setSelectedShape] = useState<BlockShape>('rectangle');
   const [pdfPageUrls, setPdfPageUrls] = useState<string[]>([]);
   const [pdfPageDimensions, setPdfPageDimensions] = useState<{ width: number; height: number }[]>([]);
   const [pdfLineRects, setPdfLineRects] = useState<Map<number, { page: number; top: number; height: number }>>(new Map());
@@ -190,7 +192,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
         const { signedUrl } = await uploadAndGetSignedUrl(sectionFile, 'sections/');
         results.push({ heading: section.heading, fileUrl: signedUrl, fileName: sectionFile.name });
       }
-      onSectionsCreated(results);
+      onSectionsCreated(results, selectedShape);
       toast.success(`Created ${results.length} blocks on canvas`);
       onClose();
       reset();
@@ -374,6 +376,16 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                     <span className="text-muted-foreground ml-auto shrink-0">{s.content.length} chars</span>
                   </div>
                 ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">Block shape:</span>
+                <div className="flex gap-1">
+                  {(['rectangle', 'circle', 'sticky', 'text'] as BlockShape[]).map(s => (
+                    <Button key={s} size="sm" variant={selectedShape === s ? 'default' : 'outline'} className="h-7 text-xs px-2" onClick={() => setSelectedShape(s)}>
+                      {s === 'rectangle' ? '▬' : s === 'circle' ? '⬤' : s === 'sticky' ? '📝' : '𝐓'}
+                    </Button>
+                  ))}
+                </div>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleCreateBlocks} disabled={uploading} className="flex-1 gap-2">

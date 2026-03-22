@@ -159,8 +159,6 @@ export default function CanvasBlock({
     switch (block.shape) {
       case 'circle':
         return 'rounded-full';
-      case 'diamond':
-        return 'rounded-sm';
       case 'sticky':
         return 'rounded-sm bg-yellow-100 dark:bg-yellow-900/60 border-yellow-400 dark:border-yellow-600 text-yellow-900 dark:text-yellow-100';
       case 'text':
@@ -170,8 +168,8 @@ export default function CanvasBlock({
     }
   })();
 
-  const isDiamond = block.shape === 'diamond';
   const isTextOnly = block.shape === 'text';
+  const rotation = block.rotation || 0;
 
   return (
     <div
@@ -192,7 +190,7 @@ export default function CanvasBlock({
         height: block.height,
         zIndex: dragging || resizing ? 50 : 10,
         fontSize: block.fontSize || undefined,
-        transform: isDiamond ? 'rotate(45deg)' : undefined,
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
         ...(block.bgColor && block.shape !== 'sticky' ? { background: block.bgColor } : {}),
         ...(block.borderColor ? { borderColor: block.borderColor } : {}),
         ...(block.textColor ? { color: block.textColor } : {}),
@@ -203,10 +201,9 @@ export default function CanvasBlock({
       tabIndex={0}
     >
       <div
-        className={cn("flex items-center gap-2 w-full h-full px-3 py-2 overflow-hidden", isDiamond && "justify-center")}
-        style={isDiamond ? { transform: 'rotate(-45deg)' } : undefined}
+        className={cn("flex items-center gap-2 w-full h-full px-3 py-2 overflow-hidden")}
       >
-        {!isDiamond && <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />}
+        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="truncate flex-1 text-center">{uploading ? 'Uploading...' : block.label}</span>
         {hasFile && (
           <button

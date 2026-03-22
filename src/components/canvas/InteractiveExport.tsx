@@ -203,7 +203,7 @@ ${Array.from(clusterNames).map(name => `<label class="layer-item"><input type="c
 
   ${blocks.map(b => {
     const clusterLabel = b.groupId && groupMap.has(b.groupId) ? groupMap.get(b.groupId)!.label : 'Ungrouped';
-    const shapeClass = b.shape === 'circle' ? 'circle' : b.shape === 'diamond' ? 'diamond' : b.shape === 'sticky' ? 'sticky' : '';
+    const shapeClass = b.shape === 'circle' ? 'circle' : b.shape === 'sticky' ? 'sticky' : '';
     const bgStyle = b.bgColor ? `background:${b.bgColor};` : '';
     const borderStyle = b.borderColor ? `border-color:${b.borderColor};` : '';
     const textStyle = b.textColor ? `color:${b.textColor};` : '';
