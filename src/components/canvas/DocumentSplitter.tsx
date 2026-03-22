@@ -377,6 +377,16 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
                   </div>
                 ))}
               </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground shrink-0">Block shape:</span>
+                <div className="flex gap-1">
+                  {(['rectangle', 'circle', 'sticky', 'text'] as BlockShape[]).map(s => (
+                    <Button key={s} size="sm" variant={selectedShape === s ? 'default' : 'outline'} className="h-7 text-xs px-2" onClick={() => setSelectedShape(s)}>
+                      {s === 'rectangle' ? '▬' : s === 'circle' ? '⬤' : s === 'sticky' ? '📝' : '𝐓'}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="flex gap-2">
                 <Button size="sm" onClick={handleCreateBlocks} disabled={uploading} className="flex-1 gap-2">
                   {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SplitSquareVertical className="h-3.5 w-3.5" />}
