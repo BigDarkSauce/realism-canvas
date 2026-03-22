@@ -30,6 +30,7 @@ interface ToolbarProps {
   onToggleMinimap: () => void;
   showMinimap: boolean;
   onAddShape: (shape: BlockShape) => void;
+  onExportCanvas: () => void;
 }
 
 
