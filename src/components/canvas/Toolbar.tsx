@@ -132,6 +132,9 @@ export default function Toolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onInteractiveExport}>
+            <FileDown className="h-4 w-4 mr-2" /> Interactive HTML Export
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSplitDocument}>
             <SplitSquareVertical className="h-4 w-4 mr-2" /> Split Document
           </DropdownMenuItem>
