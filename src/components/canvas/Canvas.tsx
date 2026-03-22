@@ -411,6 +411,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         showMinimap={showMinimap}
         onAddShape={handleAddShape}
         onInteractiveExport={() => setShowExport(true)}
+        onWordExport={() => setShowWordExport(true)}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
