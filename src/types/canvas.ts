@@ -13,6 +13,7 @@ export interface Block {
   groupId?: string;
   fontSize?: string;
   shape?: BlockShape;
+  rotation?: number;
   bgColor?: string;
   borderColor?: string;
   borderStyle?: 'solid' | 'dashed' | 'dotted';
