@@ -66,7 +66,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const panStart = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const [canvasSize, setCanvasSize] = useState(INITIAL_CANVAS_SIZE);
   const clipboard = useRef<Block[]>([]);
-  const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string }[] | null>(null);
+  const [pendingSections, setPendingSections] = useState<{ heading: string; fileUrl: string; fileName: string; shape?: BlockShape }[] | null>(null);
 
   // New feature state
   const [showMinimap, setShowMinimap] = useState(false);
