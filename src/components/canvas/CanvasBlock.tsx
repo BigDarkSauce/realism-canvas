@@ -159,8 +159,6 @@ export default function CanvasBlock({
     switch (block.shape) {
       case 'circle':
         return 'rounded-full';
-      case 'diamond':
-        return 'rounded-sm';
       case 'sticky':
         return 'rounded-sm bg-yellow-100 dark:bg-yellow-900/60 border-yellow-400 dark:border-yellow-600 text-yellow-900 dark:text-yellow-100';
       case 'text':
@@ -170,8 +168,8 @@ export default function CanvasBlock({
     }
   })();
 
-  const isDiamond = block.shape === 'diamond';
   const isTextOnly = block.shape === 'text';
+  const rotation = block.rotation || 0;
 
   return (
     <div
