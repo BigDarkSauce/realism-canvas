@@ -31,6 +31,7 @@ interface ToolbarProps {
   showMinimap: boolean;
   onAddShape: (shape: BlockShape) => void;
   onInteractiveExport: () => void;
+  onWordExport: () => void;
 }
 
 
