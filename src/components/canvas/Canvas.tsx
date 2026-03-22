@@ -273,7 +273,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     let nextIdLocal = Date.now();
     const newBlocks: Block[] = pendingSections.map((s, i) => ({
       id: `split-${nextIdLocal++}`, x: startX, y: startY + i * (blockHeight + gap),
-      width: blockWidth, height: blockHeight, label: s.heading, fileStorageUrl: s.fileUrl, fileName: s.fileName,
+      width: blockWidth, height: blockHeight, label: s.heading, fileStorageUrl: s.fileUrl, fileName: s.fileName, shape: s.shape,
     }));
     const newConnections = newBlocks.slice(0, -1).map((b, i) => ({ fromId: b.id, toId: newBlocks[i + 1].id }));
     canvas.addBlocksBatch(newBlocks);
