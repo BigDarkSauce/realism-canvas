@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { BlockShape } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { FileText, Loader2, SplitSquareVertical, X, ArrowLeft, Highlighter, Eye, RotateCcw, Search, ChevronUp, ChevronDown } from 'lucide-react';
