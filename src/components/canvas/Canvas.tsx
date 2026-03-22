@@ -373,6 +373,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     await cacheDocument({ id: documentId, canvas_data: stateJson });
     if (isOnline() && accessKey) {
       await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_access_key: accessKey, p_data: stateJson });
+      // Auto-create a save file with timestamp
+      try {
+        const saveName = `Auto-save ${new Date().toLocaleString()}`;
+        await supabase.rpc('rpc_create_save', {
+          p_doc_id: documentId,
+          p_access_key: accessKey,
+          p_name: saveName,
+          p_canvas_data: stateJson,
+        });
+      } catch (err) {
+        console.warn('Auto-save file creation failed:', err);
+      }
     } else {
       await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, access_key: accessKey, canvas_data: stateJson } });
     }
