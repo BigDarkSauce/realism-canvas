@@ -61,7 +61,7 @@ export default function Toolbar({
   onBackgroundImageUpload, onSplitDocument,
   onUndo, onRedo, canUndo, canRedo,
   onShortcuts, onToggleMinimap, showMinimap,
-  onAddShape, onInteractiveExport,
+  onAddShape, onInteractiveExport, onWordExport,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
 
