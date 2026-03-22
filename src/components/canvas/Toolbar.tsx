@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground, BlockShape } from '@/types/canvas';
 import {
@@ -30,6 +30,7 @@ interface ToolbarProps {
   onToggleMinimap: () => void;
   showMinimap: boolean;
   onAddShape: (shape: BlockShape) => void;
+  onInteractiveExport: () => void;
 }
 
 
@@ -59,7 +60,7 @@ export default function Toolbar({
   onBackgroundImageUpload, onSplitDocument,
   onUndo, onRedo, canUndo, canRedo,
   onShortcuts, onToggleMinimap, showMinimap,
-  onAddShape,
+  onAddShape, onInteractiveExport,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
 
@@ -131,6 +132,9 @@ export default function Toolbar({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={onInteractiveExport}>
+            <FileDown className="h-4 w-4 mr-2" /> Interactive HTML Export
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onSplitDocument}>
             <SplitSquareVertical className="h-4 w-4 mr-2" /> Split Document
           </DropdownMenuItem>

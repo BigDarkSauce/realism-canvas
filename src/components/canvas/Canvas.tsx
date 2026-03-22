@@ -17,6 +17,7 @@ import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
+import InteractiveExport from './InteractiveExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,6 +74,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
@@ -373,6 +375,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     await cacheDocument({ id: documentId, canvas_data: stateJson });
     if (isOnline() && accessKey) {
       await supabase.rpc('rpc_update_document_data', { p_doc_id: documentId, p_access_key: accessKey, p_data: stateJson });
+      // Auto-create a save file with timestamp
+      try {
+        const saveName = `Auto-save ${new Date().toLocaleString()}`;
+        await supabase.rpc('rpc_create_save', {
+          p_doc_id: documentId,
+          p_access_key: accessKey,
+          p_name: saveName,
+          p_canvas_data: stateJson,
+        });
+      } catch (err) {
+        console.warn('Auto-save file creation failed:', err);
+      }
     } else {
       await addPendingChange({ type: 'update', table: 'canvas_documents', data: { id: documentId, access_key: accessKey, canvas_data: stateJson } });
     }
@@ -394,9 +408,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onToggleMinimap={() => setShowMinimap(p => !p)}
         showMinimap={showMinimap}
         onAddShape={handleAddShape}
+        onInteractiveExport={() => setShowExport(true)}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
+      <InteractiveExport
+        open={showExport}
+        onClose={() => setShowExport(false)}
+        getState={() => ({
+          blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
+          strokes: canvas.strokes, background: canvas.background, canvasSize,
+        })}
+      />
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
