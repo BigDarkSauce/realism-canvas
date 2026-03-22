@@ -190,7 +190,7 @@ export default function CanvasBlock({
         height: block.height,
         zIndex: dragging || resizing ? 50 : 10,
         fontSize: block.fontSize || undefined,
-        transform: isDiamond ? 'rotate(45deg)' : undefined,
+        transform: rotation ? `rotate(${rotation}deg)` : undefined,
         ...(block.bgColor && block.shape !== 'sticky' ? { background: block.bgColor } : {}),
         ...(block.borderColor ? { borderColor: block.borderColor } : {}),
         ...(block.textColor ? { color: block.textColor } : {}),
