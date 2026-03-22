@@ -155,12 +155,30 @@ export default function CanvasBlock({
     { edge: 'nw', className: '-top-[5px] -left-[5px] w-[10px] h-[10px]', cursor: 'nwse-resize' },
   ];
 
+  const shapeClasses = (() => {
+    switch (block.shape) {
+      case 'circle':
+        return 'rounded-full';
+      case 'diamond':
+        return 'rounded-sm';
+      case 'sticky':
+        return 'rounded-sm bg-yellow-100 dark:bg-yellow-900/60 border-yellow-400 dark:border-yellow-600 text-yellow-900 dark:text-yellow-100';
+      case 'text':
+        return 'border-transparent bg-transparent shadow-none hover:shadow-none';
+      default:
+        return 'rounded-lg';
+    }
+  })();
+
+  const isDiamond = block.shape === 'diamond';
+  const isTextOnly = block.shape === 'text';
+
   return (
     <div
       className={cn(
-        "absolute select-none cursor-grab flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-shadow font-mono text-sm font-medium",
-        "bg-block border-block-border shadow-sm",
-        "hover:shadow-md hover:border-block-hover",
+        "absolute select-none cursor-grab flex items-center gap-2 border-2 transition-shadow font-mono text-sm font-medium",
+        !isTextOnly && "bg-block border-block-border shadow-sm hover:shadow-md hover:border-block-hover",
+        shapeClasses,
         isSelected && "border-primary shadow-md ring-2 ring-primary/20",
         isGrouped && "border-group-border",
         dragging && "cursor-grabbing shadow-lg opacity-90 z-50",
@@ -174,30 +192,39 @@ export default function CanvasBlock({
         height: block.height,
         zIndex: dragging || resizing ? 50 : 10,
         fontSize: block.fontSize || undefined,
+        transform: isDiamond ? 'rotate(45deg)' : undefined,
+        ...(block.bgColor && block.shape !== 'sticky' ? { background: block.bgColor } : {}),
+        ...(block.borderColor ? { borderColor: block.borderColor } : {}),
+        ...(block.textColor ? { color: block.textColor } : {}),
       }}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(block); }}
       tabIndex={0}
     >
-      <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-      <span className="truncate flex-1">{uploading ? 'Uploading...' : block.label}</span>
-      {hasFile && (
-        <button
-          className="h-6 w-6 flex items-center justify-center rounded border border-primary/30 bg-primary/10 hover:bg-primary/20 shrink-0"
-          title="Open file"
-          onClick={(e) => { e.stopPropagation(); handleOpenFile(); }}
-        >
-          <FolderOpen className="h-3.5 w-3.5 text-primary" />
-        </button>
-      )}
-      <button
-        className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
-        title="Upload file"
-        onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+      <div
+        className={cn("flex items-center gap-2 w-full h-full px-3 py-2 overflow-hidden", isDiamond && "justify-center")}
+        style={isDiamond ? { transform: 'rotate(-45deg)' } : undefined}
       >
-        <Upload className="h-3 w-3 text-muted-foreground" />
-      </button>
+        {!isDiamond && <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />}
+        <span className="truncate flex-1 text-center">{uploading ? 'Uploading...' : block.label}</span>
+        {hasFile && (
+          <button
+            className="h-6 w-6 flex items-center justify-center rounded border border-primary/30 bg-primary/10 hover:bg-primary/20 shrink-0"
+            title="Open file"
+            onClick={(e) => { e.stopPropagation(); handleOpenFile(); }}
+          >
+            <FolderOpen className="h-3.5 w-3.5 text-primary" />
+          </button>
+        )}
+        <button
+          className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent shrink-0"
+          title="Upload file"
+          onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+        >
+          <Upload className="h-3 w-3 text-muted-foreground" />
+        </button>
+      </div>
       <input
         ref={fileInputRef}
         type="file"

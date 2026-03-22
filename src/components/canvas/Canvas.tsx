@@ -18,6 +18,7 @@ import DocumentSplitter from './DocumentSplitter';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
 import InteractiveExport from './InteractiveExport';
+import WordExport from './WordExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -75,6 +76,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showWordExport, setShowWordExport] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
@@ -409,6 +411,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         showMinimap={showMinimap}
         onAddShape={handleAddShape}
         onInteractiveExport={() => setShowExport(true)}
+        onWordExport={() => setShowWordExport(true)}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
@@ -418,6 +421,13 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         getState={() => ({
           blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
           strokes: canvas.strokes, background: canvas.background, canvasSize,
+        })}
+      />
+      <WordExport
+        open={showWordExport}
+        onClose={() => setShowWordExport(false)}
+        getState={() => ({
+          blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
         })}
       />
 
