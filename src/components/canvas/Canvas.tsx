@@ -74,6 +74,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
+  const [showExport, setShowExport] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
