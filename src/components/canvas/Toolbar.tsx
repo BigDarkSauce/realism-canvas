@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal, FileDown } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal, FileDown, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground, BlockShape } from '@/types/canvas';
 import {
