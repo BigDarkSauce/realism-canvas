@@ -262,8 +262,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     setPan(prev => ({ x: prev.x - e.deltaX, y: prev.y - e.deltaY }));
   }, []);
 
-  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[]) => {
-    setPendingSections(sections);
+  const handleSectionsCreated = useCallback((sections: { heading: string; fileUrl: string; fileName: string }[], shape: BlockShape) => {
+    setPendingSections(sections.map(s => ({ ...s, shape })));
     toast.info('Click on the canvas to place the split sections');
   }, []);
 
