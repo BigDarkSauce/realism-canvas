@@ -17,6 +17,7 @@ import OuterBackgroundPicker from './OuterBackgroundPicker';
 import DocumentSplitter from './DocumentSplitter';
 import Minimap from './Minimap';
 import KeyboardShortcuts from './KeyboardShortcuts';
+import CanvasExport from './CanvasExport';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -73,6 +74,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingShape, setPendingShape] = useState<BlockShape>('rectangle');
   const [splitterOpen, setSplitterOpen] = useState(false);
+  const [showCanvasExport, setShowCanvasExport] = useState(false);
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
@@ -406,9 +408,18 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onToggleMinimap={() => setShowMinimap(p => !p)}
         showMinimap={showMinimap}
         onAddShape={handleAddShape}
+        onExportCanvas={() => setShowCanvasExport(true)}
       />
 
       <DocumentSplitter open={splitterOpen} onClose={() => setSplitterOpen(false)} onSectionsCreated={handleSectionsCreated} />
+      <CanvasExport
+        open={showCanvasExport}
+        onClose={() => setShowCanvasExport(false)}
+        getState={() => ({
+          blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
+          canvasElement: canvasRef.current,
+        })}
+      />
 
       {pendingSections && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-[60] bg-primary text-primary-foreground px-6 py-3 rounded-xl shadow-lg flex items-center gap-3 animate-in fade-in">
