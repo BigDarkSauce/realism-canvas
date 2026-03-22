@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, Diamond, StickyNote, Type, MoreHorizontal, FileDown, FileText } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, StickyNote, Type, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground, BlockShape } from '@/types/canvas';
 import {
@@ -30,8 +30,6 @@ interface ToolbarProps {
   onToggleMinimap: () => void;
   showMinimap: boolean;
   onAddShape: (shape: BlockShape) => void;
-  onInteractiveExport: () => void;
-  onWordExport: () => void;
 }
 
 
@@ -50,7 +48,6 @@ const backgrounds: { id: CanvasBackground; label: string }[] = [
 const shapes: { id: BlockShape; icon: typeof Circle; label: string }[] = [
   { id: 'rectangle', icon: Plus, label: 'Rectangle' },
   { id: 'circle', icon: Circle, label: 'Circle' },
-  { id: 'diamond', icon: Diamond, label: 'Diamond' },
   { id: 'sticky', icon: StickyNote, label: 'Sticky Note' },
   { id: 'text', icon: Type, label: 'Text Only' },
 ];
