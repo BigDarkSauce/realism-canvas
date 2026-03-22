@@ -203,7 +203,7 @@ export default function CanvasBlock({
       <div
         className={cn("flex items-center gap-2 w-full h-full px-3 py-2 overflow-hidden")}
       >
-        {!isDiamond && <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />}
+        <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="truncate flex-1 text-center">{uploading ? 'Uploading...' : block.label}</span>
         {hasFile && (
           <button
