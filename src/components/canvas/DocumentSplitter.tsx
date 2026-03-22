@@ -192,7 +192,7 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
         const { signedUrl } = await uploadAndGetSignedUrl(sectionFile, 'sections/');
         results.push({ heading: section.heading, fileUrl: signedUrl, fileName: sectionFile.name });
       }
-      onSectionsCreated(results);
+      onSectionsCreated(results, selectedShape);
       toast.success(`Created ${results.length} blocks on canvas`);
       onClose();
       reset();
