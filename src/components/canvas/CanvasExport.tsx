@@ -50,7 +50,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         compression: 'DEFLATE',
         compressionOptions: { level: 6 },
       });
-      saveAs(new Blob([zipData], { type: 'application/zip' }), `${sanitize(title)}.zip`);
+      const zipBuffer = zipData.buffer.slice(zipData.byteOffset, zipData.byteOffset + zipData.byteLength) as ArrayBuffer;
+      saveAs(new Blob([zipBuffer], { type: 'application/zip' }), `${sanitize(title)}.zip`);
       toast.success('Canvas exported successfully!');
       onClose();
     } catch (err) {
