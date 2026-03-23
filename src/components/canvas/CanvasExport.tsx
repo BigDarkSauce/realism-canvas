@@ -170,7 +170,7 @@ function generateMermaidDiagram(state: CanvasExportState): string {
 /**
  * Generate a real PDF for a block using jsPDF.
  */
-function generateBlockPdf(block: Block): Blob {
+function generateBlockPdf(block: Block): ArrayBuffer {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 50;
