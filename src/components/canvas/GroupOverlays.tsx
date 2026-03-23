@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Group, Block } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
 import { Paintbrush } from 'lucide-react';
@@ -54,6 +54,36 @@ const BG_PRESETS = [
 export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateGroup }: GroupOverlaysProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const dragStartRef = useRef<{ startX: number; startOffset: number } | null>(null);
+  const groupWidthRef = useRef<number>(0);
+
+  const handleDragStart = useCallback((e: React.MouseEvent, group: Group, groupWidth: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingId(group.id);
+    dragStartRef.current = { startX: e.clientX, startOffset: group.labelOffsetX || 0 };
+    groupWidthRef.current = groupWidth;
+
+    const handleMove = (ev: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      const dx = ev.clientX - dragStartRef.current.startX;
+      const newOffset = dragStartRef.current.startOffset + dx;
+      const halfWidth = groupWidthRef.current / 2;
+      const clamped = Math.max(-halfWidth + 40, Math.min(halfWidth - 40, newOffset));
+      onUpdateGroup(group.id, { labelOffsetX: clamped });
+    };
+
+    const handleUp = () => {
+      setDraggingId(null);
+      dragStartRef.current = null;
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [onUpdateGroup]);
 
   return (
     <>
@@ -65,11 +95,12 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
         const minY = Math.min(...groupBlocks.map(b => b.y)) - 28;
         const maxX = Math.max(...groupBlocks.map(b => b.x + b.width)) + 12;
         const maxY = Math.max(...groupBlocks.map(b => b.y + b.height)) + 12;
+        const groupWidth = maxX - minX;
 
         const groupStyle: React.CSSProperties = {
           left: minX,
           top: minY,
-          width: maxX - minX,
+          width: groupWidth,
           height: maxY - minY,
           zIndex: 1,
           fontFamily: group.fontFamily || undefined,
@@ -79,12 +110,13 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
             : undefined,
         };
 
-        // Text color: use group.textColor directly, fallback to inherited
         const textStyle: React.CSSProperties = {
           color: group.textColor || undefined,
           fontFamily: group.fontFamily || undefined,
           fontSize: group.fontSize || undefined,
         };
+
+        const labelOffset = group.labelOffsetX || 0;
 
         return (
           <div
@@ -92,7 +124,15 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
             className="absolute rounded-xl border-2 border-dashed border-group-border pointer-events-none"
             style={groupStyle}
           >
-            <div className="absolute -top-5 left-1/2 -translate-x-1/2 flex items-center gap-1 pointer-events-auto">
+            <div
+              className="absolute -top-5 flex items-center gap-1 pointer-events-auto"
+              style={{
+                left: `calc(50% + ${labelOffset}px)`,
+                transform: 'translateX(-50%)',
+                cursor: draggingId === group.id ? 'grabbing' : 'grab',
+              }}
+              onMouseDown={e => handleDragStart(e, group, groupWidth)}
+            >
               {editingId === group.id ? (
                 <Input
                   autoFocus
@@ -110,15 +150,17 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                   }}
                   className="w-32 h-5 text-xs font-semibold px-2 py-0 bg-card border-border"
                   style={textStyle}
+                  onMouseDown={e => e.stopPropagation()}
                 />
               ) : (
                 <span
-                  className="px-2 bg-card text-xs font-semibold rounded-b cursor-pointer hover:underline"
-                  onDoubleClick={() => {
+                  className="px-2 py-0.5 bg-card text-xs font-semibold rounded border border-border shadow-sm cursor-grab select-none"
+                  onDoubleClick={e => {
+                    e.stopPropagation();
                     setEditLabel(group.label);
                     setEditingId(group.id);
                   }}
-                  title="Double-click to rename"
+                  title="Double-click to rename · Drag to reposition"
                   style={textStyle}
                 >
                   {group.label}
@@ -128,8 +170,9 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
               <Popover>
                 <PopoverTrigger asChild>
                   <button
-                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent"
+                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent border border-border bg-card"
                     title="Group style"
+                    onMouseDown={e => e.stopPropagation()}
                   >
                     <Paintbrush className="h-3 w-3 text-muted-foreground" />
                   </button>
