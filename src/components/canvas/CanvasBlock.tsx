@@ -201,7 +201,7 @@ export default function CanvasBlock({
       tabIndex={0}
     >
       <div
-        className={cn("flex items-center gap-2 w-full h-full px-3 py-2 overflow-hidden")}
+        className={cn("flex items-center gap-2 w-full h-full px-3 py-2", rotation ? "overflow-visible" : "overflow-hidden")}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
         <span className="truncate flex-1 text-center">{uploading ? 'Uploading...' : block.label}</span>
