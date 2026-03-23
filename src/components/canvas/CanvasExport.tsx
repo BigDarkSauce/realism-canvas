@@ -166,18 +166,6 @@ function generateMermaidDiagram(state: CanvasExportState): string {
 
   return lines.join('\n');
 }
-    case 'circle': return '◯';
-    case 'sticky': return '📝';
-    case 'text': return '📄';
-    case 'image': return '🖼';
-    default: return '▢';
-  }
-}
-
-function padRight(s: string, len: number): string {
-  if (s.length >= len) return s.slice(0, len);
-  return s + ' '.repeat(len - s.length);
-}
 
 /**
  * Generate a real PDF for a block using jsPDF.
