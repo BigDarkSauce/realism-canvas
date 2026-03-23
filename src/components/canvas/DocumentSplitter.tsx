@@ -429,7 +429,7 @@ function DocxHighlightView({
 
   return (
     <div className="max-w-[800px] mx-auto py-8 px-6">
-      <div className="bg-card shadow-lg rounded-lg p-8 space-y-0" style={{ minHeight: '80vh' }}>
+      <div className="bg-card shadow-lg rounded-lg p-8 space-y-0 [&_img]:max-w-full [&_img]:h-auto [&_img]:relative [&_img]:!position-[static] [&_img]:inline-block" style={{ minHeight: '80vh' }}>
         {paragraphs.map((p, i) => {
           const isHeading = headingIndices.has(i);
           const matched = searchQuery && isMatch(i);
