@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Group, Block } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Paintbrush } from 'lucide-react';
 import {
   Popover,
@@ -125,10 +126,12 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
             style={groupStyle}
           >
             <div
-              className="absolute -top-5 flex items-center gap-1 pointer-events-auto"
+              className="absolute flex items-center gap-1 pointer-events-auto"
               style={{
                 left: `calc(50% + ${labelOffset}px)`,
-                transform: 'translateX(-50%)',
+                transform: `translateX(-50%) scale(${group.labelScale || 1})`,
+                transformOrigin: 'center bottom',
+                top: `${-12 - 8 * (group.labelScale || 1)}px`,
                 cursor: draggingId === group.id ? 'grabbing' : 'grab',
               }}
               onMouseDown={e => handleDragStart(e, group, groupWidth)}
@@ -244,6 +247,17 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                       value={group.textColor || '#000000'}
                       onChange={e => onUpdateGroup(group.id, { textColor: e.target.value })}
                       className="h-7 w-full p-0.5 cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Label Scale ({Math.round((group.labelScale || 1) * 100)}%)</Label>
+                    <Slider
+                      min={0.5}
+                      max={3}
+                      step={0.1}
+                      value={[group.labelScale || 1]}
+                      onValueChange={([val]) => onUpdateGroup(group.id, { labelScale: val })}
                     />
                   </div>
                 </PopoverContent>

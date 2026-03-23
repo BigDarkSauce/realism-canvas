@@ -46,6 +46,7 @@ export interface Group {
   bgColor?: string;
   textColor?: string;
   labelOffsetX?: number;
+  labelScale?: number;
 }
 
 export interface DrawingPoint {
