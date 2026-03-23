@@ -103,22 +103,26 @@ function esc(s: string): string {
 }
 
 /**
- * Generate a GraphViz .dot file representing the canvas structure.
- * Open with Graphviz (dot), yEd, or VS Code Graphviz extension — no internet needed.
+ * Generate an enhanced ASCII diagram with box-drawing characters.
+ * Shows blocks inside group boxes, with arrows for connections.
+ * Opens in any text editor — no internet or special tools needed.
  */
-function generateDotGraph(state: CanvasExportState): string {
+function generateAsciiDiagram(state: CanvasExportState): string {
   const { blocks, connections, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
+  const blockMap = new Map<string, Block>();
+  blocks.forEach(b => blockMap.set(b.id, b));
 
   const lines: string[] = [];
-  lines.push('digraph CanvasMap {');
-  lines.push('  rankdir=LR;');
-  lines.push('  node [shape=box, style="rounded,filled", fillcolor="#f3f4f6", fontname="Helvetica", fontsize=11];');
-  lines.push('  edge [fontsize=9, fontname="Helvetica"];');
+  const ruler = '═'.repeat(60);
+
+  lines.push(`╔${ruler}╗`);
+  lines.push(`║  CANVAS STRUCTURE MAP${' '.repeat(38)}║`);
+  lines.push(`╚${ruler}╝`);
   lines.push('');
 
-  // Group subgraphs
+  // Categorize blocks
   const grouped = new Map<string, Block[]>();
   const ungrouped: Block[] = [];
   blocks.forEach(b => {
@@ -131,41 +135,90 @@ function generateDotGraph(state: CanvasExportState): string {
     }
   });
 
-  let clusterIdx = 0;
+  // Render groups
   for (const [gId, gBlocks] of grouped.entries()) {
     const group = groupMap.get(gId)!;
-    lines.push(`  subgraph cluster_${clusterIdx++} {`);
-    lines.push(`    label="${dotEsc(group.label)}";`);
-    lines.push('    style="dashed";');
-    lines.push(`    color="${group.bgColor && group.bgColor !== 'transparent' ? group.bgColor : '#94a3b8'}";`);
+    const maxLabelLen = Math.max(group.label.length + 4, ...gBlocks.map(b => b.label.length + 8));
+    const boxW = Math.max(maxLabelLen + 4, 30);
+    const hLine = '─'.repeat(boxW - 2);
+
+    lines.push(`  ┌${hLine}┐`);
+    lines.push(`  │ 📁 ${padRight(group.label, boxW - 7)}│`);
+    lines.push(`  ├${hLine}┤`);
+
     for (const b of gBlocks) {
-      const shape = b.shape === 'circle' ? 'ellipse' : b.shape === 'sticky' ? 'note' : 'box';
-      lines.push(`    "${dotEsc(b.id)}" [label="${dotEsc(b.label)}", shape=${shape}];`);
+      const icon = shapeIcon(b.shape);
+      const content = `${icon} ${b.label}`;
+      lines.push(`  │   ${padRight(content, boxW - 7)}│`);
+      if (b.markdown || b.comment) {
+        const note = (b.markdown || b.comment || '').slice(0, boxW - 14);
+        lines.push(`  │     ${padRight('↳ ' + note + (note.length < (b.markdown || b.comment || '').length ? '…' : ''), boxW - 9)}│`);
+      }
     }
-    lines.push('  }');
+    lines.push(`  └${hLine}┘`);
     lines.push('');
   }
 
-  // Ungrouped nodes
-  for (const b of ungrouped) {
-    const shape = b.shape === 'circle' ? 'ellipse' : b.shape === 'sticky' ? 'note' : 'box';
-    lines.push(`  "${dotEsc(b.id)}" [label="${dotEsc(b.label)}", shape=${shape}];`);
-  }
-  lines.push('');
+  // Render ungrouped blocks
+  if (ungrouped.length > 0) {
+    const maxLen = Math.max(...ungrouped.map(b => b.label.length + 8));
+    const boxW = Math.max(maxLen + 4, 30);
+    const hLine = '─'.repeat(boxW - 2);
 
-  // Connections
-  for (const c of connections) {
-    const style = c.arrowStyle === 'dashed' ? 'dashed' : c.arrowStyle === 'dotted' ? 'dotted' : 'solid';
-    const color = c.color || '#374151';
-    lines.push(`  "${dotEsc(c.fromId)}" -> "${dotEsc(c.toId)}" [style=${style}, color="${color}"];`);
+    lines.push(`  ┌${hLine}┐`);
+    lines.push(`  │ 📋 ${padRight('Ungrouped', boxW - 7)}│`);
+    lines.push(`  ├${hLine}┤`);
+    for (const b of ungrouped) {
+      const icon = shapeIcon(b.shape);
+      const content = `${icon} ${b.label}`;
+      lines.push(`  │   ${padRight(content, boxW - 7)}│`);
+      if (b.markdown || b.comment) {
+        const note = (b.markdown || b.comment || '').slice(0, boxW - 14);
+        lines.push(`  │     ${padRight('↳ ' + note + (note.length < (b.markdown || b.comment || '').length ? '…' : ''), boxW - 9)}│`);
+      }
+    }
+    lines.push(`  └${hLine}┘`);
+    lines.push('');
   }
 
-  lines.push('}');
+  // Render connections
+  if (connections.length > 0) {
+    lines.push(`  ┌${'─'.repeat(58)}┐`);
+    lines.push(`  │ 🔗 ${padRight('CONNECTIONS', 53)}│`);
+    lines.push(`  ├${'─'.repeat(58)}┤`);
+    for (const c of connections) {
+      const fromBlock = blockMap.get(c.fromId);
+      const toBlock = blockMap.get(c.toId);
+      if (!fromBlock || !toBlock) continue;
+      const arrowChar = c.arrowStyle === 'dashed' ? '┄┄┄>' : c.arrowStyle === 'dotted' ? '╌╌╌>' : '────>';
+      const line = `"${fromBlock.label}" ${arrowChar} "${toBlock.label}"`;
+      lines.push(`  │   ${padRight(line, 55)}│`);
+    }
+    lines.push(`  └${'─'.repeat(58)}┘`);
+    lines.push('');
+  }
+
+  // Summary
+  lines.push('─'.repeat(62));
+  lines.push(`  Blocks: ${blocks.length}  │  Groups: ${groups.length}  │  Connections: ${connections.length}`);
+  lines.push('─'.repeat(62));
+
   return lines.join('\n');
 }
 
-function dotEsc(s: string): string {
-  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+function shapeIcon(shape?: string): string {
+  switch (shape) {
+    case 'circle': return '◯';
+    case 'sticky': return '📝';
+    case 'text': return '📄';
+    case 'image': return '🖼';
+    default: return '▢';
+  }
+}
+
+function padRight(s: string, len: number): string {
+  if (s.length >= len) return s.slice(0, len);
+  return s + ' '.repeat(len - s.length);
 }
 
 /**
