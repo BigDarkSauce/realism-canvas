@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Group, Block } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { Paintbrush } from 'lucide-react';
 import {
   Popover,

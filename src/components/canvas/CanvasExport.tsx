@@ -103,26 +103,14 @@ function esc(s: string): string {
 }
 
 /**
- * Generate an enhanced ASCII diagram with box-drawing characters.
- * Shows blocks inside group boxes, with arrows for connections.
- * Opens in any text editor — no internet or special tools needed.
+ * Generate a Mermaid flowchart (.md) showing blocks, groups, and connections.
+ * Renderable in Obsidian, Typora, GitHub, VS Code, etc.
  */
-function generateAsciiDiagram(state: CanvasExportState): string {
+function generateMermaidDiagram(state: CanvasExportState): string {
   const { blocks, connections, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
-  const blockMap = new Map<string, Block>();
-  blocks.forEach(b => blockMap.set(b.id, b));
 
-  const lines: string[] = [];
-  const ruler = '═'.repeat(60);
-
-  lines.push(`╔${ruler}╗`);
-  lines.push(`║  CANVAS STRUCTURE MAP${' '.repeat(38)}║`);
-  lines.push(`╚${ruler}╝`);
-  lines.push('');
-
-  // Categorize blocks
   const grouped = new Map<string, Block[]>();
   const ungrouped: Block[] = [];
   blocks.forEach(b => {
@@ -135,79 +123,49 @@ function generateAsciiDiagram(state: CanvasExportState): string {
     }
   });
 
-  // Render groups
+  const mermaidId = (id: string) => id.replace(/[^a-zA-Z0-9]/g, '_');
+  const shapeWrap = (id: string, label: string, shape?: string) => {
+    const mid = mermaidId(id);
+    const safe = label.replace(/"/g, "'");
+    switch (shape) {
+      case 'circle': return `${mid}(("${safe}"))`;
+      case 'sticky': return `${mid}>"${safe}"]`;
+      case 'text': return `${mid}["${safe}"]`;
+      default: return `${mid}["${safe}"]`;
+    }
+  };
+
+  const lines: string[] = [
+    '# Canvas Structure Map\n',
+    '```mermaid',
+    'flowchart TD',
+  ];
+
   for (const [gId, gBlocks] of grouped.entries()) {
     const group = groupMap.get(gId)!;
-    const maxLabelLen = Math.max(group.label.length + 4, ...gBlocks.map(b => b.label.length + 8));
-    const boxW = Math.max(maxLabelLen + 4, 30);
-    const hLine = '─'.repeat(boxW - 2);
-
-    lines.push(`  ┌${hLine}┐`);
-    lines.push(`  │ 📁 ${padRight(group.label, boxW - 7)}│`);
-    lines.push(`  ├${hLine}┤`);
-
+    lines.push(`  subgraph ${mermaidId(gId)}["${group.label.replace(/"/g, "'")}"]`);
     for (const b of gBlocks) {
-      const icon = shapeIcon(b.shape);
-      const content = `${icon} ${b.label}`;
-      lines.push(`  │   ${padRight(content, boxW - 7)}│`);
-      if (b.markdown || b.comment) {
-        const note = (b.markdown || b.comment || '').slice(0, boxW - 14);
-        lines.push(`  │     ${padRight('↳ ' + note + (note.length < (b.markdown || b.comment || '').length ? '…' : ''), boxW - 9)}│`);
-      }
+      lines.push(`    ${shapeWrap(b.id, b.label, b.shape)}`);
     }
-    lines.push(`  └${hLine}┘`);
-    lines.push('');
+    lines.push('  end');
   }
 
-  // Render ungrouped blocks
-  if (ungrouped.length > 0) {
-    const maxLen = Math.max(...ungrouped.map(b => b.label.length + 8));
-    const boxW = Math.max(maxLen + 4, 30);
-    const hLine = '─'.repeat(boxW - 2);
-
-    lines.push(`  ┌${hLine}┐`);
-    lines.push(`  │ 📋 ${padRight('Ungrouped', boxW - 7)}│`);
-    lines.push(`  ├${hLine}┤`);
-    for (const b of ungrouped) {
-      const icon = shapeIcon(b.shape);
-      const content = `${icon} ${b.label}`;
-      lines.push(`  │   ${padRight(content, boxW - 7)}│`);
-      if (b.markdown || b.comment) {
-        const note = (b.markdown || b.comment || '').slice(0, boxW - 14);
-        lines.push(`  │     ${padRight('↳ ' + note + (note.length < (b.markdown || b.comment || '').length ? '…' : ''), boxW - 9)}│`);
-      }
-    }
-    lines.push(`  └${hLine}┘`);
-    lines.push('');
+  for (const b of ungrouped) {
+    lines.push(`  ${shapeWrap(b.id, b.label, b.shape)}`);
   }
 
-  // Render connections
-  if (connections.length > 0) {
-    lines.push(`  ┌${'─'.repeat(58)}┐`);
-    lines.push(`  │ 🔗 ${padRight('CONNECTIONS', 53)}│`);
-    lines.push(`  ├${'─'.repeat(58)}┤`);
-    for (const c of connections) {
-      const fromBlock = blockMap.get(c.fromId);
-      const toBlock = blockMap.get(c.toId);
-      if (!fromBlock || !toBlock) continue;
-      const arrowChar = c.arrowStyle === 'dashed' ? '┄┄┄>' : c.arrowStyle === 'dotted' ? '╌╌╌>' : '────>';
-      const line = `"${fromBlock.label}" ${arrowChar} "${toBlock.label}"`;
-      lines.push(`  │   ${padRight(line, 55)}│`);
-    }
-    lines.push(`  └${'─'.repeat(58)}┘`);
-    lines.push('');
+  for (const c of connections) {
+    const from = mermaidId(c.fromId);
+    const to = mermaidId(c.toId);
+    const arrow = c.arrowStyle === 'dashed' ? '-.->' : c.arrowStyle === 'dotted' ? '-.->' : '-->';
+    lines.push(`  ${from} ${arrow} ${to}`);
   }
 
-  // Summary
-  lines.push('─'.repeat(62));
-  lines.push(`  Blocks: ${blocks.length}  │  Groups: ${groups.length}  │  Connections: ${connections.length}`);
-  lines.push('─'.repeat(62));
+  lines.push('```');
+  lines.push(`\n---\n**Summary:** ${blocks.length} blocks, ${groups.length} groups, ${connections.length} connections`);
 
   return lines.join('\n');
 }
-
-function shapeIcon(shape?: string): string {
-  switch (shape) {
     case 'circle': return '◯';
     case 'sticky': return '📝';
     case 'text': return '📄';
