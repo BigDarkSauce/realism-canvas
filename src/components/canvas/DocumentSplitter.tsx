@@ -242,9 +242,6 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
               <span className="text-xs text-primary font-medium">
                 {headingIndices.size} heading{headingIndices.size !== 1 ? 's' : ''}
               </span>
-              <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={selectSuggested}>
-                Auto-detect
-              </Button>
               <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={clearAll}>
                 Clear all
               </Button>
