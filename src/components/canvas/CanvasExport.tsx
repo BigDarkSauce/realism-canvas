@@ -221,7 +221,7 @@ function generateBlockPdf(block: Block): Blob {
     }
   }
 
-  return doc.output('blob');
+  return doc.output('arraybuffer');
 }
 
 function generateBlockWordDoc(block: Block): Blob {
