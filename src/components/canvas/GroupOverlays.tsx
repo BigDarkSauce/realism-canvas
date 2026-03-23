@@ -249,6 +249,17 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                       className="h-7 w-full p-0.5 cursor-pointer"
                     />
                   </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">Label Scale ({Math.round((group.labelScale || 1) * 100)}%)</Label>
+                    <Slider
+                      min={0.5}
+                      max={3}
+                      step={0.1}
+                      value={[group.labelScale || 1]}
+                      onValueChange={([val]) => onUpdateGroup(group.id, { labelScale: val })}
+                    />
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
