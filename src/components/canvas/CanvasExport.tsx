@@ -45,8 +45,12 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       generateBlockDocuments(state, zip, format);
 
       // 3. Download ZIP
-      const blob = await zip.generateAsync({ type: 'blob' });
-      saveAs(blob, `${sanitize(title)}.zip`);
+      const zipData = await zip.generateAsync({
+        type: 'uint8array',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 },
+      });
+      saveAs(new Blob([zipData], { type: 'application/zip' }), `${sanitize(title)}.zip`);
       toast.success('Canvas exported successfully!');
       onClose();
     } catch (err) {
@@ -170,7 +174,7 @@ function generateMermaidDiagram(state: CanvasExportState): string {
 /**
  * Generate a real PDF for a block using jsPDF.
  */
-function generateBlockPdf(block: Block): ArrayBuffer {
+function generateBlockPdf(block: Block): Uint8Array {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 50;
@@ -221,10 +225,10 @@ function generateBlockPdf(block: Block): ArrayBuffer {
     }
   }
 
-  return doc.output('arraybuffer');
+  return new Uint8Array(doc.output('arraybuffer'));
 }
 
-function generateBlockWordDoc(block: Block): Blob {
+function generateBlockWordDoc(block: Block): Uint8Array {
   const notes = block.markdown || block.comment || '';
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset="utf-8">
@@ -234,7 +238,7 @@ function generateBlockWordDoc(block: Block): Blob {
 <p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}</p>
 ${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
 </body></html>`;
-  return new Blob(['\ufeff', html], { type: 'application/msword' });
+  return new TextEncoder().encode(`\ufeff${html}`);
 }
 
 function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
@@ -263,16 +267,16 @@ function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: Ex
     const folder = zip.folder(folderName)!;
 
     for (const block of gBlocks) {
-      const blob = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, blob);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
 
   if (ungrouped.length > 0) {
     const folder = zip.folder('Ungrouped')!;
     for (const block of ungrouped) {
-      const blob = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, blob);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
 }
