@@ -191,6 +191,7 @@ export default function CanvasBlock({
         zIndex: dragging || resizing ? 50 : 10,
         fontSize: block.fontSize || undefined,
         transform: rotation ? `rotate(${rotation}deg)` : undefined,
+        overflow: rotation ? 'visible' : 'hidden',
         ...(block.bgColor && block.shape !== 'sticky' ? { background: block.bgColor } : {}),
         ...(block.borderColor ? { borderColor: block.borderColor } : {}),
         ...(block.textColor ? { color: block.textColor } : {}),
@@ -204,7 +205,9 @@ export default function CanvasBlock({
         className={cn("flex items-center gap-2 w-full h-full px-3 py-2", rotation ? "overflow-visible" : "overflow-hidden")}
       >
         <GripVertical className="h-4 w-4 text-muted-foreground shrink-0" />
-        <span className="truncate flex-1 text-center">{uploading ? 'Uploading...' : block.label}</span>
+        <span className={cn("flex-1 text-center min-w-0", rotation ? "whitespace-pre-wrap break-words" : "truncate")}>
+          {uploading ? 'Uploading...' : block.label}
+        </span>
         {hasFile && (
           <button
             className="h-6 w-6 flex items-center justify-center rounded border border-primary/30 bg-primary/10 hover:bg-primary/20 shrink-0"
