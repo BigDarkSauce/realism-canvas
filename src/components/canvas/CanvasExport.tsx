@@ -37,9 +37,9 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate GraphViz .dot file for structure visualization
-      const dotFile = generateDotGraph(state);
-      zip.file('canvas-map.dot', dotFile);
+      // 1. Generate ASCII structure diagram
+      const asciiDiagram = generateAsciiDiagram(state);
+      zip.file('canvas-structure.txt', asciiDiagram);
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
