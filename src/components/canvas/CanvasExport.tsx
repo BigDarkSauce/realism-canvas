@@ -37,9 +37,9 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate ASCII structure diagram
-      const asciiDiagram = generateAsciiDiagram(state);
-      zip.file('canvas-structure.txt', asciiDiagram);
+      // 1. Generate Mermaid flowchart
+      const mermaid = generateMermaidDiagram(state);
+      zip.file('canvas-map.md', mermaid);
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
