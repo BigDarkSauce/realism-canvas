@@ -92,7 +92,7 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
             className="absolute rounded-xl border-2 border-dashed border-group-border pointer-events-none"
             style={groupStyle}
           >
-            <div className="absolute -top-0 left-3 flex items-center gap-1 pointer-events-auto">
+            <div className="absolute -top-5 left-1/2 -translate-x-1/2 flex items-center gap-1 pointer-events-auto">
               {editingId === group.id ? (
                 <Input
                   autoFocus

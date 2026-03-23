@@ -37,9 +37,9 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate a plain-text structure map (opens offline, no browser needed)
-      const structureMap = generateStructureMap(state);
-      zip.file('canvas-structure.txt', structureMap);
+      // 1. Generate GraphViz .dot file for structure visualization
+      const dotFile = generateDotGraph(state);
+      zip.file('canvas-map.dot', dotFile);
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
@@ -103,92 +103,69 @@ function esc(s: string): string {
 }
 
 /**
- * Generate a plain-text structure map showing blocks, groups, and connections.
- * Opens in any text editor — no browser or internet needed.
+ * Generate a GraphViz .dot file representing the canvas structure.
+ * Open with Graphviz (dot), yEd, or VS Code Graphviz extension — no internet needed.
  */
-function generateStructureMap(state: CanvasExportState): string {
+function generateDotGraph(state: CanvasExportState): string {
   const { blocks, connections, groups } = state;
-  const blockMap = new Map<string, Block>();
-  blocks.forEach(b => blockMap.set(b.id, b));
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
 
   const lines: string[] = [];
-  lines.push('╔══════════════════════════════════════════════════════╗');
-  lines.push('║              CANVAS STRUCTURE MAP                   ║');
-  lines.push('╚══════════════════════════════════════════════════════╝');
+  lines.push('digraph CanvasMap {');
+  lines.push('  rankdir=LR;');
+  lines.push('  node [shape=box, style="rounded,filled", fillcolor="#f3f4f6", fontname="Helvetica", fontsize=11];');
+  lines.push('  edge [fontsize=9, fontname="Helvetica"];');
   lines.push('');
-  lines.push(`Total: ${blocks.length} blocks, ${connections.length} connections, ${groups.length} groups`);
-  lines.push('');
 
-  // Groups section
-  if (groups.length > 0) {
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    lines.push('  GROUPS');
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    groups.forEach((g, gi) => {
-      const gBlocks = blocks.filter(b => b.groupId === g.id);
-      lines.push('');
-      lines.push(`  ┌─ Group ${gi + 1}: "${g.label}" (${gBlocks.length} blocks)`);
-      gBlocks.forEach((b, bi) => {
-        const isLast = bi === gBlocks.length - 1;
-        const prefix = isLast ? '  └──' : '  ├──';
-        const hasFile = b.fileStorageUrl || b.fileUrl ? ' 📎' : '';
-        lines.push(`${prefix} [${b.shape || 'rect'}] ${b.label}${hasFile}`);
-      });
-    });
-    lines.push('');
-  }
-
-  // Ungrouped blocks
-  const ungrouped = blocks.filter(b => !b.groupId || !groupMap.has(b.groupId));
-  if (ungrouped.length > 0) {
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    lines.push('  UNGROUPED BLOCKS');
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    ungrouped.forEach(b => {
-      const hasFile = b.fileStorageUrl || b.fileUrl ? ' 📎' : '';
-      lines.push(`  • [${b.shape || 'rect'}] ${b.label}${hasFile}`);
-    });
-    lines.push('');
-  }
-
-  // Connections section
-  if (connections.length > 0) {
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    lines.push('  CONNECTIONS');
-    lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    connections.forEach(c => {
-      const from = blockMap.get(c.fromId);
-      const to = blockMap.get(c.toId);
-      if (!from || !to) return;
-      const style = c.arrowStyle === 'dashed' ? '- - ->' : c.arrowStyle === 'dotted' ? '· · ·>' : '────>';
-      lines.push(`  "${from.label}" ${style} "${to.label}"`);
-    });
-    lines.push('');
-  }
-
-  // Block details
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  lines.push('  BLOCK DETAILS');
-  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  blocks.forEach((b, i) => {
-    const group = b.groupId ? groupMap.get(b.groupId) : null;
-    lines.push('');
-    lines.push(`  ${i + 1}. ${b.label}`);
-    lines.push(`     Shape: ${b.shape || 'rectangle'} | Size: ${b.width}×${b.height} | Pos: (${b.x}, ${b.y})`);
-    if (b.rotation) lines.push(`     Rotation: ${b.rotation}°`);
-    if (group) lines.push(`     Group: ${group.label}`);
-    if (b.markdown || b.comment) {
-      const notes = (b.markdown || b.comment || '').slice(0, 200);
-      lines.push(`     Notes: ${notes}${notes.length >= 200 ? '…' : ''}`);
+  // Group subgraphs
+  const grouped = new Map<string, Block[]>();
+  const ungrouped: Block[] = [];
+  blocks.forEach(b => {
+    if (b.groupId && groupMap.has(b.groupId)) {
+      const arr = grouped.get(b.groupId) || [];
+      arr.push(b);
+      grouped.set(b.groupId, arr);
+    } else {
+      ungrouped.push(b);
     }
   });
 
-  lines.push('');
-  lines.push('═══════════════════════════════════════════════════════');
+  let clusterIdx = 0;
+  for (const [gId, gBlocks] of grouped.entries()) {
+    const group = groupMap.get(gId)!;
+    lines.push(`  subgraph cluster_${clusterIdx++} {`);
+    lines.push(`    label="${dotEsc(group.label)}";`);
+    lines.push('    style="dashed";');
+    lines.push(`    color="${group.bgColor && group.bgColor !== 'transparent' ? group.bgColor : '#94a3b8'}";`);
+    for (const b of gBlocks) {
+      const shape = b.shape === 'circle' ? 'ellipse' : b.shape === 'sticky' ? 'note' : 'box';
+      lines.push(`    "${dotEsc(b.id)}" [label="${dotEsc(b.label)}", shape=${shape}];`);
+    }
+    lines.push('  }');
+    lines.push('');
+  }
 
+  // Ungrouped nodes
+  for (const b of ungrouped) {
+    const shape = b.shape === 'circle' ? 'ellipse' : b.shape === 'sticky' ? 'note' : 'box';
+    lines.push(`  "${dotEsc(b.id)}" [label="${dotEsc(b.label)}", shape=${shape}];`);
+  }
+  lines.push('');
+
+  // Connections
+  for (const c of connections) {
+    const style = c.arrowStyle === 'dashed' ? 'dashed' : c.arrowStyle === 'dotted' ? 'dotted' : 'solid';
+    const color = c.color || '#374151';
+    lines.push(`  "${dotEsc(c.fromId)}" -> "${dotEsc(c.toId)}" [style=${style}, color="${color}"];`);
+  }
+
+  lines.push('}');
   return lines.join('\n');
+}
+
+function dotEsc(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 /**
