@@ -45,9 +45,13 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate visual canvas map PDF with embedded block pages & internal links
+      // 1. Generate visual canvas map PDF (non-clickable visual reference)
       const mapPdf = await generateCanvasMapPdf(state, format);
       zip.file('canvas-map.pdf', mapPdf, { binary: true });
+
+      // 2. Generate clickable DOCX map with hyperlinks to exported files
+      const mapDocx = await generateCanvasMapDocx(state, format);
+      zip.file('canvas-map.docx', mapDocx, { binary: true });
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
