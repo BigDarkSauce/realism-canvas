@@ -344,7 +344,7 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
           line: {
             color: rgbHex(connColor),
             width: Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 40),
-            dashType: conn.arrowStyle === 'dashed' ? 'dash' : conn.arrowStyle === 'dotted' ? 'dot' : 'solid',
+            dashType: conn.arrowStyle === 'dashed' ? 'dash' : conn.arrowStyle === 'dotted' ? 'sysDot' : 'solid',
             endArrowType: 'triangle',
           },
         });
