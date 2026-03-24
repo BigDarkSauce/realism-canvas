@@ -620,15 +620,19 @@ function drawBackground(
   doc: jsPDF, bg: CanvasBackground, bgImgData: string | null,
   x: number, y: number, w: number, h: number, scale: number
 ) {
+  // Fill the ENTIRE page first to eliminate any white gaps
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+
   if (bg === 'image' && bgImgData) {
     try {
-      doc.addImage(bgImgData, 'JPEG', x, y, w, h);
+      doc.addImage(bgImgData, 'JPEG', 0, 0, pageW, pageH);
     } catch { /* fallback to white */ }
     return;
   }
   if (bg === 'blueprint') {
     doc.setFillColor(17, 42, 75);
-    doc.rect(x, y, w, h, 'F');
+    doc.rect(0, 0, pageW, pageH, 'F');
     const step = 20 * scale;
     doc.setDrawColor(30, 70, 120);
     doc.setLineWidth(0.3);
@@ -636,7 +640,7 @@ function drawBackground(
     for (let gy = y; gy <= y + h; gy += step) doc.line(x, gy, x + w, gy);
   } else if (bg === 'grid') {
     doc.setFillColor(250, 250, 252);
-    doc.rect(x, y, w, h, 'F');
+    doc.rect(0, 0, pageW, pageH, 'F');
     const step = 20 * scale;
     doc.setDrawColor(230, 230, 235);
     doc.setLineWidth(0.2);
@@ -644,7 +648,7 @@ function drawBackground(
     for (let gy = y; gy <= y + h; gy += step) doc.line(x, gy, x + w, gy);
   } else if (bg === 'dots') {
     doc.setFillColor(250, 250, 252);
-    doc.rect(x, y, w, h, 'F');
+    doc.rect(0, 0, pageW, pageH, 'F');
     const step = 20 * scale;
     doc.setFillColor(210, 210, 215);
     for (let gx = x; gx <= x + w; gx += step) {
@@ -654,7 +658,7 @@ function drawBackground(
     }
   } else {
     doc.setFillColor(252, 252, 254);
-    doc.rect(x, y, w, h, 'F');
+    doc.rect(0, 0, pageW, pageH, 'F');
   }
 }
 
