@@ -886,20 +886,14 @@ ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px
 
   try {
     const htmlToDocx = (await import('@turbodocx/html-to-docx')).default;
-    const docxBuffer = await htmlToDocx(fullHtml, null, {
+    const docxBlob = await htmlToDocx(fullHtml, null, {
       table: { row: { cantSplit: true } },
       footer: true,
       pageNumber: true,
     });
-    // htmlToDocx returns Buffer/ArrayBuffer — normalize to Uint8Array
-    if (docxBuffer instanceof ArrayBuffer) {
-      return new Uint8Array(docxBuffer);
-    }
-    if (docxBuffer instanceof Uint8Array) {
-      return docxBuffer;
-    }
-    // Buffer (Node-like)
-    return new Uint8Array(docxBuffer as ArrayBuffer);
+    // htmlToDocx returns a Blob — convert to Uint8Array
+    const arrayBuffer = await (docxBlob as Blob).arrayBuffer();
+    return new Uint8Array(arrayBuffer);
   } catch (e) {
     console.warn('html-to-docx failed, falling back to HTML .doc:', block.label, e);
     // Fallback: return HTML-based .doc
