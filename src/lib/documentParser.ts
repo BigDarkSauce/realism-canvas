@@ -211,9 +211,15 @@ export function splitBySelectedHeadings(
           htmlParagraphs: currentHtml,
         });
       }
-      currentHeading = paragraphs[i].text;
-      currentContent = [];
-      currentHtml = [];
+      // Only use the first sentence as the heading; rest goes into content
+      const { heading: firstSentence, remainder } = splitHeadingSentence(paragraphs[i].text);
+      currentHeading = firstSentence;
+      currentContent = remainder ? [remainder] : [];
+      // For HTML, split similarly
+      const htmlRemainder = remainder
+        ? [paragraphs[i].html || `<p>${escapeHtml(remainder)}</p>`]
+        : [];
+      currentHtml = htmlRemainder;
     } else {
       currentContent.push(paragraphs[i].text);
       currentHtml.push(paragraphs[i].html || `<p>${escapeHtml(paragraphs[i].text)}</p>`);
@@ -229,6 +235,18 @@ export function splitBySelectedHeadings(
   }
 
   return sections;
+}
+
+/**
+ * Split a paragraph into the first sentence (heading) and the remainder.
+ */
+function splitHeadingSentence(text: string): { heading: string; remainder: string } {
+  // Match first sentence ending with . ! or ? followed by space or end
+  const match = text.match(/^(.+?[.!?])(?:\s+(.+))?$/s);
+  if (match) {
+    return { heading: match[1].trim(), remainder: (match[2] || '').trim() };
+  }
+  return { heading: text.trim(), remainder: '' };
 }
 
 function escapeHtml(text: string): string {
