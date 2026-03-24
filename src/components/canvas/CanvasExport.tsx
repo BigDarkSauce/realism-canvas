@@ -68,7 +68,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export all blocks as documents organized by group, with a text structure map.
+            Export all blocks as documents organized by group, with a visual canvas map PDF.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
