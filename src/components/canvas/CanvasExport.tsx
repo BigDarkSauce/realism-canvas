@@ -240,6 +240,15 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
+  // Build file path map for clickable links
+  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
+  const blockFilePaths = new Map<string, string>();
+  for (const b of blocks) {
+    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
+    const folderName = group ? sanitize(group.label) : 'Ungrouped';
+    blockFilePaths.set(b.id, `${folderName}/${sanitize(b.label)}${ext}`);
+  }
+
   for (let tileY = 0; tileY < tilesY; tileY++) {
     for (let tileX = 0; tileX < tilesX; tileX++) {
       if (tileX > 0 || tileY > 0) doc.addPage();
