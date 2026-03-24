@@ -852,27 +852,26 @@ function generateBlockPdf(block: Block): Uint8Array {
 
 async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
   const notes = block.markdown || block.comment || '';
-  
-  // Fetch actual file content from storage (what the "view" option shows)
+
   let fileContent = '';
-  const fileUrl = block.fileStorageUrl || block.fileUrl;
-  if (fileUrl) {
+  const originalUrl = block.fileStorageUrl || block.fileUrl;
+  if (originalUrl) {
     try {
-      const resp = await fetch(fileUrl);
+      const storagePath = extractStoragePath(originalUrl);
+      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
+      const resp = await fetch(fetchUrl);
+
       if (resp.ok) {
         const text = await resp.text();
-        // Check if it's HTML content (our editor files)
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
-          // Extract the body content from the fetched HTML
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           fileContent = bodyMatch ? bodyMatch[1] : text;
         } else {
-          // Plain text content
           fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
         }
       }
     } catch (e) {
-      console.warn('Failed to fetch file content for block:', block.label, e);
+      console.warn('Failed to fetch file content for block export:', block.label, e);
     }
   }
 
@@ -893,6 +892,7 @@ td,th{border:1px solid #ddd;padding:6px 10px;}
 ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
 ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
 </body></html>`;
+
   return new TextEncoder().encode(`\ufeff${html}`);
 }
 
