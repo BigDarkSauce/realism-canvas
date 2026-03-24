@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
+import { extractStoragePath, getSignedUrl } from '@/lib/storage';
 
 export interface CanvasExportState {
   blocks: Block[];
@@ -40,20 +41,20 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Collect block documents data for embedding
+      // 1. Build the actual exported block files first
       const blockFiles = await collectBlockFiles(state, format);
 
       // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
-      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, state, blockFiles, format);
+      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, blockFiles, format);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
       // 3. Generate clickable PPTX map with hyperlinks to exported files
       const mapPptx = await generateCanvasMapPptx(state, format);
       zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
-      // 4. Generate block documents organized by group in ZIP
-      await generateBlockDocuments(state, zip, format);
+      // 4. Write the same generated block files into their group folders
+      generateBlockDocuments(state, zip, blockFiles);
 
       // 3. Download ZIP
       const zipData = await zip.generateAsync({
@@ -851,27 +852,26 @@ function generateBlockPdf(block: Block): Uint8Array {
 
 async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
   const notes = block.markdown || block.comment || '';
-  
-  // Fetch actual file content from storage (what the "view" option shows)
+
   let fileContent = '';
-  const fileUrl = block.fileStorageUrl || block.fileUrl;
-  if (fileUrl) {
+  const originalUrl = block.fileStorageUrl || block.fileUrl;
+  if (originalUrl) {
     try {
-      const resp = await fetch(fileUrl);
+      const storagePath = extractStoragePath(originalUrl);
+      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
+      const resp = await fetch(fetchUrl);
+
       if (resp.ok) {
         const text = await resp.text();
-        // Check if it's HTML content (our editor files)
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
-          // Extract the body content from the fetched HTML
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           fileContent = bodyMatch ? bodyMatch[1] : text;
         } else {
-          // Plain text content
           fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
         }
       }
     } catch (e) {
-      console.warn('Failed to fetch file content for block:', block.label, e);
+      console.warn('Failed to fetch file content for block export:', block.label, e);
     }
   }
 
@@ -892,6 +892,7 @@ td,th{border:1px solid #ddd;padding:6px 10px;}
 ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
 ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
 </body></html>`;
+
   return new TextEncoder().encode(`\ufeff${html}`);
 }
 
@@ -921,7 +922,6 @@ async function collectBlockFiles(
 async function embedFileAttachments(
   pdfBytes: Uint8Array,
   blockLinks: BlockLinkInfo[],
-  state: CanvasExportState,
   blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
   format: ExportFormat
 ): Promise<Uint8Array> {
@@ -994,7 +994,11 @@ async function embedFileAttachments(
   return pdfDoc.save();
 }
 
-async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): Promise<void> {
+function generateBlockDocuments(
+  state: CanvasExportState,
+  zip: JSZip,
+  blockFiles: Map<string, { data: Uint8Array; fileName: string }>
+): void {
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
@@ -1012,23 +1016,23 @@ async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, form
     }
   });
 
-  const ext = format === 'pdf' ? '.pdf' : '.doc';
-
   for (const [gId, gBlocks] of grouped.entries()) {
     const group = groupMap.get(gId)!;
     const folderName = sanitize(group.label);
     const folder = zip.folder(folderName)!;
     for (const block of gBlocks) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
+      const file = blockFiles.get(block.id);
+      if (!file) continue;
+      folder.file(file.fileName, file.data, { binary: true });
     }
   }
 
   if (ungrouped.length > 0) {
     const folder = zip.folder('Ungrouped')!;
     for (const block of ungrouped) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
+      const file = blockFiles.get(block.id);
+      if (!file) continue;
+      folder.file(file.fileName, file.data, { binary: true });
     }
   }
 }
