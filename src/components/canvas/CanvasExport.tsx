@@ -111,6 +111,64 @@ function esc(s: string): string {
  * Generate a visual PDF diagram of the canvas using jsPDF.
  * Draws blocks as boxes, groups as outlines, and connections as arrows.
  */
+/**
+ * Parse a CSS color string (hex, rgb, hsl, named) to [r, g, b] (0-255).
+ */
+function parseColor(color: string | undefined, fallback: [number, number, number]): [number, number, number] {
+  if (!color) return fallback;
+  const s = color.trim();
+
+  // hex
+  const hexMatch = s.match(/^#([0-9a-f]{3,8})$/i);
+  if (hexMatch) {
+    let hex = hexMatch[1];
+    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    if (hex.length >= 6) {
+      return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+    }
+  }
+
+  // rgb(r, g, b)
+  const rgbMatch = s.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (rgbMatch) return [+rgbMatch[1], +rgbMatch[2], +rgbMatch[3]];
+
+  // hsl(h, s%, l%)
+  const hslMatch = s.match(/^hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%/);
+  if (hslMatch) {
+    const h = +hslMatch[1] / 360, sat = +hslMatch[2] / 100, l = +hslMatch[3] / 100;
+    if (sat === 0) { const v = Math.round(l * 255); return [v, v, v]; }
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + sat) : l + sat - l * sat;
+    const p = 2 * l - q;
+    return [Math.round(hue2rgb(p, q, h + 1/3) * 255), Math.round(hue2rgb(p, q, h) * 255), Math.round(hue2rgb(p, q, h - 1/3) * 255)];
+  }
+
+  // named colors (common ones)
+  const named: Record<string, [number,number,number]> = {
+    white:[255,255,255], black:[0,0,0], red:[255,0,0], green:[0,128,0], blue:[0,0,255],
+    yellow:[255,255,0], orange:[255,165,0], purple:[128,0,128], pink:[255,192,203],
+    gray:[128,128,128], grey:[128,128,128], transparent:[255,255,255],
+  };
+  if (named[s.toLowerCase()]) return named[s.toLowerCase()];
+
+  return fallback;
+}
+
+function parseFontSize(fs: string | undefined, defaultPt: number): number {
+  if (!fs) return defaultPt;
+  const n = parseFloat(fs);
+  if (isNaN(n)) return defaultPt;
+  if (fs.includes('rem')) return n * 12;
+  if (fs.includes('em')) return n * 12;
+  return n; // px treated as pt roughly
+}
+
 function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
   const { blocks, connections, groups } = state;
   if (blocks.length === 0) {
@@ -120,7 +178,7 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     return new Uint8Array(doc.output('arraybuffer'));
   }
 
-  // Compute bounding box of all blocks
+  // Compute bounding box
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const b of blocks) {
     minX = Math.min(minX, b.x);
@@ -133,13 +191,12 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
   const contentW = maxX - minX + padding * 2;
   const contentH = maxY - minY + padding * 2;
 
-  // Use landscape A4 and scale to fit
   const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 40;
   const availW = pageW - margin * 2;
-  const availH = pageH - margin * 2 - 30; // reserve space for title
+  const availH = pageH - margin * 2 - 30;
   const scale = Math.min(availW / contentW, availH / contentH, 1.5);
 
   const offsetX = margin + (availW - contentW * scale) / 2;
@@ -154,13 +211,12 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
   doc.setTextColor(30, 30, 30);
   doc.text('Canvas Structure Map', margin, margin + 16);
 
-  // Summary
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(120, 120, 120);
   doc.text(`${blocks.length} blocks, ${groups.length} groups, ${connections.length} connections`, margin, margin + 28);
 
-  // Draw group outlines
+  // Draw group outlines with actual group colors
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
 
@@ -182,20 +238,44 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     const rw = (gMaxX - gMinX + gPad * 2) * scale;
     const rh = (gMaxY - gMinY + gPad * 2 + 18) * scale;
 
-    doc.setDrawColor(100, 149, 237); // cornflower blue
+    // Use actual group bg color with transparency effect
+    const groupBg = parseColor(group.bgColor, [100, 149, 237]);
+    doc.setDrawColor(groupBg[0], groupBg[1], groupBg[2]);
+    // Light fill for the group area
+    doc.setFillColor(
+      Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.85)),
+      Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.85)),
+      Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.85))
+    );
     doc.setLineWidth(1.5);
     doc.setLineDashPattern([4, 3], 0);
-    doc.roundedRect(rx, ry, rw, rh, 6, 6, 'S');
+    doc.roundedRect(rx, ry, rw, rh, 6, 6, 'FD');
     doc.setLineDashPattern([], 0);
 
-    // Group label
-    doc.setFontSize(9 * Math.min(scale, 1));
+    // Group label with actual text color and scale
+    const labelScale = group.labelScale ?? 1;
+    const groupFontSize = parseFontSize(group.fontSize, 9) * Math.min(scale, 1) * labelScale;
+    doc.setFontSize(Math.max(6, groupFontSize));
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(70, 100, 200);
-    doc.text(group.label, rx + 6, ry + 10);
+    const txtColor = parseColor(group.textColor, [groupBg[0], groupBg[1], groupBg[2]]);
+    doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+
+    // Position label at top-center, offset by labelOffsetX
+    const labelX = rx + rw / 2 + (group.labelOffsetX ?? 0) * scale;
+    const labelY = ry + groupFontSize * 0.8 + 4;
+
+    // Draw bordered label box
+    const labelW = doc.getTextWidth(group.label) + 12;
+    const labelH = groupFontSize + 8;
+    doc.setDrawColor(groupBg[0], groupBg[1], groupBg[2]);
+    doc.setFillColor(255, 255, 255);
+    doc.setLineWidth(1);
+    doc.roundedRect(labelX - labelW / 2, labelY - groupFontSize * 0.7 - 3, labelW, labelH, 3, 3, 'FD');
+    doc.setTextColor(txtColor[0], txtColor[1], txtColor[2]);
+    doc.text(group.label, labelX, labelY, { align: 'center' });
   }
 
-  // Draw blocks
+  // Draw blocks with actual colors, shapes, borders, rotation
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
@@ -205,36 +285,93 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     const bw = b.width * scale;
     const bh = b.height * scale;
 
-    // Block fill
-    doc.setFillColor(245, 245, 250);
-    doc.setDrawColor(80, 80, 100);
+    // Use actual block colors
+    const bgCol = parseColor(b.bgColor, b.shape === 'sticky' ? [255, 249, 196] : [245, 245, 250]);
+    const borderCol = parseColor(b.borderColor, [80, 80, 100]);
+    const textCol = parseColor(b.textColor, [20, 20, 40]);
+
+    doc.setFillColor(bgCol[0], bgCol[1], bgCol[2]);
+    doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
     doc.setLineWidth(1);
 
-    if (b.shape === 'circle') {
-      const cx = bx + bw / 2;
-      const cy = by + bh / 2;
-      const r = Math.min(bw, bh) / 2;
-      doc.circle(cx, cy, r, 'FD');
+    // Border style
+    if (b.borderStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
+    else if (b.borderStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
+
+    // Apply rotation via PDF transform if block is rotated
+    const rotation = b.rotation ?? 0;
+    const cx = bx + bw / 2;
+    const cy = by + bh / 2;
+    const needsRotation = Math.abs(rotation) > 0.5;
+
+    if (needsRotation) {
+      doc.saveGraphicsState();
+      const rad = (rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      // Translate to center, rotate, translate back
+      const internal = (doc as any).internal;
+      const f2 = (n: number) => n.toFixed(4);
+      internal.write(`${f2(cos)} ${f2(sin)} ${f2(-sin)} ${f2(cos)} ${f2(cx)} ${f2(pageH - cy)} cm`);
+      // Draw centered at origin
+      if (b.shape === 'circle') {
+        const r = Math.min(bw, bh) / 2;
+        doc.circle(0, 0, r, 'FD');
+      } else {
+        doc.roundedRect(-bw / 2, -bh / 2, bw, bh, b.shape === 'sticky' ? 2 : 4, b.shape === 'sticky' ? 2 : 4, 'FD');
+      }
+
+      // Sticky note fold
+      if (b.shape === 'sticky') {
+        const foldSize = 10 * scale;
+        doc.setFillColor(Math.max(0, bgCol[0] - 30), Math.max(0, bgCol[1] - 30), Math.max(0, bgCol[2] - 30));
+        doc.triangle(bw / 2 - foldSize, -bh / 2, bw / 2, -bh / 2, bw / 2, -bh / 2 + foldSize, 'F');
+      }
+
+      // Text
+      const fontSize = Math.max(6, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', b.shape === 'text' ? 'normal' : 'normal');
+      doc.setTextColor(textCol[0], textCol[1], textCol[2]);
+      const labelLines = doc.splitTextToSize(b.label, bw - 8);
+      const textStartY = -(labelLines.length - 1) * (fontSize * 0.6);
+      for (let i = 0; i < Math.min(labelLines.length, 4); i++) {
+        doc.text(labelLines[i], 0, textStartY + i * (fontSize * 1.2), { align: 'center' });
+      }
+
+      doc.restoreGraphicsState();
     } else {
-      doc.roundedRect(bx, by, bw, bh, 4, 4, 'FD');
+      // No rotation - draw normally
+      if (b.shape === 'circle') {
+        const r = Math.min(bw, bh) / 2;
+        doc.circle(cx, cy, r, 'FD');
+      } else {
+        doc.roundedRect(bx, by, bw, bh, b.shape === 'sticky' ? 2 : 4, b.shape === 'sticky' ? 2 : 4, 'FD');
+      }
+
+      // Sticky note fold corner
+      if (b.shape === 'sticky') {
+        const foldSize = 10 * scale;
+        doc.setFillColor(Math.max(0, bgCol[0] - 30), Math.max(0, bgCol[1] - 30), Math.max(0, bgCol[2] - 30));
+        doc.triangle(bx + bw - foldSize, by, bx + bw, by, bx + bw, by + foldSize, 'F');
+      }
+
+      // Block label with actual text color and font size
+      const fontSize = Math.max(6, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
+      doc.setFontSize(fontSize);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(textCol[0], textCol[1], textCol[2]);
+      const labelLines = doc.splitTextToSize(b.label, bw - 8);
+      const textStartY = by + bh / 2 - (labelLines.length - 1) * (fontSize * 0.6);
+      for (let i = 0; i < Math.min(labelLines.length, 4); i++) {
+        doc.text(labelLines[i], cx, textStartY + i * (fontSize * 1.2), { align: 'center' });
+      }
     }
 
-    // Block label
-    const fontSize = Math.max(6, Math.min(10, 9 * scale));
-    doc.setFontSize(fontSize);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(20, 20, 40);
-    const labelLines = doc.splitTextToSize(b.label, bw - 8);
-    const textStartY = by + bh / 2 - (labelLines.length - 1) * (fontSize * 0.6);
-    for (let i = 0; i < Math.min(labelLines.length, 3); i++) {
-      doc.text(labelLines[i], bx + bw / 2, textStartY + i * (fontSize * 1.2), { align: 'center' });
-    }
+    doc.setLineDashPattern([], 0);
   }
 
-  // Draw connections with arrows
-  doc.setDrawColor(60, 60, 80);
-  doc.setLineWidth(1);
-
+  // Draw connections with actual colors, widths, and styles
   for (const conn of connections) {
     const fromBlock = blockMap.get(conn.fromId);
     const toBlock = blockMap.get(conn.toId);
@@ -245,32 +382,35 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     const x2 = tx(toBlock.x + toBlock.width / 2);
     const y2 = ty(toBlock.y + toBlock.height / 2);
 
-    // Clip to block edges
-    const clip = (cx: number, cy: number, bw: number, bh: number, ex: number, ey: number) => {
-      const dx = ex - cx;
-      const dy = ey - cy;
-      const hw = bw / 2;
-      const hh = bh / 2;
-      if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    const clip = (pcx: number, pcy: number, pbw: number, pbh: number, ex: number, ey: number) => {
+      const dx = ex - pcx, dy = ey - pcy;
+      const hw = pbw / 2, hh = pbh / 2;
+      if (dx === 0 && dy === 0) return { x: pcx, y: pcy };
       const tX = dx !== 0 ? hw / Math.abs(dx) : Infinity;
       const tY = dy !== 0 ? hh / Math.abs(dy) : Infinity;
       const t = Math.min(tX, tY);
-      return { x: cx + dx * t, y: cy + dy * t };
+      return { x: pcx + dx * t, y: pcy + dy * t };
     };
 
     const from = clip(x1, y1, fromBlock.width * scale, fromBlock.height * scale, x2, y2);
     const to = clip(x2, y2, toBlock.width * scale, toBlock.height * scale, x1, y1);
 
-    // Line style
-    if (conn.arrowStyle === 'dashed' || conn.arrowStyle === 'dotted') {
-      doc.setLineDashPattern([4, 3], 0);
-    }
+    // Actual connection color and width
+    const connColor = parseColor(conn.color, [60, 60, 80]);
+    doc.setDrawColor(connColor[0], connColor[1], connColor[2]);
+    doc.setFillColor(connColor[0], connColor[1], connColor[2]);
+    const connWidth = Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 0.5);
+    doc.setLineWidth(connWidth);
+
+    if (conn.arrowStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
+    else if (conn.arrowStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
+
     doc.line(from.x, from.y, to.x, to.y);
     doc.setLineDashPattern([], 0);
 
     // Arrowhead
     const angle = Math.atan2(to.y - from.y, to.x - from.x);
-    const aLen = 8;
+    const aLen = Math.max(6, 8 * scale);
     const aW = Math.PI / 7;
     doc.triangle(
       to.x, to.y,
