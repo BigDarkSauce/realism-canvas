@@ -44,8 +44,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const blockFiles = collectBlockFiles(state, format);
 
       // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
-      const mapPdf = await generateCanvasMapPdf(state, format);
-      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, state, blockFiles, format);
+      const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
+      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, state, blockFiles, format);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
       // 3. Generate clickable PPTX map with hyperlinks to exported files
