@@ -710,7 +710,9 @@ async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
         const text = await resp.text();
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          fileContent = bodyMatch ? bodyMatch[1] : text;
+          let rawContent = bodyMatch ? bodyMatch[1] : text;
+          // Ensure math expressions have Cambria Math font for Word rendering
+          fileContent = ensureMathFontsForWord(rawContent);
         } else {
           fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
         }
