@@ -417,6 +417,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onClose={() => setShowCanvasExport(false)}
         getState={() => ({
           blocks: canvas.blocks, connections: canvas.connections, groups: canvas.groups,
+          strokes: canvas.strokes, background: canvas.background, backgroundImage: canvas.backgroundImage,
           canvasElement: canvasRef.current,
         })}
       />
