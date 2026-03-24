@@ -597,9 +597,10 @@ function drawBackground(
 
 // ─── Block Document Generators (for ZIP files) ─────────────
 
-function generateBlockPdf(block: Block): Uint8Array {
+async function generateBlockPdf(block: Block): Promise<Uint8Array> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const m = 50;
   const maxWidth = pageWidth - m * 2;
   let y = m;
@@ -633,11 +634,73 @@ function generateBlockPdf(block: Block): Uint8Array {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
     const noteLines = doc.splitTextToSize(notes, maxWidth);
-    const pageHeight = doc.internal.pageSize.getHeight();
     for (const line of noteLines) {
       if (y > pageHeight - m) { doc.addPage(); y = m; }
       doc.text(line, m, y);
       y += 15;
+    }
+  }
+
+  // Fetch actual stored file content (same as View does)
+  const originalUrl = block.fileStorageUrl || block.fileUrl;
+  if (originalUrl) {
+    try {
+      const storagePath = extractStoragePath(originalUrl);
+      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
+      const resp = await fetch(fetchUrl);
+
+      if (resp.ok) {
+        const text = await resp.text();
+        // Extract plain text from HTML content
+        let plainText = text;
+        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
+          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          const htmlContent = bodyMatch ? bodyMatch[1] : text;
+          // Strip HTML tags to get plain text for PDF
+          plainText = htmlContent
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<\/div>/gi, '\n')
+            .replace(/<\/h[1-6]>/gi, '\n\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        }
+
+        if (plainText) {
+          y += 10;
+          if (y > pageHeight - m) { doc.addPage(); y = m; }
+          doc.setDrawColor(200, 200, 210);
+          doc.setLineWidth(0.5);
+          doc.line(m, y, pageWidth - m, y);
+          y += 16;
+
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(45, 55, 72);
+          doc.text('Document Content', m, y);
+          y += 18;
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(30, 41, 59);
+          const contentLines = doc.splitTextToSize(plainText, maxWidth);
+          for (const line of contentLines) {
+            if (y > pageHeight - m) { doc.addPage(); y = m; }
+            doc.text(line, m, y);
+            y += 14;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch file content for PDF block export:', block.label, e);
     }
   }
 
