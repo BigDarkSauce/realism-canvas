@@ -48,7 +48,9 @@ export function sanitizeDocumentName(value: string): string {
 }
 
 export function downloadBytesAsFile(bytes: Uint8Array, fileName: string, mimeType: string): void {
-  const blob = new Blob([bytes], { type: mimeType });
+  const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(arrayBuffer).set(bytes);
+  const blob = new Blob([arrayBuffer], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;

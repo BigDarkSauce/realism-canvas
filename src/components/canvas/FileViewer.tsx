@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
+import { downloadBytesAsFile, renderHtmlToDocxBytes, renderHtmlToPdfBytes } from '@/lib/documentExport';
 
 export type FileViewerMode = 'view' | 'edit';
 
@@ -418,125 +419,45 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     setShowDownloadMenu(false);
   }, [getEditedHtml, promptFileName]);
 
-  const downloadAsWord = useCallback(() => {
+  const downloadAsWord = useCallback(async () => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(editedHtml, 'text/html');
-    const bodyHtml = doc.body?.innerHTML || editedHtml;
-
-    let existingStyles = '';
-    doc.querySelectorAll('style').forEach(s => { existingStyles += s.textContent || ''; });
-
-    const usedFonts = new Set<string>();
-    doc.body.querySelectorAll('*').forEach(el => {
-      const ff = (el as HTMLElement).style?.fontFamily;
-      if (ff) usedFonts.add(ff.replace(/['"]/g, ''));
-    });
-
-    let dynamicFontFaces = '';
-    const mathFonts = ['Cambria Math', 'Cambria', 'Symbol', 'MT Extra'];
-    mathFonts.forEach(f => {
-      dynamicFontFaces += `
-      @font-face {
-        font-family: "${f}";
-        panose-1: 2 4 5 3 5 4 6 3 2 4;
-      }`;
-    });
-
-    const bodyEl = doc.body.cloneNode(true) as HTMLElement;
-    bodyEl.querySelectorAll('*').forEach(el => {
-      const htmlEl = el as HTMLElement;
-      const className = (htmlEl.getAttribute('class') || '').toString();
-      const isInsideMathExpression = !!htmlEl.closest?.('.math-expression');
-      const isMathLiveNode = /(^|\s)ML__/.test(className);
-
-      if (isInsideMathExpression || isMathLiveNode) return;
-
-      const text = htmlEl.textContent || '';
-      const hasMathChars = /[±×÷≠≈≤≥∞√∑∏∫πθαβγδΔλμσφω∂∇∈∉⊂⊃∪∩∅∀∃⇒⇔→←↑↓]/.test(text);
-      const hasMathFont = htmlEl.style?.fontFamily?.includes('Cambria Math') ||
-                          htmlEl.style?.fontFamily?.includes('Math') ||
-                          htmlEl.className?.includes('math');
-
-      if (hasMathChars || hasMathFont) {
-        htmlEl.style.fontFamily = '"Cambria Math", "Cambria", serif';
-        htmlEl.setAttribute('data-mso-font-charset', '0');
-      }
-
-      if (htmlEl.tagName === 'SUP') {
-        htmlEl.style.fontSize = '8pt';
-        htmlEl.style.verticalAlign = 'super';
-      }
-      if (htmlEl.tagName === 'SUB') {
-        htmlEl.style.fontSize = '8pt';
-        htmlEl.style.verticalAlign = 'sub';
-      }
-    });
-
-    const processedBody = bodyEl.innerHTML;
-
-    const wordContent = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office"
-      xmlns:w="urn:schemas-microsoft-com:office:word"
-      xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="utf-8">
-<meta name="ProgId" content="Word.Document">
-<meta name="Generator" content="Microsoft Word 15">
-<meta name="Originator" content="Microsoft Word 15">
-<style>
-${dynamicFontFaces}
-${existingStyles}
-@page { margin: 1in; }
-body { font-family: 'Times New Roman', serif; font-size: 12pt; line-height: 1.5; }
-table { border-collapse: collapse; }
-td, th { border: 1px solid #000; padding: 4px 8px; }
-</style>
-</head>
-<body>
-${processedBody}
-</body>
-</html>`;
-
-    const fileName = promptFileName('doc');
+    const fileName = promptFileName('docx');
     if (!fileName) return;
-    const blob = new Blob([wordContent], { type: 'application/msword' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-    toast.success('Downloaded as Word');
+
+    try {
+      const bytes = await renderHtmlToDocxBytes(editedHtml);
+      downloadBytesAsFile(
+        bytes,
+        fileName,
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      );
+      toast.success('Downloaded as Word');
+    } catch (err) {
+      console.error('Word export error:', err);
+      toast.error('Word export failed');
+    }
+
     setShowDownloadMenu(false);
   }, [getEditedHtml, promptFileName]);
 
   const downloadAsPdf = useCallback(async () => {
-    const iframe = iframeRef.current;
-    if (!iframe?.contentDocument) return;
+    const editedHtml = getEditedHtml();
+    if (!editedHtml) return;
     const fileName = promptFileName('pdf');
     if (!fileName) return;
 
     try {
-      const { default: html2pdf } = await import('html2pdf.js');
-      const element = iframe.contentDocument.body;
-      await html2pdf().set({
-        margin: 0.5,
-        filename: fileName,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
-        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
-      }).from(element).save();
+      const bytes = await renderHtmlToPdfBytes(editedHtml, fileName);
+      downloadBytesAsFile(bytes, fileName, 'application/pdf');
       toast.success('Downloaded as PDF');
     } catch (err) {
       console.error('PDF export error:', err);
       toast.error('PDF export failed');
     }
     setShowDownloadMenu(false);
-  }, [promptFileName]);
+  }, [getEditedHtml, promptFileName]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
@@ -560,7 +481,7 @@ ${processedBody}
                   HTML
                 </button>
                 <button className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground" onClick={downloadAsWord}>
-                  Word (.doc)
+                  Word (.docx)
                 </button>
                 <button className="block w-full text-left px-3 py-1.5 text-xs hover:bg-accent text-foreground" onClick={downloadAsPdf}>
                   PDF
