@@ -21,6 +21,7 @@ interface ToolbarProps {
   onGroup: () => void;
   onUngroup: () => void;
   onBackgroundImageUpload: (file: File) => void;
+  onImportPdfAsBackground: (file: File) => void;
   onSplitDocument: () => void;
   onUndo: () => void;
   onRedo: () => void;
