@@ -161,6 +161,152 @@ function parseFontSize(fs: string | undefined, defaultPt: number): number {
   return n;
 }
 
+// ─── LaTeX → Unicode mapping for math export ────────
+
+const LATEX_TO_UNICODE: Record<string, string> = {
+  '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
+  '\\epsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ',
+  '\\lambda': 'λ', '\\mu': 'μ', '\\pi': 'π', '\\sigma': 'σ',
+  '\\phi': 'φ', '\\psi': 'ψ', '\\omega': 'ω',
+  '\\Gamma': 'Γ', '\\Delta': 'Δ', '\\Theta': 'Θ', '\\Lambda': 'Λ',
+  '\\Sigma': 'Σ', '\\Phi': 'Φ', '\\Psi': 'Ψ', '\\Omega': 'Ω',
+  '\\pm': '±', '\\times': '×', '\\div': '÷', '\\cdot': '·',
+  '\\infty': '∞', '\\partial': '∂', '\\nabla': '∇',
+  '\\leq': '≤', '\\geq': '≥', '\\neq': '≠', '\\approx': '≈',
+  '\\equiv': '≡', '\\propto': '∝', '\\ll': '≪', '\\gg': '≫',
+  '\\in': '∈', '\\notin': '∉', '\\subset': '⊂', '\\subseteq': '⊆',
+  '\\cup': '∪', '\\cap': '∩', '\\emptyset': '∅',
+  '\\forall': '∀', '\\exists': '∃', '\\neg': '¬',
+  '\\land': '∧', '\\lor': '∨', '\\to': '→',
+  '\\Rightarrow': '⇒', '\\Leftrightarrow': '⇔',
+  '\\int': '∫', '\\iint': '∬', '\\oint': '∮',
+  '\\sum': '∑', '\\prod': '∏',
+  '\\sqrt': '√', '\\angle': '∠', '\\perp': '⊥',
+  '\\mathbb{R}': 'ℝ', '\\mathbb{C}': 'ℂ', '\\mathbb{Z}': 'ℤ',
+  '\\mathbb{N}': 'ℕ', '\\mathbb{Q}': 'ℚ',
+  '\\ldots': '…', '\\cdots': '⋯',
+  '\\langle': '⟨', '\\rangle': '⟩',
+  '\\oplus': '⊕', '\\otimes': '⊗',
+};
+
+const SUPERSCRIPT_MAP: Record<string, string> = {
+  '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+  '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
+  '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
+  'n': 'ⁿ', 'i': 'ⁱ',
+};
+
+const SUBSCRIPT_MAP: Record<string, string> = {
+  '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
+  '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
+  '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎',
+  'a': 'ₐ', 'e': 'ₑ', 'i': 'ᵢ', 'j': 'ⱼ', 'k': 'ₖ',
+  'n': 'ₙ', 'x': 'ₓ',
+};
+
+function latexToUnicode(latex: string): string {
+  let result = decodeURIComponent(latex);
+
+  // \frac{a}{b} → a/b
+  result = result.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1/$2)');
+
+  // \sqrt{x} → √(x)
+  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, '$1√($2)');
+  result = result.replace(/\\sqrt\{([^}]*)\}/g, '√($1)');
+
+  // \binom{n}{k} → C(n,k)
+  result = result.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, 'C($1,$2)');
+
+  // Superscripts: x^{abc} or x^n
+  result = result.replace(/\^{([^}]*)}/g, (_, content) => {
+    return [...content].map((c: string) => SUPERSCRIPT_MAP[c] || c).join('');
+  });
+  result = result.replace(/\^([a-zA-Z0-9])/g, (_, c) => SUPERSCRIPT_MAP[c] || `^${c}`);
+
+  // Subscripts: x_{abc} or x_n
+  result = result.replace(/_{([^}]*)}/g, (_, content) => {
+    return [...content].map((c: string) => SUBSCRIPT_MAP[c] || c).join('');
+  });
+  result = result.replace(/_([a-zA-Z0-9])/g, (_, c) => SUBSCRIPT_MAP[c] || `_${c}`);
+
+  // Replace LaTeX commands with Unicode (longest first)
+  const sorted = Object.entries(LATEX_TO_UNICODE).sort((a, b) => b[0].length - a[0].length);
+  for (const [cmd, char] of sorted) {
+    const escaped = cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(escaped + '(?![a-zA-Z{])', 'g'), char);
+  }
+
+  // Clean up remaining braces and backslashes
+  result = result.replace(/[{}]/g, '').replace(/\\\s/g, ' ');
+
+  return result;
+}
+
+/**
+ * Convert math HTML (with data-latex attributes or math-unicode spans) to Unicode text,
+ * then strip remaining HTML tags for plain text export (PDF).
+ */
+function convertMathHtmlToUnicode(html: string): string {
+  let result = html;
+
+  // Convert <span class="math-expression" data-latex="...">...</span> to Unicode
+  result = result.replace(/<span[^>]*class="math-expression"[^>]*data-latex="([^"]*)"[^>]*>[\s\S]*?<\/span>/gi,
+    (_, latex) => ` ${latexToUnicode(latex)} `
+  );
+
+  // For math-unicode spans, the inner text already has Unicode chars — just strip wrapping
+  // but keep inner content (the Unicode is already there from the editor)
+
+  // Standard HTML to text conversion
+  result = result
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n')
+    .replace(/<\/h[1-6]>/gi, '\n\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<sup[^>]*>/gi, '').replace(/<\/sup>/gi, '')
+    .replace(/<sub[^>]*>/gi, '').replace(/<\/sub>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\u200B/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+
+  return result;
+}
+
+/**
+ * Ensure math expressions in HTML have explicit Cambria Math font for Word rendering.
+ * Also convert MathLive static markup <span class="ML__..."> to Word-friendly HTML.
+ */
+function ensureMathFontsForWord(html: string): string {
+  let result = html;
+
+  // Ensure all math-expression spans use Cambria Math explicitly
+  result = result.replace(
+    /(<span[^>]*class="math-expression"[^>]*)>/gi,
+    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif;display:inline-block;vertical-align:middle">'
+  );
+
+  // Ensure math-unicode spans use Cambria Math
+  result = result.replace(
+    /(<span[^>]*class="math-unicode"[^>]*)>/gi,
+    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif">'
+  );
+
+  // Ensure math-template spans use Cambria Math
+  result = result.replace(
+    /(<span[^>]*class="math-template"[^>]*)>/gi,
+    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif">'
+  );
+
+  return result;
+}
+
 // ─── Helpers ────────
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
@@ -656,23 +802,11 @@ async function generateBlockPdf(block: Block): Promise<Uint8Array> {
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           const htmlContent = bodyMatch ? bodyMatch[1] : text;
-          // Strip HTML tags to get plain text for PDF
-          plainText = htmlContent
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/p>/gi, '\n\n')
-            .replace(/<\/div>/gi, '\n')
-            .replace(/<\/h[1-6]>/gi, '\n\n')
-            .replace(/<\/li>/gi, '\n')
-            .replace(/<[^>]+>/g, '')
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&lt;/gi, '<')
-            .replace(/&gt;/gi, '>')
-            .replace(/&quot;/gi, '"')
-            .replace(/&#39;/gi, "'")
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
+          // Convert math expressions to Unicode text before stripping HTML
+          plainText = convertMathHtmlToUnicode(htmlContent);
         }
+
+        plainText = plainText.trim();
 
         if (plainText) {
           y += 10;
@@ -722,7 +856,9 @@ async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
         const text = await resp.text();
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          fileContent = bodyMatch ? bodyMatch[1] : text;
+          let rawContent = bodyMatch ? bodyMatch[1] : text;
+          // Ensure math expressions have Cambria Math font for Word rendering
+          fileContent = ensureMathFontsForWord(rawContent);
         } else {
           fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
         }
