@@ -49,12 +49,11 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
 
       // 3. Download ZIP
       const zipData = await zip.generateAsync({
-        type: 'uint8array',
+        type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 },
       });
-      const zipBuffer = zipData.buffer.slice(zipData.byteOffset, zipData.byteOffset + zipData.byteLength) as ArrayBuffer;
-      saveAs(new Blob([zipBuffer], { type: 'application/zip' }), `${sanitize(title)}.zip`);
+      saveAs(zipData, `${sanitize(title)}.zip`);
       toast.success('Canvas exported successfully!');
       onClose();
     } catch (err) {
