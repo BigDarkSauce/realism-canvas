@@ -960,7 +960,7 @@ async function embedFileAttachments(
   return pdfDoc.save();
 }
 
-
+function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
