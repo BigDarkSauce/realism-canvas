@@ -744,93 +744,22 @@ function drawBackground(
 // ─── Block Document Generators (for ZIP files) ─────────────
 
 async function generateBlockPdf(block: Block): Promise<Uint8Array> {
-  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const m = 50;
-  const maxWidth = pageWidth - m * 2;
-  let y = m;
-
-  doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
-  const titleLines = doc.splitTextToSize(block.label, maxWidth);
-  doc.text(titleLines, m, y);
-  y += titleLines.length * 22 + 8;
-
-  doc.setDrawColor(110, 231, 183);
-  doc.setLineWidth(2);
-  doc.line(m, y, pageWidth - m, y);
-  y += 16;
-
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(120, 120, 120);
-  doc.text(`Shape: ${block.shape || 'rectangle'}  |  Size: ${block.width}×${block.height}`, m, y);
-  y += 20;
-
   const notes = block.markdown || block.comment || '';
-  if (notes) {
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(45, 55, 72);
-    doc.text('Notes', m, y);
-    y += 18;
 
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(30, 41, 59);
-    const noteLines = doc.splitTextToSize(notes, maxWidth);
-    for (const line of noteLines) {
-      if (y > pageHeight - m) { doc.addPage(); y = m; }
-      doc.text(line, m, y);
-      y += 15;
-    }
-  }
-
-  // Fetch actual stored file content (same as View does)
+  let fileContent = '';
   const originalUrl = block.fileStorageUrl || block.fileUrl;
   if (originalUrl) {
     try {
       const storagePath = extractStoragePath(originalUrl);
       const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
       const resp = await fetch(fetchUrl);
-
       if (resp.ok) {
         const text = await resp.text();
-        // Extract plain text from HTML content
-        let plainText = text;
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          const htmlContent = bodyMatch ? bodyMatch[1] : text;
-          // Convert math expressions to Unicode text before stripping HTML
-          plainText = convertMathHtmlToUnicode(htmlContent);
-        }
-
-        plainText = plainText.trim();
-
-        if (plainText) {
-          y += 10;
-          if (y > pageHeight - m) { doc.addPage(); y = m; }
-          doc.setDrawColor(200, 200, 210);
-          doc.setLineWidth(0.5);
-          doc.line(m, y, pageWidth - m, y);
-          y += 16;
-
-          doc.setFontSize(13);
-          doc.setFont('helvetica', 'bold');
-          doc.setTextColor(45, 55, 72);
-          doc.text('Document Content', m, y);
-          y += 18;
-
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          doc.setTextColor(30, 41, 59);
-          const contentLines = doc.splitTextToSize(plainText, maxWidth);
-          for (const line of contentLines) {
-            if (y > pageHeight - m) { doc.addPage(); y = m; }
-            doc.text(line, m, y);
-            y += 14;
-          }
+          fileContent = bodyMatch ? bodyMatch[1] : text;
+        } else {
+          fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
         }
       }
     } catch (e) {
@@ -838,7 +767,52 @@ async function generateBlockPdf(block: Block): Promise<Uint8Array> {
     }
   }
 
-  return new Uint8Array(doc.output('arraybuffer'));
+  // Build full HTML document to render via html2pdf (same pipeline as View)
+  const htmlDoc = `
+    <div style="font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;padding:40px;line-height:1.6;">
+      <h1 style="font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;">${esc(block.label)}</h1>
+      <p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}${block.fileName ? ` | File: ${esc(block.fileName)}` : ''}</p>
+      ${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+      ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2 style="font-size:14pt;margin-top:20px;">Document Content</h2><div>${fileContent}</div>` : ''}
+    </div>`;
+
+  // Create off-screen container for html2pdf rendering
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '0';
+  container.style.width = '794px'; // A4 width in px at 96dpi
+  container.innerHTML = htmlDoc;
+
+  // Inject MathLive CSS for math rendering
+  const mathLink = document.createElement('link');
+  mathLink.rel = 'stylesheet';
+  mathLink.href = 'https://unpkg.com/mathlive@0.108.3/dist/mathlive-static.css';
+  container.prepend(mathLink);
+
+  document.body.appendChild(container);
+
+  try {
+    // Wait briefly for math styles to load
+    await new Promise(r => setTimeout(r, 300));
+
+    const html2pdf = (await import('html2pdf.js')).default;
+    const pdfBlob: Blob = await html2pdf()
+      .set({
+        margin: 0,
+        filename: `${sanitize(block.label)}.pdf`,
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+      })
+      .from(container)
+      .outputPdf('blob');
+
+    const arrayBuffer = await pdfBlob.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  } finally {
+    document.body.removeChild(container);
+  }
 }
 
 async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
