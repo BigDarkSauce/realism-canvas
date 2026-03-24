@@ -994,7 +994,7 @@ async function embedFileAttachments(
   return pdfDoc.save();
 }
 
-function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
+async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): Promise<void> {
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
@@ -1019,7 +1019,7 @@ function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: Ex
     const folderName = sanitize(group.label);
     const folder = zip.folder(folderName)!;
     for (const block of gBlocks) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
       folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
@@ -1027,7 +1027,7 @@ function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: Ex
   if (ungrouped.length > 0) {
     const folder = zip.folder('Ungrouped')!;
     for (const block of ungrouped) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
       folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
