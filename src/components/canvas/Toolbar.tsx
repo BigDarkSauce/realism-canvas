@@ -156,11 +156,15 @@ export default function Toolbar({
           <DropdownMenuItem onClick={() => pdfImportRef.current?.click()}>
             <Image className="h-4 w-4 mr-2" /> Import PDF as Background
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => pdfCanvasRef.current?.click()}>
+            <FileInput className="h-4 w-4 mr-2" /> Import PDF as Canvas Blocks
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <input ref={bgFileRef} type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onBackgroundImageUpload(file); }} />
       <input ref={pdfImportRef} type="file" accept=".pdf" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onImportPdfAsBackground(file); e.target.value = ''; }} />
+      <input ref={pdfCanvasRef} type="file" accept=".pdf" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onImportPdfAsCanvas(file); e.target.value = ''; }} />
     </div>
   );
 }
