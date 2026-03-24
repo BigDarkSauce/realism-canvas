@@ -446,8 +446,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
-  // Collect block link rects to add file links after drawing
-  interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
+  // Collect block link rects for file attachment annotations
   const blockLinks: BlockLinkInfo[] = [];
 
   for (let tileY = 0; tileY < tilesY; tileY++) {
