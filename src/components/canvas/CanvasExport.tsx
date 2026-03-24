@@ -289,7 +289,7 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
         const group = b.groupId ? groupMap.get(b.groupId) : undefined;
         const folderName = group ? sanitize(group.label) : 'Ungrouped';
         const fileName = `${sanitize(b.label)}${ext}`;
-        const relPath = `${folderName}/${fileName}`;
+        const relPath = `./${folderName}/${fileName}`;
 
         const shapeType = b.shape === 'circle'
           ? pptx.ShapeType.roundRect
