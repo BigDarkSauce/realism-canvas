@@ -40,15 +40,19 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate visual canvas map PDF (non-clickable visual reference)
-      const mapPdf = await generateCanvasMapPdf(state, format);
-      zip.file('canvas-map.pdf', mapPdf, { binary: true });
+      // 1. Collect block documents data for embedding
+      const blockFiles = collectBlockFiles(state, format);
 
-      // 2. Generate clickable PPTX map with hyperlinks to exported files
+      // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
+      const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
+      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, state, blockFiles, format);
+      zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
+
+      // 3. Generate clickable PPTX map with hyperlinks to exported files
       const mapPptx = await generateCanvasMapPptx(state, format);
       zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
-      // 2. Generate block documents organized by group
+      // 4. Generate block documents organized by group in ZIP
       generateBlockDocuments(state, zip, format);
 
       // 3. Download ZIP
@@ -366,13 +370,15 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
 
-async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<Uint8Array> {
+interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
+
+async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<{ pdfBytes: Uint8Array; blockLinks: BlockLinkInfo[] }> {
   const { blocks, connections, groups, strokes, background, backgroundImage } = state;
   if (blocks.length === 0) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     doc.setFontSize(16);
     doc.text('Canvas Map - No blocks', 40, 40);
-    return new Uint8Array(doc.output('arraybuffer'));
+    return { pdfBytes: new Uint8Array(doc.output('arraybuffer')), blockLinks: [] };
   }
 
   // Compute bounding box including strokes
@@ -440,8 +446,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
-  // Collect block link rects to add file links after drawing
-  interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
+  // Collect block link rects for file attachment annotations
   const blockLinks: BlockLinkInfo[] = [];
 
   for (let tileY = 0; tileY < tilesY; tileY++) {
@@ -746,20 +751,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     }
   }
 
-  // ── Add relative file URL links on map blocks (opens Word/PDF from extracted ZIP) ──
-  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
-  for (const link of blockLinks) {
-    const b = blockMap.get(link.blockId);
-    if (!b) continue;
-    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
-    const folderName = group ? sanitize(group.label) : 'Ungrouped';
-    const fileName = `${sanitize(b.label)}${ext}`;
-    const relPath = `${folderName}/${fileName}`;
-    doc.setPage(link.mapPage);
-    doc.link(link.x, link.y, link.w, link.h, { url: relPath });
-  }
-
-  return new Uint8Array(doc.output('arraybuffer'));
+  return { pdfBytes: new Uint8Array(doc.output('arraybuffer')), blockLinks };
 }
 
 function drawBackground(
@@ -868,6 +860,104 @@ function generateBlockWordDoc(block: Block): Uint8Array {
 ${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
 </body></html>`;
   return new TextEncoder().encode(`\ufeff${html}`);
+}
+
+// ─── Collect block file data for PDF attachment embedding ────────
+
+function collectBlockFiles(
+  state: CanvasExportState,
+  format: ExportFormat
+): Map<string, { data: Uint8Array; fileName: string }> {
+  const { blocks, groups } = state;
+  const groupMap = new Map<string, Group>();
+  groups.forEach(g => groupMap.set(g.id, g));
+  const ext = format === 'pdf' ? '.pdf' : '.doc';
+  const result = new Map<string, { data: Uint8Array; fileName: string }>();
+
+  for (const block of blocks) {
+    const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+    const fileName = `${sanitize(block.label)}${ext}`;
+    result.set(block.id, { data: fileData, fileName });
+  }
+  return result;
+}
+
+// ─── Embed files as PDF FileAttachment annotations (Acrobat-only) ────────
+
+async function embedFileAttachments(
+  pdfBytes: Uint8Array,
+  blockLinks: BlockLinkInfo[],
+  state: CanvasExportState,
+  blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
+  format: ExportFormat
+): Promise<Uint8Array> {
+  const { PDFDocument, PDFName, PDFDict, PDFArray, PDFString, PDFStream, PDFHexString } = await import('pdf-lib');
+
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+
+  for (const link of blockLinks) {
+    const file = blockFiles.get(link.blockId);
+    if (!file) continue;
+
+    const pageIndex = link.mapPage - 1; // 0-indexed
+    if (pageIndex < 0 || pageIndex >= pages.length) continue;
+    const page = pages[pageIndex];
+    const pageHeight = page.getHeight();
+
+    // Create embedded file stream
+    const mimeType = format === 'pdf' ? 'application/pdf' : 'application/msword';
+    const embeddedFileStream = pdfDoc.context.stream(file.data, {
+      Type: PDFName.of('EmbeddedFile'),
+      Subtype: PDFName.of(mimeType),
+      Length: file.data.length,
+    });
+    const embeddedFileStreamRef = pdfDoc.context.register(embeddedFileStream);
+
+    // Create EF dict
+    const efDict = pdfDoc.context.obj({
+      F: embeddedFileStreamRef,
+    });
+
+    // Create file specification
+    const fileSpecDict = pdfDoc.context.obj({
+      Type: PDFName.of('Filespec'),
+      F: PDFString.of(file.fileName),
+      UF: PDFHexString.fromText(file.fileName),
+      EF: efDict,
+      Desc: PDFString.of(`Block: ${file.fileName}`),
+    });
+    const fileSpecRef = pdfDoc.context.register(fileSpecDict);
+
+    // Convert jsPDF coords (origin top-left, pt) to PDF coords (origin bottom-left)
+    const x1 = link.x;
+    const y1 = pageHeight - link.y - link.h; // bottom
+    const x2 = link.x + link.w;
+    const y2 = pageHeight - link.y; // top
+
+    // Create FileAttachment annotation
+    const annotDict = pdfDoc.context.obj({
+      Type: PDFName.of('Annot'),
+      Subtype: PDFName.of('FileAttachment'),
+      Rect: pdfDoc.context.obj([x1, y1, x2, y2]),
+      FS: fileSpecRef,
+      Name: PDFName.of('PushPin'),
+      C: pdfDoc.context.obj([0.15, 0.45, 0.75]), // blue-ish color
+      Contents: PDFString.of(`Open ${file.fileName}`),
+      F: 4, // Print flag
+    });
+    const annotRef = pdfDoc.context.register(annotDict);
+
+    // Add annotation to page
+    const existingAnnots = page.node.lookup(PDFName.of('Annots'));
+    if (existingAnnots instanceof PDFArray) {
+      existingAnnots.push(annotRef);
+    } else {
+      page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([annotRef]));
+    }
+  }
+
+  return pdfDoc.save();
 }
 
 function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
