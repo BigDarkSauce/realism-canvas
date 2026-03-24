@@ -994,7 +994,11 @@ async function embedFileAttachments(
   return pdfDoc.save();
 }
 
-async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): Promise<void> {
+function generateBlockDocuments(
+  state: CanvasExportState,
+  zip: JSZip,
+  blockFiles: Map<string, { data: Uint8Array; fileName: string }>
+): void {
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
@@ -1012,23 +1016,23 @@ async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, form
     }
   });
 
-  const ext = format === 'pdf' ? '.pdf' : '.doc';
-
   for (const [gId, gBlocks] of grouped.entries()) {
     const group = groupMap.get(gId)!;
     const folderName = sanitize(group.label);
     const folder = zip.folder(folderName)!;
     for (const block of gBlocks) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
+      const file = blockFiles.get(block.id);
+      if (!file) continue;
+      folder.file(file.fileName, file.data, { binary: true });
     }
   }
 
   if (ungrouped.length > 0) {
     const folder = zip.folder('Ungrouped')!;
     for (const block of ungrouped) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
-      folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
+      const file = blockFiles.get(block.id);
+      if (!file) continue;
+      folder.file(file.fileName, file.data, { binary: true });
     }
   }
 }
