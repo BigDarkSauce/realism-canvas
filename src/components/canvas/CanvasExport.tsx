@@ -862,7 +862,105 @@ ${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="whi
   return new TextEncoder().encode(`\ufeff${html}`);
 }
 
-function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
+// ─── Collect block file data for PDF attachment embedding ────────
+
+function collectBlockFiles(
+  state: CanvasExportState,
+  format: ExportFormat
+): Map<string, { data: Uint8Array; fileName: string }> {
+  const { blocks, groups } = state;
+  const groupMap = new Map<string, Group>();
+  groups.forEach(g => groupMap.set(g.id, g));
+  const ext = format === 'pdf' ? '.pdf' : '.doc';
+  const result = new Map<string, { data: Uint8Array; fileName: string }>();
+
+  for (const block of blocks) {
+    const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+    const fileName = `${sanitize(block.label)}${ext}`;
+    result.set(block.id, { data: fileData, fileName });
+  }
+  return result;
+}
+
+// ─── Embed files as PDF FileAttachment annotations (Acrobat-only) ────────
+
+async function embedFileAttachments(
+  pdfBytes: Uint8Array,
+  blockLinks: BlockLinkInfo[],
+  state: CanvasExportState,
+  blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
+  format: ExportFormat
+): Promise<Uint8Array> {
+  const { PDFDocument, PDFName, PDFDict, PDFArray, PDFString, PDFStream, PDFHexString } = await import('pdf-lib');
+
+  const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pages = pdfDoc.getPages();
+
+  for (const link of blockLinks) {
+    const file = blockFiles.get(link.blockId);
+    if (!file) continue;
+
+    const pageIndex = link.mapPage - 1; // 0-indexed
+    if (pageIndex < 0 || pageIndex >= pages.length) continue;
+    const page = pages[pageIndex];
+    const pageHeight = page.getHeight();
+
+    // Create embedded file stream
+    const mimeType = format === 'pdf' ? 'application/pdf' : 'application/msword';
+    const embeddedFileStream = pdfDoc.context.stream(file.data, {
+      Type: PDFName.of('EmbeddedFile'),
+      Subtype: PDFName.of(mimeType),
+      Length: file.data.length,
+    });
+    const embeddedFileStreamRef = pdfDoc.context.register(embeddedFileStream);
+
+    // Create EF dict
+    const efDict = pdfDoc.context.obj({
+      F: embeddedFileStreamRef,
+    });
+
+    // Create file specification
+    const fileSpecDict = pdfDoc.context.obj({
+      Type: PDFName.of('Filespec'),
+      F: PDFString.of(file.fileName),
+      UF: PDFHexString.fromText(file.fileName),
+      EF: efDict,
+      Desc: PDFString.of(`Block: ${file.fileName}`),
+    });
+    const fileSpecRef = pdfDoc.context.register(fileSpecDict);
+
+    // Convert jsPDF coords (origin top-left, pt) to PDF coords (origin bottom-left)
+    const x1 = link.x;
+    const y1 = pageHeight - link.y - link.h; // bottom
+    const x2 = link.x + link.w;
+    const y2 = pageHeight - link.y; // top
+
+    // Create FileAttachment annotation
+    const annotDict = pdfDoc.context.obj({
+      Type: PDFName.of('Annot'),
+      Subtype: PDFName.of('FileAttachment'),
+      Rect: pdfDoc.context.obj([x1, y1, x2, y2]),
+      FS: fileSpecRef,
+      Name: PDFName.of('PushPin'),
+      C: pdfDoc.context.obj([0.15, 0.45, 0.75]), // blue-ish color
+      Contents: PDFString.of(`Open ${file.fileName}`),
+      F: 4, // Print flag
+    });
+    const annotRef = pdfDoc.context.register(annotDict);
+
+    // Add annotation to page
+    const existingAnnots = page.node.lookup(PDFName.of('Annots'));
+    if (existingAnnots instanceof PDFArray) {
+      existingAnnots.push(annotRef);
+    } else {
+      page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([annotRef]));
+    }
+  }
+
+  return pdfDoc.save();
+}
+
+
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
