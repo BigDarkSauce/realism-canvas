@@ -371,29 +371,49 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     doc.setLineDashPattern([], 0);
   }
 
-  // Draw connections with actual colors, widths, and styles
+  // Draw connections with actual colors, widths, styles, and curves (matching canvas exactly)
+  // Replicate getEdgePoint from ConnectionArrows.tsx
+  const getEdgePointPdf = (fromPt: {x:number,y:number}, toPt: {x:number,y:number}, block: Block) => {
+    const cx = tx(block.x + block.width / 2);
+    const cy = ty(block.y + block.height / 2);
+    const hw = (block.width * scale) / 2;
+    const hh = (block.height * scale) / 2;
+    const dx = toPt.x - fromPt.x;
+    const dy = toPt.y - fromPt.y;
+    const angle = Math.atan2(dy, dx);
+    const absCos = Math.abs(Math.cos(angle));
+    const absSin = Math.abs(Math.sin(angle));
+    let px: number, py: number;
+    if (hw * absSin < hh * absCos) {
+      const sign = Math.cos(angle) > 0 ? 1 : -1;
+      px = cx + sign * hw;
+      py = cy + sign * hw * Math.tan(angle);
+    } else {
+      const sign = Math.sin(angle) > 0 ? 1 : -1;
+      px = cx + sign * hh / Math.tan(angle);
+      py = cy + sign * hh;
+    }
+    return { x: px, y: py };
+  };
+
   for (const conn of connections) {
     const fromBlock = blockMap.get(conn.fromId);
     const toBlock = blockMap.get(conn.toId);
     if (!fromBlock || !toBlock) continue;
 
-    const x1 = tx(fromBlock.x + fromBlock.width / 2);
-    const y1 = ty(fromBlock.y + fromBlock.height / 2);
-    const x2 = tx(toBlock.x + toBlock.width / 2);
-    const y2 = ty(toBlock.y + toBlock.height / 2);
+    const fromCenter = { x: tx(fromBlock.x + fromBlock.width / 2), y: ty(fromBlock.y + fromBlock.height / 2) };
+    const toCenter = { x: tx(toBlock.x + toBlock.width / 2), y: ty(toBlock.y + toBlock.height / 2) };
 
-    const clip = (pcx: number, pcy: number, pbw: number, pbh: number, ex: number, ey: number) => {
-      const dx = ex - pcx, dy = ey - pcy;
-      const hw = pbw / 2, hh = pbh / 2;
-      if (dx === 0 && dy === 0) return { x: pcx, y: pcy };
-      const tX = dx !== 0 ? hw / Math.abs(dx) : Infinity;
-      const tY = dy !== 0 ? hh / Math.abs(dy) : Infinity;
-      const t = Math.min(tX, tY);
-      return { x: pcx + dx * t, y: pcy + dy * t };
-    };
+    // Compute control point (same logic as ConnectionArrows)
+    const midX = (fromCenter.x + toCenter.x) / 2 + (conn.cpX || 0) * scale;
+    const midY = (fromCenter.y + toCenter.y) / 2 + (conn.cpY || 0) * scale;
+    const hasBend = conn.cpX !== undefined && conn.cpY !== undefined && (Math.abs(conn.cpX) > 2 || Math.abs(conn.cpY) > 2);
 
-    const from = clip(x1, y1, fromBlock.width * scale, fromBlock.height * scale, x2, y2);
-    const to = clip(x2, y2, toBlock.width * scale, toBlock.height * scale, x1, y1);
+    // Edge points aim at the control point (or opposite center for straight lines)
+    const aimPoint = hasBend ? { x: midX, y: midY } : toCenter;
+    const aimPointReverse = hasBend ? { x: midX, y: midY } : fromCenter;
+    const from = getEdgePointPdf(fromCenter, aimPoint, fromBlock);
+    const to = getEdgePointPdf(toCenter, aimPointReverse, toBlock);
 
     // Actual connection color and width
     const connColor = parseColor(conn.color, [60, 60, 80]);
@@ -405,11 +425,33 @@ function generateCanvasMapPdf(state: CanvasExportState): Uint8Array {
     if (conn.arrowStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
     else if (conn.arrowStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
 
-    doc.line(from.x, from.y, to.x, to.y);
+    if (hasBend) {
+      // Draw quadratic bezier curve using raw PDF commands
+      // Convert quadratic bezier (P0, CP, P2) to cubic bezier (P0, CP1, CP2, P2)
+      const cp1x = from.x + (2/3) * (midX - from.x);
+      const cp1y = from.y + (2/3) * (midY - from.y);
+      const cp2x = to.x + (2/3) * (midX - to.x);
+      const cp2y = to.y + (2/3) * (midY - to.y);
+
+      const internal = (doc as any).internal;
+      const f = (n: number) => n.toFixed(4);
+      // PDF uses bottom-left origin, so flip Y
+      internal.write(`${f(from.x)} ${f(pageH - from.y)} m`);
+      internal.write(`${f(cp1x)} ${f(pageH - cp1y)} ${f(cp2x)} ${f(pageH - cp2y)} ${f(to.x)} ${f(pageH - to.y)} c`);
+      internal.write('S');
+    } else {
+      doc.line(from.x, from.y, to.x, to.y);
+    }
     doc.setLineDashPattern([], 0);
 
-    // Arrowhead
-    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    // Arrowhead — compute angle at the endpoint
+    let angle: number;
+    if (hasBend) {
+      // Tangent at end of quadratic bezier: direction from control point to end
+      angle = Math.atan2(to.y - midY, to.x - midX);
+    } else {
+      angle = Math.atan2(to.y - from.y, to.x - from.x);
+    }
     const aLen = Math.max(6, 8 * scale);
     const aW = Math.PI / 7;
     doc.triangle(
