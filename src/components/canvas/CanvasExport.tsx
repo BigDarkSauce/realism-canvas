@@ -41,20 +41,20 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Collect block documents data for embedding
+      // 1. Build the actual exported block files first
       const blockFiles = await collectBlockFiles(state, format);
 
       // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
-      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, state, blockFiles, format);
+      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, blockFiles, format);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
       // 3. Generate clickable PPTX map with hyperlinks to exported files
       const mapPptx = await generateCanvasMapPptx(state, format);
       zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
-      // 4. Generate block documents organized by group in ZIP
-      await generateBlockDocuments(state, zip, format);
+      // 4. Write the same generated block files into their group folders
+      generateBlockDocuments(state, zip, blockFiles);
 
       // 3. Download ZIP
       const zipData = await zip.generateAsync({
