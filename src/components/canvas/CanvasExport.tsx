@@ -41,7 +41,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const zip = new JSZip();
 
       // 1. Collect block documents data for embedding
-      const blockFiles = collectBlockFiles(state, format);
+      const blockFiles = await collectBlockFiles(state, format);
 
       // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
@@ -53,7 +53,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
       // 4. Generate block documents organized by group in ZIP
-      generateBlockDocuments(state, zip, format);
+      await generateBlockDocuments(state, zip, format);
 
       // 3. Download ZIP
       const zipData = await zip.generateAsync({
@@ -849,36 +849,70 @@ function generateBlockPdf(block: Block): Uint8Array {
   return new Uint8Array(doc.output('arraybuffer'));
 }
 
-function generateBlockWordDoc(block: Block): Uint8Array {
+async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
   const notes = block.markdown || block.comment || '';
+  
+  // Fetch actual file content from storage (what the "view" option shows)
+  let fileContent = '';
+  const fileUrl = block.fileStorageUrl || block.fileUrl;
+  if (fileUrl) {
+    try {
+      const resp = await fetch(fileUrl);
+      if (resp.ok) {
+        const text = await resp.text();
+        // Check if it's HTML content (our editor files)
+        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
+          // Extract the body content from the fetched HTML
+          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          fileContent = bodyMatch ? bodyMatch[1] : text;
+        } else {
+          // Plain text content
+          fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch file content for block:', block.label, e);
+    }
+  }
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset="utf-8">
-<style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}a{color:#2563eb;}</style>
+<style>
+body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}
+h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}
+h2{font-size:14pt;margin-top:20px;}
+a{color:#2563eb;}
+img{max-width:100%;height:auto;}
+table{border-collapse:collapse;width:100%;}
+td,th{border:1px solid #ddd;padding:6px 10px;}
+</style>
 </head><body>
 <h1>${esc(block.label)}</h1>
-<p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}</p>
-${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+<p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}${block.fileName ? ` | File: ${esc(block.fileName)}` : ''}</p>
+${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
 </body></html>`;
   return new TextEncoder().encode(`\ufeff${html}`);
 }
 
 // ─── Collect block file data for PDF attachment embedding ────────
 
-function collectBlockFiles(
+async function collectBlockFiles(
   state: CanvasExportState,
   format: ExportFormat
-): Map<string, { data: Uint8Array; fileName: string }> {
-  const { blocks, groups } = state;
-  const groupMap = new Map<string, Group>();
-  groups.forEach(g => groupMap.set(g.id, g));
+): Promise<Map<string, { data: Uint8Array; fileName: string }>> {
+  const { blocks } = state;
   const ext = format === 'pdf' ? '.pdf' : '.doc';
   const result = new Map<string, { data: Uint8Array; fileName: string }>();
 
-  for (const block of blocks) {
-    const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
-    const fileName = `${sanitize(block.label)}${ext}`;
-    result.set(block.id, { data: fileData, fileName });
-  }
+  const entries = await Promise.all(
+    blocks.map(async (block) => {
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
+      const fileName = `${sanitize(block.label)}${ext}`;
+      return { id: block.id, data: fileData, fileName };
+    })
+  );
+  for (const e of entries) result.set(e.id, { data: e.data, fileName: e.fileName });
   return result;
 }
 
@@ -960,7 +994,7 @@ async function embedFileAttachments(
   return pdfDoc.save();
 }
 
-function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): void {
+async function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: ExportFormat): Promise<void> {
   const { blocks, groups } = state;
   const groupMap = new Map<string, Group>();
   groups.forEach(g => groupMap.set(g.id, g));
@@ -985,7 +1019,7 @@ function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: Ex
     const folderName = sanitize(group.label);
     const folder = zip.folder(folderName)!;
     for (const block of gBlocks) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
       folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
@@ -993,7 +1027,7 @@ function generateBlockDocuments(state: CanvasExportState, zip: JSZip, format: Ex
   if (ungrouped.length > 0) {
     const folder = zip.folder('Ungrouped')!;
     for (const block of ungrouped) {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
       folder.file(`${sanitize(block.label)}${ext}`, fileData, { binary: true });
     }
   }
