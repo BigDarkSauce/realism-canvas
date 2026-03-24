@@ -10,11 +10,6 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
-import {
-  Document as DocxDocument, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-  ExternalHyperlink, HeadingLevel, BorderStyle, WidthType, ShadingType,
-  AlignmentType
-} from 'docx';
 
 export interface CanvasExportState {
   blocks: Block[];
@@ -172,15 +167,32 @@ function hexFromRgb(r: number, g: number, b: number): string {
 }
 
 async function generateCanvasMapDocx(state: CanvasExportState, exportFormat: ExportFormat): Promise<Uint8Array> {
+  const docx = await import('docx');
+  const {
+    Document: DocxDocument,
+    Packer,
+    Paragraph,
+    TextRun,
+    Table,
+    TableRow,
+    TableCell,
+    ExternalHyperlink,
+    HeadingLevel,
+    BorderStyle,
+    WidthType,
+    ShadingType,
+    AlignmentType,
+    VerticalAlign,
+  } = docx;
+
   const { blocks, connections, groups } = state;
   const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
   const groupMap = new Map<string, Group>();
-  groups.forEach(g => groupMap.set(g.id, g));
+  groups.forEach((g) => groupMap.set(g.id, g));
 
-  // Organize blocks by group
   const grouped = new Map<string, Block[]>();
   const ungrouped: Block[] = [];
-  blocks.forEach(b => {
+  blocks.forEach((b) => {
     if (b.groupId && groupMap.has(b.groupId)) {
       const arr = grouped.get(b.groupId) || [];
       arr.push(b);
@@ -193,31 +205,44 @@ async function generateCanvasMapDocx(state: CanvasExportState, exportFormat: Exp
   const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
   const cellBorders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
   const blockMap = new Map<string, Block>();
-  blocks.forEach(b => blockMap.set(b.id, b));
+  blocks.forEach((b) => blockMap.set(b.id, b));
 
-  const children: (Paragraph | Table)[] = [];
+  const children: any[] = [];
 
-  // Title
-  children.push(new Paragraph({
-    heading: HeadingLevel.HEADING_1,
-    children: [new TextRun({ text: 'Canvas Map', bold: true, size: 36, font: 'Arial' })],
-  }));
-  children.push(new Paragraph({
-    children: [new TextRun({
-      text: `Exported on ${new Date().toLocaleString()} • ${blocks.length} blocks, ${connections.length} connections, ${groups.length} groups`,
-      size: 18, color: '888888', font: 'Arial',
-    })],
-    spacing: { after: 300 },
-  }));
-  children.push(new Paragraph({
-    children: [new TextRun({
-      text: '💡 Click any block name below to open its corresponding file.',
-      size: 20, italics: true, color: '2563EB', font: 'Arial',
-    })],
-    spacing: { after: 400 },
-  }));
+  children.push(
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun({ text: 'Canvas Map', bold: true, size: 36, font: 'Arial' })],
+    })
+  );
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Exported on ${new Date().toLocaleString()} • ${blocks.length} blocks, ${connections.length} connections, ${groups.length} groups`,
+          size: 18,
+          color: '888888',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { after: 300 },
+    })
+  );
+  children.push(
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: 'Click any block name below to open its corresponding file.',
+          size: 20,
+          italics: true,
+          color: '2563EB',
+          font: 'Arial',
+        }),
+      ],
+      spacing: { after: 400 },
+    })
+  );
 
-  // For each group, create a section with a table of blocks
   const renderGroupSection = (groupLabel: string, groupBlocks: Block[], folderName: string, groupColor?: string) => {
     const bgRgb = groupColor ? parseColor(groupColor, [100, 149, 237]) : [100, 149, 237] as [number, number, number];
     const headerHex = hexFromRgb(bgRgb[0], bgRgb[1], bgRgb[2]);
@@ -227,164 +252,214 @@ async function generateCanvasMapDocx(state: CanvasExportState, exportFormat: Exp
       Math.min(255, bgRgb[2] + Math.round((255 - bgRgb[2]) * 0.85))
     );
 
-    // Group heading
-    children.push(new Paragraph({
-      heading: HeadingLevel.HEADING_2,
-      children: [new TextRun({ text: `📁 ${groupLabel}`, bold: true, size: 28, font: 'Arial', color: headerHex })],
-      spacing: { before: 400, after: 200 },
-    }));
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: groupLabel, bold: true, size: 28, font: 'Arial', color: headerHex })],
+        spacing: { before: 400, after: 200 },
+      })
+    );
 
-    // Table: Shape | Block Name (clickable) | Notes
     const headerRow = new TableRow({
       children: [
         new TableCell({
-          borders: cellBorders, width: { size: 1200, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 1200, type: WidthType.DXA },
           shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Shape', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })] })],
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [new TextRun({ text: 'Shape', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
+            }),
+          ],
         }),
         new TableCell({
-          borders: cellBorders, width: { size: 4500, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 4500, type: WidthType.DXA },
           shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [new Paragraph({ children: [new TextRun({ text: 'Block (click to open file)', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })] })],
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: 'Block (click to open file)', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
+            }),
+          ],
         }),
         new TableCell({
-          borders: cellBorders, width: { size: 3660, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 3660, type: WidthType.DXA },
           shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [new Paragraph({ children: [new TextRun({ text: 'Notes / Content', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })] })],
+          children: [
+            new Paragraph({
+              children: [new TextRun({ text: 'Notes / Content', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
+            }),
+          ],
         }),
       ],
     });
 
     const dataRows = groupBlocks.map((b, i) => {
-      const shapeEmoji = b.shape === 'circle' ? '⬤' : b.shape === 'sticky' ? '📝' : b.shape === 'text' ? '𝐓' : '▬';
-      const blockBg = b.bgColor ? parseColor(b.bgColor, [245, 245, 250]) : (i % 2 === 0 ? [255, 255, 255] as [number,number,number] : parseColor(undefined, [248, 248, 252]));
+      const shapeLabel = b.shape === 'circle' ? 'Rounded' : b.shape === 'sticky' ? 'Sticky' : b.shape === 'text' ? 'Text' : 'Rect';
+      const blockBg = b.bgColor
+        ? parseColor(b.bgColor, [245, 245, 250])
+        : i % 2 === 0
+          ? [255, 255, 255] as [number, number, number]
+          : [248, 248, 252] as [number, number, number];
       const rowFill = hexFromRgb(blockBg[0], blockBg[1], blockBg[2]);
       const notes = (b.markdown || b.comment || '').slice(0, 120);
       const fileName = `${sanitize(b.label)}${ext}`;
-      const relPath = `./${folderName}/${fileName}`;
+      const relPath = `${folderName}/${fileName}`;
 
       return new TableRow({
         children: [
           new TableCell({
-            borders: cellBorders, width: { size: 1200, type: WidthType.DXA },
+            borders: cellBorders,
+            width: { size: 1200, type: WidthType.DXA },
             shading: { fill: lightHex, type: ShadingType.CLEAR },
-            verticalAlign: 'center' as any,
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: shapeEmoji, size: 22 })] })],
+            verticalAlign: VerticalAlign.CENTER,
+            children: [
+              new Paragraph({
+                alignment: AlignmentType.CENTER,
+                children: [new TextRun({ text: shapeLabel, size: 18, font: 'Arial' })],
+              }),
+            ],
           }),
           new TableCell({
-            borders: cellBorders, width: { size: 4500, type: WidthType.DXA },
+            borders: cellBorders,
+            width: { size: 4500, type: WidthType.DXA },
             shading: { fill: rowFill, type: ShadingType.CLEAR },
             margins: { top: 80, bottom: 80, left: 120, right: 120 },
-            children: [new Paragraph({
-              children: [new ExternalHyperlink({
-                link: relPath,
-                children: [new TextRun({ text: b.label, style: 'Hyperlink', size: 22, font: 'Arial' })],
-              })],
-            })],
+            children: [
+              new Paragraph({
+                children: [
+                  new ExternalHyperlink({
+                    link: relPath,
+                    children: [new TextRun({ text: b.label, style: 'Hyperlink', size: 22, font: 'Arial' })],
+                  }),
+                ],
+              }),
+            ],
           }),
           new TableCell({
-            borders: cellBorders, width: { size: 3660, type: WidthType.DXA },
+            borders: cellBorders,
+            width: { size: 3660, type: WidthType.DXA },
             shading: { fill: rowFill, type: ShadingType.CLEAR },
             margins: { top: 80, bottom: 80, left: 120, right: 120 },
-            children: [new Paragraph({ children: [new TextRun({ text: notes || '—', size: 18, color: notes ? '333333' : 'CCCCCC', font: 'Arial' })] })],
+            children: [
+              new Paragraph({
+                children: [new TextRun({ text: notes || '—', size: 18, color: notes ? '333333' : 'CCCCCC', font: 'Arial' })],
+              }),
+            ],
           }),
         ],
       });
     });
 
-    children.push(new Table({
-      width: { size: 9360, type: WidthType.DXA },
-      columnWidths: [1200, 4500, 3660],
-      rows: [headerRow, ...dataRows],
-    }));
+    children.push(
+      new Table({
+        width: { size: 9360, type: WidthType.DXA },
+        columnWidths: [1200, 4500, 3660],
+        rows: [headerRow, ...dataRows],
+      })
+    );
   };
 
-  // Render each group
   for (const [gId, gBlocks] of grouped.entries()) {
     const group = groupMap.get(gId)!;
     renderGroupSection(group.label, gBlocks, sanitize(group.label), group.bgColor);
   }
 
-  // Ungrouped
   if (ungrouped.length > 0) {
-    renderGroupSection('Ungrouped', ungrouped, 'Ungrouped', undefined);
+    renderGroupSection('Ungrouped', ungrouped, 'Ungrouped');
   }
 
-  // Connections section
   if (connections.length > 0) {
-    children.push(new Paragraph({
-      heading: HeadingLevel.HEADING_2,
-      children: [new TextRun({ text: '🔗 Connections', bold: true, size: 28, font: 'Arial', color: 'F59E0B' })],
-      spacing: { before: 400, after: 200 },
-    }));
+    children.push(
+      new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: 'Connections', bold: true, size: 28, font: 'Arial', color: 'F59E0B' })],
+        spacing: { before: 400, after: 200 },
+      })
+    );
 
     const connHeaderRow = new TableRow({
       children: [
         new TableCell({
-          borders: cellBorders, width: { size: 4000, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 4000, type: WidthType.DXA },
           shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
           children: [new Paragraph({ children: [new TextRun({ text: 'From', bold: true, size: 18, font: 'Arial' })] })],
         }),
         new TableCell({
-          borders: cellBorders, width: { size: 1360, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 1360, type: WidthType.DXA },
           shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
           children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '→', bold: true, size: 22 })] })],
         }),
         new TableCell({
-          borders: cellBorders, width: { size: 4000, type: WidthType.DXA },
+          borders: cellBorders,
+          width: { size: 4000, type: WidthType.DXA },
           shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
           children: [new Paragraph({ children: [new TextRun({ text: 'To', bold: true, size: 18, font: 'Arial' })] })],
         }),
       ],
     });
 
-    const connRows = connections.map(c => {
-      const from = blockMap.get(c.fromId);
-      const to = blockMap.get(c.toId);
-      if (!from || !to) return null;
-      return new TableRow({
-        children: [
-          new TableCell({
-            borders: cellBorders, width: { size: 4000, type: WidthType.DXA },
-            margins: { top: 60, bottom: 60, left: 120, right: 120 },
-            children: [new Paragraph({ children: [new TextRun({ text: from.label, size: 20, font: 'Arial' })] })],
-          }),
-          new TableCell({
-            borders: cellBorders, width: { size: 1360, type: WidthType.DXA },
-            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '→', size: 20, color: '6EE7B7' })] })],
-          }),
-          new TableCell({
-            borders: cellBorders, width: { size: 4000, type: WidthType.DXA },
-            margins: { top: 60, bottom: 60, left: 120, right: 120 },
-            children: [new Paragraph({ children: [new TextRun({ text: to.label, size: 20, font: 'Arial' })] })],
-          }),
-        ],
-      });
-    }).filter(Boolean) as TableRow[];
+    const connRows = connections
+      .map((c) => {
+        const from = blockMap.get(c.fromId);
+        const to = blockMap.get(c.toId);
+        if (!from || !to) return null;
+
+        return new TableRow({
+          children: [
+            new TableCell({
+              borders: cellBorders,
+              width: { size: 4000, type: WidthType.DXA },
+              margins: { top: 60, bottom: 60, left: 120, right: 120 },
+              children: [new Paragraph({ children: [new TextRun({ text: from.label, size: 20, font: 'Arial' })] })],
+            }),
+            new TableCell({
+              borders: cellBorders,
+              width: { size: 1360, type: WidthType.DXA },
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '→', size: 20, color: '6EE7B7' })] })],
+            }),
+            new TableCell({
+              borders: cellBorders,
+              width: { size: 4000, type: WidthType.DXA },
+              margins: { top: 60, bottom: 60, left: 120, right: 120 },
+              children: [new Paragraph({ children: [new TextRun({ text: to.label, size: 20, font: 'Arial' })] })],
+            }),
+          ],
+        });
+      })
+      .filter(Boolean);
 
     if (connRows.length > 0) {
-      children.push(new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        columnWidths: [4000, 1360, 4000],
-        rows: [connHeaderRow, ...connRows],
-      }));
+      children.push(
+        new Table({
+          width: { size: 9360, type: WidthType.DXA },
+          columnWidths: [4000, 1360, 4000],
+          rows: [connHeaderRow, ...connRows],
+        })
+      );
     }
   }
 
   const doc = new DocxDocument({
-    sections: [{
-      properties: {
-        page: {
-          size: { width: 12240, height: 15840 },
-          margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: 12240, height: 15840 },
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+          },
         },
+        children,
       },
-      children,
-    }],
+    ],
   });
 
-  const buffer = await Packer.toBuffer(doc);
-  return new Uint8Array(buffer);
+  const blob = await Packer.toBlob(doc);
+  return new Uint8Array(await blob.arrayBuffer());
 }
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
