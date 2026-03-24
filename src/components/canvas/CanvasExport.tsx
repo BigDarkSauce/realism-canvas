@@ -765,7 +765,7 @@ async function collectBlockFiles(
 
   const entries = await Promise.all(
     blocks.map(async (block) => {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? await generateBlockPdf(block) : await generateBlockWordDoc(block);
       const fileName = `${sanitize(block.label)}${ext}`;
       return { id: block.id, data: fileData, fileName };
     })
