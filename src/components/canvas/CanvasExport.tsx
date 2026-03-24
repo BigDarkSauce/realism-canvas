@@ -750,18 +750,8 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     }
   }
 
-  // ── Add relative file URL links on map blocks (opens Word/PDF from extracted ZIP) ──
-  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
-  for (const link of blockLinks) {
-    const b = blockMap.get(link.blockId);
-    if (!b) continue;
-    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
-    const folderName = group ? sanitize(group.label) : 'Ungrouped';
-    const fileName = `${sanitize(b.label)}${ext}`;
-    const relPath = `${folderName}/${fileName}`;
-    doc.setPage(link.mapPage);
-    doc.link(link.x, link.y, link.w, link.h, { url: relPath });
-  }
+  // Remove old relative URL links — attachments are handled by embedFileAttachments()
+  // Keep blockLinks data in the returned PDF for position reference
 
   return new Uint8Array(doc.output('arraybuffer'));
 }
