@@ -378,7 +378,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
     doc.setFontSize(16);
     doc.text('Canvas Map - No blocks', 40, 40);
-    return new Uint8Array(doc.output('arraybuffer'));
+    return { pdfBytes: new Uint8Array(doc.output('arraybuffer')), blockLinks: [] };
   }
 
   // Compute bounding box including strokes
