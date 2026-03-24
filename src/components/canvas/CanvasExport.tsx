@@ -849,15 +849,48 @@ function generateBlockPdf(block: Block): Uint8Array {
   return new Uint8Array(doc.output('arraybuffer'));
 }
 
-function generateBlockWordDoc(block: Block): Uint8Array {
+async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
   const notes = block.markdown || block.comment || '';
+  
+  // Fetch actual file content from storage (what the "view" option shows)
+  let fileContent = '';
+  const fileUrl = block.fileStorageUrl || block.fileUrl;
+  if (fileUrl) {
+    try {
+      const resp = await fetch(fileUrl);
+      if (resp.ok) {
+        const text = await resp.text();
+        // Check if it's HTML content (our editor files)
+        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
+          // Extract the body content from the fetched HTML
+          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          fileContent = bodyMatch ? bodyMatch[1] : text;
+        } else {
+          // Plain text content
+          fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch file content for block:', block.label, e);
+    }
+  }
+
   const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head><meta charset="utf-8">
-<style>body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}a{color:#2563eb;}</style>
+<style>
+body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}
+h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}
+h2{font-size:14pt;margin-top:20px;}
+a{color:#2563eb;}
+img{max-width:100%;height:auto;}
+table{border-collapse:collapse;width:100%;}
+td,th{border:1px solid #ddd;padding:6px 10px;}
+</style>
 </head><body>
 <h1>${esc(block.label)}</h1>
-<p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}</p>
-${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+<p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}${block.fileName ? ` | File: ${esc(block.fileName)}` : ''}</p>
+${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
 </body></html>`;
   return new TextEncoder().encode(`\ufeff${html}`);
 }
