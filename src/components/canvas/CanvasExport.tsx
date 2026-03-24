@@ -284,27 +284,24 @@ function convertMathHtmlToUnicode(html: string): string {
  * Also convert MathLive static markup <span class="ML__..."> to Word-friendly HTML.
  */
 function ensureMathFontsForWord(html: string): string {
-  let result = html;
-
-  // Ensure all math-expression spans use Cambria Math explicitly
-  result = result.replace(
-    /(<span[^>]*class="math-expression"[^>]*)>/gi,
-    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif;display:inline-block;vertical-align:middle">'
+  const isFullDocument = /<html[\s>]/i.test(html);
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(
+    isFullDocument ? html : `<!DOCTYPE html><html><head></head><body>${html}</body></html>`,
+    'text/html'
   );
 
-  // Ensure math-unicode spans use Cambria Math
-  result = result.replace(
-    /(<span[^>]*class="math-unicode"[^>]*)>/gi,
-    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif">'
-  );
+  doc.querySelectorAll('.math-expression, .math-unicode, .math-template').forEach((node) => {
+    const el = node as HTMLElement;
+    const currentStyle = el.getAttribute('style')?.trim() || '';
+    const stylePrefix = currentStyle && !currentStyle.endsWith(';') ? `${currentStyle};` : currentStyle;
+    const extraStyle = el.classList.contains('math-expression')
+      ? "font-family:'Cambria Math','Cambria',serif;display:inline-block;vertical-align:middle;"
+      : "font-family:'Cambria Math','Cambria',serif;";
+    el.setAttribute('style', `${stylePrefix}${extraStyle}`);
+  });
 
-  // Ensure math-template spans use Cambria Math
-  result = result.replace(
-    /(<span[^>]*class="math-template"[^>]*)>/gi,
-    '$1 style="font-family:\'Cambria Math\',\'Cambria\',serif">'
-  );
-
-  return result;
+  return isFullDocument ? '<!DOCTYPE html>\n' + doc.documentElement.outerHTML : doc.body.innerHTML;
 }
 
 // ─── Helpers ────────
@@ -743,136 +740,226 @@ function drawBackground(
 
 // ─── Block Document Generators (for ZIP files) ─────────────
 
-async function generateBlockPdf(block: Block): Promise<Uint8Array> {
-  const notes = block.markdown || block.comment || '';
+interface BlockSourceFile {
+  bytes: Uint8Array;
+  contentType: string;
+  ext: string;
+  fileName: string;
+  html: string | null;
+  text: string | null;
+}
 
-  let fileContent = '';
+function getFileExtension(nameOrUrl?: string | null): string {
+  if (!nameOrUrl) return '';
+  const clean = nameOrUrl.split('?')[0].split('#')[0];
+  return clean.split('.').pop()?.toLowerCase() || '';
+}
+
+function isHtmlLike(contentType: string, ext: string): boolean {
+  return ['html', 'htm'].includes(ext) || /html/i.test(contentType);
+}
+
+function isTextLike(contentType: string, ext: string): boolean {
+  return isHtmlLike(contentType, ext) || contentType.startsWith('text/') || ['txt', 'md', 'csv', 'json', 'xml'].includes(ext);
+}
+
+function toUint8Array(data: unknown): Uint8Array | null {
+  if (!data) return null;
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (ArrayBuffer.isView(data)) {
+    return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  }
+  return null;
+}
+
+async function normalizeBinaryOutput(data: unknown): Promise<Uint8Array> {
+  const bytes = toUint8Array(data);
+  if (bytes) return bytes;
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    return new Uint8Array(await data.arrayBuffer());
+  }
+  throw new Error('Unsupported binary output format');
+}
+
+async function fetchBlockSourceFile(block: Block): Promise<BlockSourceFile | null> {
   const originalUrl = block.fileStorageUrl || block.fileUrl;
-  if (originalUrl) {
-    try {
-      const storagePath = extractStoragePath(originalUrl);
-      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
-      const resp = await fetch(fetchUrl);
-      if (resp.ok) {
-        const text = await resp.text();
-        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
-          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          fileContent = bodyMatch ? bodyMatch[1] : text;
-        } else {
-          fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to fetch file content for PDF block export:', block.label, e);
-    }
+  if (!originalUrl) return null;
+
+  const storagePath = extractStoragePath(originalUrl);
+  const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
+  const response = await fetch(fetchUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch source file: ${response.status}`);
   }
 
-  // Build full HTML document to render via html2pdf (same pipeline as View)
-  const htmlDoc = `
-    <div style="font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;padding:40px;line-height:1.6;">
-      <h1 style="font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;">${esc(block.label)}</h1>
-      <p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}${block.fileName ? ` | File: ${esc(block.fileName)}` : ''}</p>
-      ${notes ? `<h2 style="font-size:14pt;margin-top:20px;">Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
-      ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2 style="font-size:14pt;margin-top:20px;">Document Content</h2><div>${fileContent}</div>` : ''}
-    </div>`;
+  const contentType = response.headers.get('content-type')?.split(';')[0] || '';
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const fileName = block.fileName || storagePath?.split('/').pop() || `${sanitize(block.label)}`;
+  const ext = getFileExtension(fileName || fetchUrl);
+  const text = isTextLike(contentType, ext) ? new TextDecoder().decode(bytes) : null;
 
-  // Create off-screen container for html2pdf rendering
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '-9999px';
-  container.style.top = '0';
-  container.style.width = '794px'; // A4 width in px at 96dpi
-  container.innerHTML = htmlDoc;
+  return {
+    bytes,
+    contentType,
+    ext,
+    fileName,
+    html: text && isHtmlLike(contentType, ext) ? text : null,
+    text,
+  };
+}
 
-  // Inject MathLive CSS for math rendering
-  const mathLink = document.createElement('link');
-  mathLink.rel = 'stylesheet';
-  mathLink.href = 'https://unpkg.com/mathlive@0.108.3/dist/mathlive-static.css';
-  container.prepend(mathLink);
+function createFallbackBlockHtml(block: Block, source: BlockSourceFile | null): string {
+  const notes = block.markdown || block.comment || '';
+  const sourceName = source?.fileName || block.fileName || 'Attached file';
+  const content = source?.text
+    ? `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(source.text)}</pre>`
+    : source
+      ? `<p>This attachment was exported from <strong>${esc(sourceName)}</strong>.</p>`
+      : '<p>No attached file was found for this block.</p>';
 
-  document.body.appendChild(container);
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${esc(block.label)}</title>
+  <style>
+    body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; color: #1a1a2e; margin: 40px; line-height: 1.6; }
+    h1 { font-size: 18pt; margin: 0 0 10px; }
+    h2 { font-size: 14pt; margin: 24px 0 10px; }
+    p, pre { margin: 0 0 12px; }
+    pre { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <h1>${esc(block.label)}</h1>
+  ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
+  <h2>Document Content</h2>
+  ${content}
+</body>
+</html>`;
+}
+
+function createViewerEquivalentHtml(block: Block, source: BlockSourceFile | null): string {
+  const baseHtml = source?.html || createFallbackBlockHtml(block, source);
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(
+    /<html[\s>]/i.test(baseHtml)
+      ? baseHtml
+      : `<!DOCTYPE html><html><head></head><body>${baseHtml}</body></html>`,
+    'text/html'
+  );
+
+  if (!doc.querySelector('meta[charset]')) {
+    const meta = doc.createElement('meta');
+    meta.setAttribute('charset', 'utf-8');
+    doc.head.prepend(meta);
+  }
+
+  const themeStyle = doc.getElementById('__viewer-theme');
+  themeStyle?.remove();
+
+  if (!doc.querySelector('link[href*="mathlive-static.css"]')) {
+    const link = doc.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+    doc.head.appendChild(link);
+  }
+
+  if (!doc.querySelector('style[data-export-base="true"]')) {
+    const style = doc.createElement('style');
+    style.setAttribute('data-export-base', 'true');
+    style.textContent = `
+      html, body { background: #ffffff !important; color: #000000 !important; }
+      img { max-width: 100%; height: auto; }
+      .math-expression, .math-unicode, .math-template { font-family: 'Cambria Math', 'Cambria', serif; }
+    `;
+    doc.head.appendChild(style);
+  }
+
+  return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+}
+
+async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('sandbox', 'allow-same-origin');
+  iframe.style.position = 'fixed';
+  iframe.style.top = '0';
+  iframe.style.left = '0';
+  iframe.style.width = '794px';
+  iframe.style.height = '1123px';
+  iframe.style.opacity = '0';
+  iframe.style.pointerEvents = 'none';
+  iframe.style.zIndex = '-1';
+  iframe.srcdoc = html;
+  document.body.appendChild(iframe);
 
   try {
-    // Wait briefly for math styles to load
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise<void>((resolve) => {
+      iframe.onload = () => resolve();
+    });
+    await new Promise((resolve) => setTimeout(resolve, 350));
 
     const html2pdf = (await import('html2pdf.js')).default;
-    const pdfBlob: Blob = await html2pdf()
+    const docBody = iframe.contentDocument?.body;
+    if (!docBody) throw new Error('Export view failed to load');
+
+    const pdfBlob = await html2pdf()
       .set({
-        margin: 0,
-        filename: `${sanitize(block.label)}.pdf`,
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'pt', format: 'a4', orientation: 'portrait' },
+        margin: 0.5,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
       })
-      .from(container)
+      .from(docBody)
       .outputPdf('blob');
 
-    const arrayBuffer = await pdfBlob.arrayBuffer();
-    return new Uint8Array(arrayBuffer);
+    return new Uint8Array(await pdfBlob.arrayBuffer());
   } finally {
-    document.body.removeChild(container);
+    document.body.removeChild(iframe);
   }
 }
 
-async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
-  const notes = block.markdown || block.comment || '';
+async function renderHtmlToDocxBytes(html: string): Promise<Uint8Array> {
+  const htmlToDocxModule = await import('@turbodocx/html-to-docx');
+  const htmlToDocx = htmlToDocxModule.default;
+  const docxOutput = await htmlToDocx(ensureMathFontsForWord(html), null, {
+    table: { row: { cantSplit: true } },
+    footer: true,
+    pageNumber: true,
+  });
+  return normalizeBinaryOutput(docxOutput);
+}
 
-  let fileContent = '';
-  const originalUrl = block.fileStorageUrl || block.fileUrl;
-  if (originalUrl) {
-    try {
-      const storagePath = extractStoragePath(originalUrl);
-      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
-      const resp = await fetch(fetchUrl);
-
-      if (resp.ok) {
-        const text = await resp.text();
-        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
-          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-          let rawContent = bodyMatch ? bodyMatch[1] : text;
-          fileContent = ensureMathFontsForWord(rawContent);
-        } else {
-          fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to fetch file content for block export:', block.label, e);
-    }
-  }
-
-  const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
-<style>
-body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}
-h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}
-h2{font-size:14pt;margin-top:20px;}
-a{color:#2563eb;}
-img{max-width:100%;height:auto;}
-table{border-collapse:collapse;width:100%;}
-td,th{border:1px solid #ddd;padding:6px 10px;}
-</style>
-</head><body>
-<h1>${esc(block.label)}</h1>
-<p style="color:#888;font-size:10pt;">Shape: ${block.shape || 'rectangle'} | Size: ${block.width}×${block.height}${block.fileName ? ` | File: ${esc(block.fileName)}` : ''}</p>
-${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>` : ''}
-${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
-</body></html>`;
-
+async function exportBlockFile(
+  block: Block,
+  format: ExportFormat
+): Promise<{ data: Uint8Array; fileName: string }> {
+  let source: BlockSourceFile | null = null;
   try {
-    const htmlToDocx = (await import('@turbodocx/html-to-docx')).default;
-    const docxBlob = await htmlToDocx(fullHtml, null, {
-      table: { row: { cantSplit: true } },
-      footer: true,
-      pageNumber: true,
-    });
-    // htmlToDocx returns a Blob — convert to Uint8Array
-    const arrayBuffer = await (docxBlob as Blob).arrayBuffer();
-    return new Uint8Array(arrayBuffer);
-  } catch (e) {
-    console.warn('html-to-docx failed, falling back to HTML .doc:', block.label, e);
-    // Fallback: return HTML-based .doc
-    return new TextEncoder().encode(`\ufeff${fullHtml}`);
+    source = await fetchBlockSourceFile(block);
+  } catch (error) {
+    console.warn('Failed to fetch block source for export:', block.label, error);
   }
+
+  if (format === 'pdf' && source?.ext === 'pdf') {
+    return { data: source.bytes, fileName: `${sanitize(block.label)}.pdf` };
+  }
+
+  if (format === 'word' && source?.ext === 'docx') {
+    return { data: source.bytes, fileName: `${sanitize(block.label)}.docx` };
+  }
+
+  const viewerHtml = createViewerEquivalentHtml(block, source);
+  const data = format === 'pdf'
+    ? await renderHtmlToPdfBytes(viewerHtml, `${sanitize(block.label)}.pdf`)
+    : await renderHtmlToDocxBytes(viewerHtml);
+
+  return {
+    data,
+    fileName: `${sanitize(block.label)}${format === 'pdf' ? '.pdf' : '.docx'}`,
+  };
 }
 
 // ─── Collect block file data for PDF attachment embedding ────────
@@ -882,14 +969,12 @@ async function collectBlockFiles(
   format: ExportFormat
 ): Promise<Map<string, { data: Uint8Array; fileName: string }>> {
   const { blocks } = state;
-  const ext = format === 'pdf' ? '.pdf' : '.docx';
   const result = new Map<string, { data: Uint8Array; fileName: string }>();
 
   const entries = await Promise.all(
     blocks.map(async (block) => {
-      const fileData = format === 'pdf' ? await generateBlockPdf(block) : await generateBlockWordDoc(block);
-      const fileName = `${sanitize(block.label)}${ext}`;
-      return { id: block.id, data: fileData, fileName };
+      const file = await exportBlockFile(block, format);
+      return { id: block.id, data: file.data, fileName: file.fileName };
     })
   );
   for (const e of entries) result.set(e.id, { data: e.data, fileName: e.fileName });
