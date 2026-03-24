@@ -151,10 +151,14 @@ export default function Toolbar({
           <DropdownMenuItem onClick={() => bgFileRef.current?.click()}>
             <Upload className="h-4 w-4 mr-2" /> Upload Background Image
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => pdfImportRef.current?.click()}>
+            <Image className="h-4 w-4 mr-2" /> Import PDF as Background
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <input ref={bgFileRef} type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onBackgroundImageUpload(file); }} />
+      <input ref={pdfImportRef} type="file" accept=".pdf" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onImportPdfAsBackground(file); e.target.value = ''; }} />
     </div>
   );
 }
