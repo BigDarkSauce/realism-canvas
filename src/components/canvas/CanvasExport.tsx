@@ -93,7 +93,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
               </div>
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="word" id="fmt-word" />
-                <Label htmlFor="fmt-word" className="cursor-pointer">Word (.doc)</Label>
+                <Label htmlFor="fmt-word" className="cursor-pointer">Word (.docx)</Label>
               </div>
             </RadioGroup>
           </div>

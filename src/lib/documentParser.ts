@@ -211,9 +211,15 @@ export function splitBySelectedHeadings(
           htmlParagraphs: currentHtml,
         });
       }
-      currentHeading = paragraphs[i].text;
-      currentContent = [];
-      currentHtml = [];
+      // Only use the first sentence as the heading; rest goes into content
+      const { heading: firstSentence, remainder } = splitHeadingSentence(paragraphs[i].text);
+      currentHeading = firstSentence;
+      currentContent = remainder ? [remainder] : [];
+      // For HTML, split similarly
+      const htmlRemainder = remainder
+        ? [paragraphs[i].html || `<p>${escapeHtml(remainder)}</p>`]
+        : [];
+      currentHtml = htmlRemainder;
     } else {
       currentContent.push(paragraphs[i].text);
       currentHtml.push(paragraphs[i].html || `<p>${escapeHtml(paragraphs[i].text)}</p>`);
