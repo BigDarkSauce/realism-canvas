@@ -74,8 +74,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export all blocks as documents organized by group, with a clickable DOCX canvas map
-            and a visual PDF reference. Click blocks in the DOCX map to open their files.
+            Export all blocks as documents organized by group, with a clickable PPTX canvas map
+            and a visual PDF reference. Click blocks in the PPTX map to open their files.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
