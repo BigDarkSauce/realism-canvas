@@ -922,7 +922,6 @@ async function collectBlockFiles(
 async function embedFileAttachments(
   pdfBytes: Uint8Array,
   blockLinks: BlockLinkInfo[],
-  state: CanvasExportState,
   blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
   format: ExportFormat
 ): Promise<Uint8Array> {
