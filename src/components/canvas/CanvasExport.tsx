@@ -11,6 +11,10 @@ import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
 import { extractStoragePath, getSignedUrl } from '@/lib/storage';
+import {
+  renderHtmlToDocxBytes as renderStructuredDocxBytes,
+  renderHtmlToPdfBytes as renderStructuredPdfBytes,
+} from '@/lib/documentExport';
 
 export interface CanvasExportState {
   blocks: Block[];
@@ -75,8 +79,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export all blocks as documents organized by group, with a visual PDF canvas map.
-            Open in Adobe Acrobat and click blocks to open their attached files.
+            Export a PDF canvas map plus attached block files organized by group folders.
+            The canvas map is always PDF; choose the format for attached block documents.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -85,7 +89,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
             <Input id="export-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="My Canvas" />
           </div>
           <div className="space-y-2">
-            <Label>Document Format</Label>
+            <Label>Attached File Format</Label>
             <RadioGroup value={format} onValueChange={v => setFormat(v as ExportFormat)} className="flex gap-4">
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="pdf" id="fmt-pdf" />
@@ -953,8 +957,8 @@ async function exportBlockFile(
 
   const viewerHtml = createViewerEquivalentHtml(block, source);
   const data = format === 'pdf'
-    ? await renderHtmlToPdfBytes(viewerHtml, `${sanitize(block.label)}.pdf`)
-    : await renderHtmlToDocxBytes(viewerHtml);
+    ? await renderStructuredPdfBytes(viewerHtml, `${sanitize(block.label)}.pdf`)
+    : await renderStructuredDocxBytes(viewerHtml);
 
   return {
     data,
