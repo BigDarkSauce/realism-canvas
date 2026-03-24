@@ -41,7 +41,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const zip = new JSZip();
 
       // 1. Generate visual canvas map PDF (multi-page for accuracy)
-      const mapPdf = await generateCanvasMapPdf(state);
+      const mapPdf = await generateCanvasMapPdf(state, format);
       zip.file('canvas-map.pdf', mapPdf, { binary: true });
 
       // 2. Generate block documents organized by group
@@ -158,7 +158,7 @@ function parseFontSize(fs: string | undefined, defaultPt: number): number {
 
 // ─── Canvas Map PDF (multi-page tiled for accuracy) ─────────
 
-async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Array> {
+async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<Uint8Array> {
   const { blocks, connections, groups, strokes, background, backgroundImage } = state;
   if (blocks.length === 0) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -240,6 +240,15 @@ async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Arra
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
+  // Build file path map for clickable links
+  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
+  const blockFilePaths = new Map<string, string>();
+  for (const b of blocks) {
+    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
+    const folderName = group ? sanitize(group.label) : 'Ungrouped';
+    blockFilePaths.set(b.id, `${folderName}/${sanitize(b.label)}${ext}`);
+  }
+
   for (let tileY = 0; tileY < tilesY; tileY++) {
     for (let tileX = 0; tileX < tilesX; tileX++) {
       if (tileX > 0 || tileY > 0) doc.addPage();
@@ -283,7 +292,9 @@ async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Arra
         }
       }
 
-      // ── Group outlines ──
+      // ── Precompute group rects to detect overlaps ──
+      interface GroupRect { group: Group; rx: number; ry: number; rw: number; rh: number; isTransparent: boolean; groupBg: [number,number,number]; }
+      const groupRects: GroupRect[] = [];
       for (const group of groups) {
         const gBlocks = blocks.filter(b => b.groupId === group.id);
         if (gBlocks.length === 0) continue;
@@ -296,43 +307,91 @@ async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Arra
           gMaxY = Math.max(gMaxY, b.y + b.height);
         }
 
-        // Skip if entirely outside viewport
         if (gMaxX < vpLeft || gMinX > vpRight || gMaxY < vpTop || gMinY > vpBottom) continue;
 
         const gPad = 20;
         const labelScale = group.labelScale ?? 1;
         const groupFontSize = parseFontSize(group.fontSize, 10) * scale * labelScale;
-        const labelAreaH = groupFontSize + 16; // space for label ABOVE group
+        const labelAreaH = groupFontSize + 16;
 
         const rx = tx(gMinX - gPad);
         const ry = ty(gMinY - gPad) - labelAreaH;
         const rw = (gMaxX - gMinX + gPad * 2) * scale;
         const rh = (gMaxY - gMinY + gPad * 2) * scale + labelAreaH;
 
-        const groupBg = parseColor(group.bgColor, [100, 149, 237]);
-        doc.setDrawColor(groupBg[0], groupBg[1], groupBg[2]);
-        doc.setFillColor(
-          Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.88)),
-          Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.88)),
-          Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.88))
-        );
+        const isTransparent = !group.bgColor || group.bgColor === 'transparent';
+        const groupBg = parseColor(isTransparent ? undefined : group.bgColor, [100, 149, 237]);
+        groupRects.push({ group, rx, ry, rw, rh, isTransparent, groupBg });
+      }
+
+      // ── Draw group outlines (render non-overlapping) ──
+      for (let gi = 0; gi < groupRects.length; gi++) {
+        const { group, rx, ry, rw, rh, isTransparent, groupBg } = groupRects[gi];
+
+        if (!isTransparent) {
+          // Clip this group's fill to avoid overlapping other groups
+          doc.saveGraphicsState();
+          // Define the group rect as a path, then subtract any overlapping group rects
+          const internal = (doc as any).internal;
+          const f = (n: number) => n.toFixed(4);
+          // Main rect path (clockwise)
+          internal.write(`${f(rx)} ${f(pageH - ry)} m`);
+          internal.write(`${f(rx + rw)} ${f(pageH - ry)} l`);
+          internal.write(`${f(rx + rw)} ${f(pageH - (ry + rh))} l`);
+          internal.write(`${f(rx)} ${f(pageH - (ry + rh))} l`);
+          internal.write('h');
+          // Subtract overlapping groups (counter-clockwise holes)
+          for (let gj = 0; gj < groupRects.length; gj++) {
+            if (gi === gj) continue;
+            const other = groupRects[gj];
+            // Check if they actually overlap
+            const ox1 = Math.max(rx, other.rx);
+            const oy1 = Math.max(ry, other.ry);
+            const ox2 = Math.min(rx + rw, other.rx + other.rw);
+            const oy2 = Math.min(ry + rh, other.ry + other.rh);
+            if (ox1 < ox2 && oy1 < oy2) {
+              // Cut out the overlap area (counter-clockwise)
+              const inset = 2; // small inset to avoid edge artifacts
+              internal.write(`${f(ox1 + inset)} ${f(pageH - (oy1 + inset))} m`);
+              internal.write(`${f(ox1 + inset)} ${f(pageH - (oy2 - inset))} l`);
+              internal.write(`${f(ox2 - inset)} ${f(pageH - (oy2 - inset))} l`);
+              internal.write(`${f(ox2 - inset)} ${f(pageH - (oy1 + inset))} l`);
+              internal.write('h');
+            }
+          }
+          internal.write('W n'); // clip with even-odd rule
+
+          doc.setFillColor(
+            Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.88)),
+            Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.88)),
+            Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.88))
+          );
+          doc.rect(rx, ry, rw, rh, 'F');
+          doc.restoreGraphicsState();
+        }
+
+        // Border (dashed outline always drawn)
+        const borderCol = isTransparent ? [150, 150, 170] as [number,number,number] : groupBg;
+        doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
         doc.setLineWidth(1.5);
         doc.setLineDashPattern([4, 3], 0);
-        doc.roundedRect(rx, ry, rw, rh, 6, 6, 'FD');
+        doc.roundedRect(rx, ry, rw, rh, 6, 6, 'S');
         doc.setLineDashPattern([], 0);
 
-        // Group label: top-center ABOVE blocks, with bordered box
+        // Group label
+        const labelScale2 = group.labelScale ?? 1;
+        const groupFontSize = parseFontSize(group.fontSize, 10) * scale * labelScale2;
         const fontSize = Math.max(6, groupFontSize);
         doc.setFontSize(fontSize);
         doc.setFont('helvetica', 'bold');
-        const txtColor = parseColor(group.textColor, [groupBg[0], groupBg[1], groupBg[2]]);
+        const txtColor = parseColor(group.textColor, isTransparent ? [80,80,100] : [groupBg[0], groupBg[1], groupBg[2]]);
 
         const labelX = rx + rw / 2 + (group.labelOffsetX ?? 0) * scale;
         const labelY = ry + fontSize + 6;
 
         const labelW = doc.getTextWidth(group.label) + 14;
         const labelH = fontSize + 10;
-        doc.setDrawColor(groupBg[0], groupBg[1], groupBg[2]);
+        doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
         doc.setFillColor(255, 255, 255);
         doc.setLineWidth(1.2);
         doc.roundedRect(labelX - labelW / 2, labelY - fontSize * 0.75 - 4, labelW, labelH, 3, 3, 'FD');
@@ -424,6 +483,14 @@ async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Arra
         }
 
         doc.setLineDashPattern([], 0);
+
+        // Add clickable link to the exported file
+        const filePath = blockFilePaths.get(b.id);
+        if (filePath) {
+          const linkX = needsRotation ? cx - bw / 2 : bx;
+          const linkY = needsRotation ? cy - bh / 2 : by;
+          doc.link(linkX, linkY, bw, bh, { url: filePath });
+        }
       }
 
       // ── Connections ──
