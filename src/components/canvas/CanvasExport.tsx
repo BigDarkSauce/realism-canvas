@@ -370,7 +370,9 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
 
-async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<Uint8Array> {
+interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
+
+async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<{ pdfBytes: Uint8Array; blockLinks: BlockLinkInfo[] }> {
   const { blocks, connections, groups, strokes, background, backgroundImage } = state;
   if (blocks.length === 0) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
