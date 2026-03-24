@@ -751,10 +751,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     }
   }
 
-  // Remove old relative URL links — attachments are handled by embedFileAttachments()
-  // Keep blockLinks data in the returned PDF for position reference
-
-  return new Uint8Array(doc.output('arraybuffer'));
+  return { pdfBytes: new Uint8Array(doc.output('arraybuffer')), blockLinks };
 }
 
 function drawBackground(
