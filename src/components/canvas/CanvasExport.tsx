@@ -309,7 +309,7 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
           fill: { color: rgbHex(bgCol) },
           line: {
             color: rgbHex(borderCol), width: 1,
-            dashType: b.borderStyle === 'dashed' ? 'dash' : b.borderStyle === 'dotted' ? 'dot' : 'solid',
+            dashType: b.borderStyle === 'dashed' ? 'dash' : b.borderStyle === 'dotted' ? 'sysDot' : 'solid',
           },
           fontSize, fontFace: 'Arial', color: rgbHex(textCol),
           align: 'center', valign: 'middle',
