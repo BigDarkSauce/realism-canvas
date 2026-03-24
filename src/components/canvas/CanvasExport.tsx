@@ -232,12 +232,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
-  // We'll track which page each block's detail starts on.
-  // Map pages come first (totalMapPages), then block detail pages appended after.
-  // We'll assign page numbers after drawing map pages.
-  const blockPageMap = new Map<string, number>(); // blockId -> 1-indexed page number in final PDF
-
-  // Collect block link rects so we can add internal links after we know page numbers
+  // Collect block link rects to add file links after drawing
   interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
   const blockLinks: BlockLinkInfo[] = [];
 
