@@ -656,23 +656,11 @@ async function generateBlockPdf(block: Block): Promise<Uint8Array> {
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           const htmlContent = bodyMatch ? bodyMatch[1] : text;
-          // Strip HTML tags to get plain text for PDF
-          plainText = htmlContent
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/p>/gi, '\n\n')
-            .replace(/<\/div>/gi, '\n')
-            .replace(/<\/h[1-6]>/gi, '\n\n')
-            .replace(/<\/li>/gi, '\n')
-            .replace(/<[^>]+>/g, '')
-            .replace(/&nbsp;/gi, ' ')
-            .replace(/&amp;/gi, '&')
-            .replace(/&lt;/gi, '<')
-            .replace(/&gt;/gi, '>')
-            .replace(/&quot;/gi, '"')
-            .replace(/&#39;/gi, "'")
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
+          // Convert math expressions to Unicode text before stripping HTML
+          plainText = convertMathHtmlToUnicode(htmlContent);
         }
+
+        plainText = plainText.trim();
 
         if (plainText) {
           y += 10;
