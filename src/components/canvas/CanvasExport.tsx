@@ -483,6 +483,14 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         }
 
         doc.setLineDashPattern([], 0);
+
+        // Add clickable link to the exported file
+        const filePath = blockFilePaths.get(b.id);
+        if (filePath) {
+          const linkX = needsRotation ? cx - bw / 2 : bx;
+          const linkY = needsRotation ? cy - bh / 2 : by;
+          doc.link(linkX, linkY, bw, bh, { url: filePath });
+        }
       }
 
       // ── Connections ──
