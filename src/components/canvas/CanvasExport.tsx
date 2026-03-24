@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
+import { extractStoragePath, getSignedUrl } from '@/lib/storage';
 
 export interface CanvasExportState {
   blocks: Block[];
