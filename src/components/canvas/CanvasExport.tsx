@@ -292,9 +292,9 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
         const relPath = `${folderName}/${fileName}`;
 
         const shapeType = b.shape === 'circle'
-          ? pptx.shapes.ROUNDED_RECTANGLE
-          : b.shape === 'sticky' ? pptx.shapes.RECTANGLE
-          : pptx.shapes.ROUNDED_RECTANGLE;
+          ? pptx.ShapeType.roundRect
+          : b.shape === 'sticky' ? pptx.ShapeType.rect
+          : pptx.ShapeType.roundRect;
 
         const cornerRadius = b.shape === 'circle'
           ? Math.min(bw, bh) / 2
