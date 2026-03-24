@@ -338,7 +338,7 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
         const flipH = toX < fx;
         const flipV = toY < fy;
 
-        slide.addShape(pptx.shapes.LINE, {
+        slide.addShape(pptx.ShapeType.line, {
           x: lx, y: ly, w: lw, h: lh,
           flipH, flipV,
           line: {
