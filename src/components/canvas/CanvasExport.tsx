@@ -53,7 +53,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
       // 4. Generate block documents organized by group in ZIP
-      generateBlockDocuments(state, zip, format);
+      await generateBlockDocuments(state, zip, format);
 
       // 3. Download ZIP
       const zipData = await zip.generateAsync({
