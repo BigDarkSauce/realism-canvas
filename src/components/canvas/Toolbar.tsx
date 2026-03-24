@@ -57,12 +57,13 @@ const shapes: { id: BlockShape; icon: typeof Circle; label: string }[] = [
 export default function Toolbar({
   tool, setTool, background, setBackground,
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
-  onBackgroundImageUpload, onSplitDocument,
+  onBackgroundImageUpload, onImportPdfAsBackground, onSplitDocument,
   onUndo, onRedo, canUndo, canRedo,
   onShortcuts, onToggleMinimap, showMinimap,
   onAddShape, onExportCanvas,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
+  const pdfImportRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 px-2 py-1.5 bg-toolbar border border-toolbar-border rounded-xl shadow-lg max-w-[calc(100vw-2rem)] overflow-x-auto">
