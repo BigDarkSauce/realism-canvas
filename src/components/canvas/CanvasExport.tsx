@@ -857,7 +857,6 @@ async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
         if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
           const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
           let rawContent = bodyMatch ? bodyMatch[1] : text;
-          // Ensure math expressions have Cambria Math font for Word rendering
           fileContent = ensureMathFontsForWord(rawContent);
         } else {
           fileContent = `<pre style="white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;">${esc(text)}</pre>`;
@@ -868,8 +867,7 @@ async function generateBlockWordDoc(block: Block): Promise<Uint8Array> {
     }
   }
 
-  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-<head><meta charset="utf-8">
+  const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
 body{font-family:Calibri,Arial,sans-serif;font-size:12pt;color:#1a1a2e;margin:40px;line-height:1.6;}
 h1{font-size:18pt;border-bottom:2px solid #6ee7b7;padding-bottom:6px;}
@@ -886,7 +884,27 @@ ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>`
 ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"><h2>Document Content</h2><div>${fileContent}</div>` : ''}
 </body></html>`;
 
-  return new TextEncoder().encode(`\ufeff${html}`);
+  try {
+    const htmlToDocx = (await import('@turbodocx/html-to-docx')).default;
+    const docxBuffer = await htmlToDocx(fullHtml, null, {
+      table: { row: { cantSplit: true } },
+      footer: true,
+      pageNumber: true,
+    });
+    // htmlToDocx returns Buffer/ArrayBuffer — normalize to Uint8Array
+    if (docxBuffer instanceof ArrayBuffer) {
+      return new Uint8Array(docxBuffer);
+    }
+    if (docxBuffer instanceof Uint8Array) {
+      return docxBuffer;
+    }
+    // Buffer (Node-like)
+    return new Uint8Array(docxBuffer as ArrayBuffer);
+  } catch (e) {
+    console.warn('html-to-docx failed, falling back to HTML .doc:', block.label, e);
+    // Fallback: return HTML-based .doc
+    return new TextEncoder().encode(`\ufeff${fullHtml}`);
+  }
 }
 
 // ─── Collect block file data for PDF attachment embedding ────────
@@ -896,7 +914,7 @@ async function collectBlockFiles(
   format: ExportFormat
 ): Promise<Map<string, { data: Uint8Array; fileName: string }>> {
   const { blocks } = state;
-  const ext = format === 'pdf' ? '.pdf' : '.doc';
+  const ext = format === 'pdf' ? '.pdf' : '.docx';
   const result = new Map<string, { data: Uint8Array; fileName: string }>();
 
   const entries = await Promise.all(
