@@ -538,133 +538,21 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     }
   }
 
-  // ── Append block detail pages ──
-  // Each block gets its own page with its full content.
-  let currentPage = totalMapPages;
-  for (const b of blocks) {
-    doc.addPage('a4', 'portrait');
-    currentPage++;
-    blockPageMap.set(b.id, currentPage);
+  // ── Add file links on map pages ──
+  // Link each block to its exported file in the ZIP (relative path)
+  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
+  const groupMap2 = new Map<string, Group>();
+  groups.forEach(g => groupMap2.set(g.id, g));
 
-    const pW = doc.internal.pageSize.getWidth();
-    const pH = doc.internal.pageSize.getHeight();
-    const m = 50;
-    const maxWidth = pW - m * 2;
-    let y = m;
-
-    // Block title
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 30, 50);
-    const titleLines = doc.splitTextToSize(b.label, maxWidth);
-    doc.text(titleLines, m, y);
-    y += titleLines.length * 24 + 8;
-
-    doc.setDrawColor(110, 231, 183);
-    doc.setLineWidth(2);
-    doc.line(m, y, pW - m, y);
-    y += 16;
-
-    // Metadata
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(120, 120, 120);
-    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
-    const metaParts = [`Shape: ${b.shape || 'rectangle'}`, `Size: ${b.width}×${b.height}`];
-    if (group) metaParts.push(`Group: ${group.label}`);
-    if (b.bgColor) metaParts.push(`Color: ${b.bgColor}`);
-    doc.text(metaParts.join('  |  '), m, y);
-    y += 14;
-
-    // Back link
-    doc.setFontSize(9);
-    doc.setTextColor(37, 99, 235);
-    doc.textWithLink('← Back to canvas map', m, y, { pageNumber: 1 });
-    y += 24;
-
-    // File info
-    if (b.fileName || b.fileUrl) {
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(45, 55, 72);
-      doc.text('Attached File', m, y);
-      y += 16;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 80);
-      doc.text(b.fileName || 'File attached', m, y);
-      y += 18;
-    }
-
-    // Notes / Markdown content
-    const notes = b.markdown || b.comment || '';
-    if (notes) {
-      doc.setFontSize(13);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(45, 55, 72);
-      doc.text('Notes', m, y);
-      y += 18;
-
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(30, 41, 59);
-      const noteLines = doc.splitTextToSize(notes, maxWidth);
-      for (const line of noteLines) {
-        if (y > pH - m) { doc.addPage(); currentPage++; y = m; }
-        doc.text(line, m, y);
-        y += 15;
-      }
-    } else {
-      // Even if no notes, show the label content prominently
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 80);
-      const contentLines = doc.splitTextToSize(b.label, maxWidth);
-      for (const line of contentLines) {
-        if (y > pH - m) { doc.addPage(); currentPage++; y = m; }
-        doc.text(line, m, y);
-        y += 18;
-      }
-    }
-
-    // Connected blocks info
-    const outgoing = connections.filter(c => c.fromId === b.id);
-    const incoming = connections.filter(c => c.toId === b.id);
-    if (outgoing.length > 0 || incoming.length > 0) {
-      y += 10;
-      if (y > pH - m - 60) { doc.addPage(); currentPage++; y = m; }
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(45, 55, 72);
-      doc.text('Connections', m, y);
-      y += 16;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(60, 60, 80);
-      for (const c of outgoing) {
-        const target = blockMap.get(c.toId);
-        if (target) {
-          doc.text(`→ ${target.label}`, m + 10, y);
-          y += 14;
-        }
-      }
-      for (const c of incoming) {
-        const source = blockMap.get(c.fromId);
-        if (source) {
-          doc.text(`← ${source.label}`, m + 10, y);
-          y += 14;
-        }
-      }
-    }
-  }
-
-  // ── Add internal links on map pages ──
-  // Now we know which page each block detail is on.
   for (const link of blockLinks) {
-    const targetPage = blockPageMap.get(link.blockId);
-    if (!targetPage) continue;
+    const b = blockMap.get(link.blockId);
+    if (!b) continue;
+    const group = b.groupId ? groupMap2.get(b.groupId) : undefined;
+    const folderName = group ? sanitize(group.label) : 'Ungrouped';
+    const fileName = `${sanitize(b.label)}${ext}`;
+    const relPath = `${folderName}/${fileName}`;
     doc.setPage(link.mapPage);
-    doc.link(link.x, link.y, link.w, link.h, { pageNumber: targetPage });
+    doc.link(link.x, link.y, link.w, link.h, { url: relPath });
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
