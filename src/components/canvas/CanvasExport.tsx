@@ -257,7 +257,7 @@ async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: Exp
           Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.88)),
         ]);
 
-        slide.addShape(pptx.shapes.ROUNDED_RECTANGLE, {
+        slide.addShape(pptx.ShapeType.roundRect, {
           x: gx, y: gy, w: gw, h: gh,
           rectRadius: 0.1,
           fill: fillHex ? { color: fillHex } : undefined,
