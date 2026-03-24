@@ -44,9 +44,9 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const mapPdf = await generateCanvasMapPdf(state, format);
       zip.file('canvas-map.pdf', mapPdf, { binary: true });
 
-      // 2. Generate clickable DOCX map with hyperlinks to exported files
-      const mapDocx = await generateCanvasMapDocx(state, format);
-      zip.file('canvas-map.docx', mapDocx, { binary: true });
+      // 2. Generate clickable PPTX map with hyperlinks to exported files
+      const mapPptx = await generateCanvasMapPptx(state, format);
+      zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
