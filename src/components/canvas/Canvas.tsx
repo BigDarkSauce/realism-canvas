@@ -367,6 +367,96 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
+  const handleImportPdfAsCanvas = useCallback(async (file: File) => {
+    try {
+      toast.info('Analyzing PDF to detect blocks and structure…');
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      
+      // Extract text items with positions from all pages
+      const page = await pdfDoc.getPage(1);
+      const viewport = page.getViewport({ scale: 1 });
+      const textContent = await page.getTextContent();
+      
+      // Group text items into blocks based on spatial proximity
+      interface TextCluster {
+        texts: string[];
+        minX: number; minY: number; maxX: number; maxY: number;
+        fontSize: number;
+      }
+      
+      const clusters: TextCluster[] = [];
+      const items = textContent.items.filter((item: any) => item.str?.trim());
+      
+      for (const item of items as any[]) {
+        if (!item.transform || !item.str?.trim()) continue;
+        const x = item.transform[4];
+        const rawY = viewport.height - item.transform[5];
+        const w = item.width || item.str.length * 6;
+        const h = item.height || 14;
+        const fontSize = Math.abs(item.transform[0]) || 12;
+        
+        // Try to merge into existing cluster
+        let merged = false;
+        for (const cluster of clusters) {
+          const proximity = 30;
+          if (x < cluster.maxX + proximity && x + w > cluster.minX - proximity &&
+              rawY < cluster.maxY + proximity && rawY + h > cluster.minY - proximity) {
+            cluster.texts.push(item.str);
+            cluster.minX = Math.min(cluster.minX, x);
+            cluster.minY = Math.min(cluster.minY, rawY);
+            cluster.maxX = Math.max(cluster.maxX, x + w);
+            cluster.maxY = Math.max(cluster.maxY, rawY + h);
+            cluster.fontSize = Math.max(cluster.fontSize, fontSize);
+            merged = true;
+            break;
+          }
+        }
+        if (!merged) {
+          clusters.push({
+            texts: [item.str],
+            minX: x, minY: rawY, maxX: x + w, maxY: rawY + h,
+            fontSize,
+          });
+        }
+      }
+      
+      if (clusters.length === 0) {
+        toast.error('No text blocks detected in this PDF');
+        return;
+      }
+      
+      // Convert clusters into canvas blocks
+      const newBlocks: Block[] = [];
+      const scale = 2; // Scale up PDF coords for canvas
+      
+      for (const cluster of clusters) {
+        const label = cluster.texts.join(' ').trim();
+        if (!label) continue;
+        const w = Math.max(120, (cluster.maxX - cluster.minX) * scale);
+        const h = Math.max(50, (cluster.maxY - cluster.minY) * scale + 20);
+        const block: Block = {
+          id: `block-import-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          x: cluster.minX * scale + 100,
+          y: cluster.minY * scale + 100,
+          width: w,
+          height: h,
+          label,
+          shape: cluster.fontSize > 14 ? 'rectangle' : 'text',
+        };
+        newBlocks.push(block);
+      }
+      
+      canvas.addBlocksBatch(newBlocks);
+      toast.success(`Imported ${newBlocks.length} blocks from PDF`);
+    } catch (err) {
+      console.error('PDF canvas import failed:', err);
+      toast.error('Failed to parse PDF into canvas blocks');
+    }
+  }, [canvas.addBlocksBatch]);
+
   const handleAddShape = useCallback((shape: BlockShape) => {
     setPendingShape(shape);
     canvas.setTool('add');
@@ -431,6 +521,7 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         onDelete={handleDeleteSelected} onGroup={canvas.groupSelected} onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
         onImportPdfAsBackground={handleImportPdfAsBackground}
+        onImportPdfAsCanvas={handleImportPdfAsCanvas}
         onSplitDocument={() => setSplitterOpen(true)}
         onUndo={canvas.undo} onRedo={canvas.redo}
         canUndo={canvas.canUndo} canRedo={canvas.canRedo}

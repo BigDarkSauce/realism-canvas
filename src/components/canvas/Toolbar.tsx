@@ -1,4 +1,4 @@
-import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, StickyNote, Type, MoreHorizontal, FolderDown } from 'lucide-react';
+import { MousePointer2, Link, Plus, Trash2, Group, Ungroup, Image, Upload, SplitSquareVertical, Undo2, Redo2, Keyboard, Map, Circle, StickyNote, Type, MoreHorizontal, FolderDown, FileInput } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { CanvasTool, CanvasBackground, BlockShape } from '@/types/canvas';
 import {
@@ -22,6 +22,7 @@ interface ToolbarProps {
   onUngroup: () => void;
   onBackgroundImageUpload: (file: File) => void;
   onImportPdfAsBackground: (file: File) => void;
+  onImportPdfAsCanvas: (file: File) => void;
   onSplitDocument: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -57,13 +58,14 @@ const shapes: { id: BlockShape; icon: typeof Circle; label: string }[] = [
 export default function Toolbar({
   tool, setTool, background, setBackground,
   hasSelection, multiSelected, onDelete, onGroup, onUngroup,
-  onBackgroundImageUpload, onImportPdfAsBackground, onSplitDocument,
+  onBackgroundImageUpload, onImportPdfAsBackground, onImportPdfAsCanvas, onSplitDocument,
   onUndo, onRedo, canUndo, canRedo,
   onShortcuts, onToggleMinimap, showMinimap,
   onAddShape, onExportCanvas,
 }: ToolbarProps) {
   const bgFileRef = useRef<HTMLInputElement>(null);
   const pdfImportRef = useRef<HTMLInputElement>(null);
+  const pdfCanvasRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 px-2 py-1.5 bg-toolbar border border-toolbar-border rounded-xl shadow-lg max-w-[calc(100vw-2rem)] overflow-x-auto">
@@ -154,11 +156,15 @@ export default function Toolbar({
           <DropdownMenuItem onClick={() => pdfImportRef.current?.click()}>
             <Image className="h-4 w-4 mr-2" /> Import PDF as Background
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => pdfCanvasRef.current?.click()}>
+            <FileInput className="h-4 w-4 mr-2" /> Import PDF as Canvas Blocks
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <input ref={bgFileRef} type="file" accept="image/*" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onBackgroundImageUpload(file); }} />
       <input ref={pdfImportRef} type="file" accept=".pdf" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onImportPdfAsBackground(file); e.target.value = ''; }} />
+      <input ref={pdfCanvasRef} type="file" accept=".pdf" className="hidden" onChange={e => { const file = e.target.files?.[0]; if (file) onImportPdfAsCanvas(file); e.target.value = ''; }} />
     </div>
   );
 }
