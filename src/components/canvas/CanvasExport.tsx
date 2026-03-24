@@ -49,11 +49,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, blockFiles, format);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
-      // 3. Generate clickable PPTX map with hyperlinks to exported files
-      const mapPptx = await generateCanvasMapPptx(state, format);
-      zip.file('canvas-map.pptx', mapPptx, { binary: true });
-
-      // 4. Write the same generated block files into their group folders
+      // 3. Write the same generated block files into their group folders
       generateBlockDocuments(state, zip, blockFiles);
 
       // 3. Download ZIP
@@ -79,8 +75,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export all blocks as documents organized by group, with a clickable PPTX canvas map
-            and a visual PDF reference. Click blocks in the PPTX map to open their files.
+            Export all blocks as documents organized by group, with a visual PDF canvas map.
+            Open in Adobe Acrobat and click blocks to open their attached files.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -165,209 +161,7 @@ function parseFontSize(fs: string | undefined, defaultPt: number): number {
   return n;
 }
 
-// ─── DOCX Canvas Map (clickable hyperlinks to files) ────────
-
-function hexFromRgb(r: number, g: number, b: number): string {
-  return [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
-}
-
-async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: ExportFormat): Promise<Uint8Array> {
-  const PptxGenJS = (await import('pptxgenjs')).default;
-  const { blocks, connections, groups } = state;
-  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
-
-  const groupMap = new Map<string, Group>();
-  groups.forEach(g => groupMap.set(g.id, g));
-  const blockMap = new Map<string, Block>();
-  blocks.forEach(b => blockMap.set(b.id, b));
-
-  if (blocks.length === 0) {
-    const pptx = new PptxGenJS();
-    const slide = pptx.addSlide();
-    slide.addText('Canvas Map — No blocks', { x: 1, y: 2, w: 8, h: 1, fontSize: 24, color: '333333' });
-    const data = await pptx.write({ outputType: 'arraybuffer' }) as ArrayBuffer;
-    return new Uint8Array(data);
-  }
-
-  // Compute bounding box
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const b of blocks) {
-    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
-    maxX = Math.max(maxX, b.x + b.width); maxY = Math.max(maxY, b.y + b.height);
-  }
-  for (const group of groups) {
-    const gBlocks = blocks.filter(b => b.groupId === group.id);
-    if (gBlocks.length === 0) continue;
-    for (const b of gBlocks) minY = Math.min(minY, b.y - 50);
-  }
-
-  const padding = 40;
-  const contentW = maxX - minX + padding * 2;
-  const contentH = maxY - minY + padding * 2;
-
-  // Slide dimensions in inches (widescreen 13.33 x 7.5)
-  const slideW = 13.333;
-  const slideH = 7.5;
-  const margin = 0.4;
-  const availW = slideW - margin * 2;
-  const availH = slideH - margin * 2;
-
-  // Scale + multi-page tiling
-  const singlePageScale = Math.min(availW / contentW, availH / contentH);
-  const avgBlockW = blocks.reduce((s, b) => s + b.width, 0) / blocks.length;
-  const minBlockInches = 0.6;
-  const minScale = minBlockInches / avgBlockW;
-  const scale = Math.max(singlePageScale, minScale, 0.002);
-  const isSinglePage = contentW * scale <= availW && contentH * scale <= availH;
-  const tilesX = isSinglePage ? 1 : Math.ceil((contentW * scale) / availW);
-  const tilesY = isSinglePage ? 1 : Math.ceil((contentH * scale) / availH);
-
-  const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_WIDE';
-
-  const rgbHex = (c: [number, number, number]) => hexFromRgb(c[0], c[1], c[2]);
-
-  for (let tileY = 0; tileY < tilesY; tileY++) {
-    for (let tileX = 0; tileX < tilesX; tileX++) {
-      const slide = pptx.addSlide();
-      slide.background = { color: 'FCFCFE' };
-
-      const vpLeft = minX - padding + (tileX * availW) / scale;
-      const vpTop = minY - padding + (tileY * availH) / scale;
-
-      const tx = (x: number) => margin + (x - vpLeft) * scale;
-      const ty = (y: number) => margin + (y - vpTop) * scale;
-
-      // Draw group rectangles
-      for (const group of groups) {
-        const gBlocks = blocks.filter(b => b.groupId === group.id);
-        if (gBlocks.length === 0) continue;
-        let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
-        for (const b of gBlocks) {
-          gMinX = Math.min(gMinX, b.x); gMinY = Math.min(gMinY, b.y);
-          gMaxX = Math.max(gMaxX, b.x + b.width); gMaxY = Math.max(gMaxY, b.y + b.height);
-        }
-        const gPad = 20;
-        const gx = tx(gMinX - gPad);
-        const gy = ty(gMinY - gPad) - 0.3;
-        const gw = (gMaxX - gMinX + gPad * 2) * scale;
-        const gh = (gMaxY - gMinY + gPad * 2) * scale + 0.3;
-        if (gx + gw < 0 || gx > slideW || gy + gh < 0 || gy > slideH) continue;
-
-        const isTransparent = !group.bgColor || group.bgColor === 'transparent';
-        const groupBg = parseColor(isTransparent ? undefined : group.bgColor, [100, 149, 237]);
-        const fillHex = isTransparent ? undefined : rgbHex([
-          Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.88)),
-          Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.88)),
-          Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.88)),
-        ]);
-
-        slide.addShape(pptx.ShapeType.roundRect, {
-          x: gx, y: gy, w: gw, h: gh,
-          rectRadius: 0.1,
-          fill: fillHex ? { color: fillHex } : undefined,
-          line: { color: isTransparent ? '9696AA' : rgbHex(groupBg), width: 1.5, dashType: 'dash' },
-        });
-
-        // Group label
-        const labelFontSize = Math.max(7, Math.min(14, 10 * scale * 100));
-        slide.addText(group.label, {
-          x: gx + 0.1, y: gy + 0.05, w: gw - 0.2, h: 0.25,
-          fontSize: labelFontSize, bold: true, fontFace: 'Arial',
-          color: isTransparent ? '505064' : rgbHex(groupBg),
-          align: 'center',
-        });
-      }
-
-      // Draw blocks as shapes with hyperlinks
-      for (const b of blocks) {
-        const bx = tx(b.x);
-        const by = ty(b.y);
-        const bw = b.width * scale;
-        const bh = b.height * scale;
-        if (bx + bw < 0 || bx > slideW || by + bh < 0 || by > slideH) continue;
-
-        const bgCol = parseColor(b.bgColor, b.shape === 'sticky' ? [255, 249, 196] : [245, 245, 250]);
-        const borderCol = parseColor(b.borderColor, [80, 80, 100]);
-        const textCol = parseColor(b.textColor, [20, 20, 40]);
-
-        const group = b.groupId ? groupMap.get(b.groupId) : undefined;
-        const folderName = group ? sanitize(group.label) : 'Ungrouped';
-        const fileName = `${sanitize(b.label)}${ext}`;
-        const relPath = `./${folderName}/${fileName}`;
-
-        const shapeType = b.shape === 'circle'
-          ? pptx.ShapeType.roundRect
-          : b.shape === 'sticky' ? pptx.ShapeType.rect
-          : pptx.ShapeType.roundRect;
-
-        const cornerRadius = b.shape === 'circle'
-          ? Math.min(bw, bh) / 2
-          : b.shape === 'sticky' ? 0 : 0.08;
-
-        const fontSize = Math.max(6, Math.min(parseFontSize(b.fontSize, 10), 14) * scale * 80);
-
-        slide.addText(b.label, {
-          shape: shapeType,
-          x: bx, y: by, w: bw, h: bh,
-          rectRadius: cornerRadius,
-          fill: { color: rgbHex(bgCol) },
-          line: {
-            color: rgbHex(borderCol), width: 1,
-            dashType: b.borderStyle === 'dashed' ? 'dash' : b.borderStyle === 'dotted' ? 'sysDot' : 'solid',
-          },
-          fontSize, fontFace: 'Arial', color: rgbHex(textCol),
-          align: 'center', valign: 'middle',
-          hyperlink: { url: relPath, tooltip: `Open ${fileName}` },
-          rotate: b.rotation ?? 0,
-        });
-      }
-
-      // Draw connections as lines
-      for (const conn of connections) {
-        const fromBlock = blockMap.get(conn.fromId);
-        const toBlock = blockMap.get(conn.toId);
-        if (!fromBlock || !toBlock) continue;
-
-        const fx = tx(fromBlock.x + fromBlock.width / 2);
-        const fy = ty(fromBlock.y + fromBlock.height / 2);
-        const toX = tx(toBlock.x + toBlock.width / 2);
-        const toY = ty(toBlock.y + toBlock.height / 2);
-
-        const connColor = parseColor(conn.color, [60, 60, 80]);
-        const lx = Math.min(fx, toX);
-        const ly = Math.min(fy, toY);
-        const lw = Math.abs(toX - fx) || 0.01;
-        const lh = Math.abs(toY - fy) || 0.01;
-
-        const flipH = toX < fx;
-        const flipV = toY < fy;
-
-        slide.addShape(pptx.ShapeType.line, {
-          x: lx, y: ly, w: lw, h: lh,
-          flipH, flipV,
-          line: {
-            color: rgbHex(connColor),
-            width: Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 40),
-            dashType: conn.arrowStyle === 'dashed' ? 'dash' : conn.arrowStyle === 'dotted' ? 'sysDot' : 'solid',
-            endArrowType: 'triangle',
-          },
-        });
-      }
-
-      // Page label
-      if (tilesX * tilesY > 1) {
-        slide.addText(`Page ${tileY * tilesX + tileX + 1}/${tilesX * tilesY}`, {
-          x: slideW - 2, y: slideH - 0.4, w: 1.8, h: 0.3,
-          fontSize: 8, color: '999999', align: 'right', fontFace: 'Arial',
-        });
-      }
-    }
-  }
-
-  const data = await pptx.write({ outputType: 'arraybuffer' }) as ArrayBuffer;
-  return new Uint8Array(data);
-}
+// ─── Helpers ────────
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
 
@@ -803,9 +597,10 @@ function drawBackground(
 
 // ─── Block Document Generators (for ZIP files) ─────────────
 
-function generateBlockPdf(block: Block): Uint8Array {
+async function generateBlockPdf(block: Block): Promise<Uint8Array> {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const m = 50;
   const maxWidth = pageWidth - m * 2;
   let y = m;
@@ -839,11 +634,73 @@ function generateBlockPdf(block: Block): Uint8Array {
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
     const noteLines = doc.splitTextToSize(notes, maxWidth);
-    const pageHeight = doc.internal.pageSize.getHeight();
     for (const line of noteLines) {
       if (y > pageHeight - m) { doc.addPage(); y = m; }
       doc.text(line, m, y);
       y += 15;
+    }
+  }
+
+  // Fetch actual stored file content (same as View does)
+  const originalUrl = block.fileStorageUrl || block.fileUrl;
+  if (originalUrl) {
+    try {
+      const storagePath = extractStoragePath(originalUrl);
+      const fetchUrl = storagePath ? await getSignedUrl(storagePath) : originalUrl;
+      const resp = await fetch(fetchUrl);
+
+      if (resp.ok) {
+        const text = await resp.text();
+        // Extract plain text from HTML content
+        let plainText = text;
+        if (text.includes('<html') || text.includes('<body') || text.includes('<div')) {
+          const bodyMatch = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+          const htmlContent = bodyMatch ? bodyMatch[1] : text;
+          // Strip HTML tags to get plain text for PDF
+          plainText = htmlContent
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<\/p>/gi, '\n\n')
+            .replace(/<\/div>/gi, '\n')
+            .replace(/<\/h[1-6]>/gi, '\n\n')
+            .replace(/<\/li>/gi, '\n')
+            .replace(/<[^>]+>/g, '')
+            .replace(/&nbsp;/gi, ' ')
+            .replace(/&amp;/gi, '&')
+            .replace(/&lt;/gi, '<')
+            .replace(/&gt;/gi, '>')
+            .replace(/&quot;/gi, '"')
+            .replace(/&#39;/gi, "'")
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        }
+
+        if (plainText) {
+          y += 10;
+          if (y > pageHeight - m) { doc.addPage(); y = m; }
+          doc.setDrawColor(200, 200, 210);
+          doc.setLineWidth(0.5);
+          doc.line(m, y, pageWidth - m, y);
+          y += 16;
+
+          doc.setFontSize(13);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(45, 55, 72);
+          doc.text('Document Content', m, y);
+          y += 18;
+
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(30, 41, 59);
+          const contentLines = doc.splitTextToSize(plainText, maxWidth);
+          for (const line of contentLines) {
+            if (y > pageHeight - m) { doc.addPage(); y = m; }
+            doc.text(line, m, y);
+            y += 14;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch file content for PDF block export:', block.label, e);
     }
   }
 
@@ -908,7 +765,7 @@ async function collectBlockFiles(
 
   const entries = await Promise.all(
     blocks.map(async (block) => {
-      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
+      const fileData = format === 'pdf' ? await generateBlockPdf(block) : await generateBlockWordDoc(block);
       const fileName = `${sanitize(block.label)}${ext}`;
       return { id: block.id, data: fileData, fileName };
     })
