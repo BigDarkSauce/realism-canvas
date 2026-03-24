@@ -919,7 +919,7 @@ async function embedFileAttachments(
     const pageHeight = page.getHeight();
 
     // Create embedded file stream
-    const mimeType = format === 'pdf' ? 'application/pdf' : 'application/msword';
+    const mimeType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const embeddedFileStream = pdfDoc.context.stream(file.data, {
       Type: PDFName.of('EmbeddedFile'),
       Subtype: PDFName.of(mimeType),
