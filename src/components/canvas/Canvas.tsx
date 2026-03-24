@@ -338,6 +338,35 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
     } catch (err) { console.error('Background upload failed:', err); }
   }, [canvas.setBackgroundImage, canvas.setBackground]);
 
+  const handleImportPdfAsBackground = useCallback(async (file: File) => {
+    try {
+      toast.info('Converting PDF to image…');
+      const pdfjsLib = await import('pdfjs-dist');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      const arrayBuffer = await file.arrayBuffer();
+      const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const page = await pdfDoc.getPage(1);
+      const viewport = page.getViewport({ scale: 2 }); // high-res
+      const offscreen = document.createElement('canvas');
+      offscreen.width = viewport.width;
+      offscreen.height = viewport.height;
+      const ctx = offscreen.getContext('2d')!;
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const dataUrl = offscreen.toDataURL('image/png');
+      // Upload as image
+      const resp = await fetch(dataUrl);
+      const blob = await resp.blob();
+      const imgFile = new File([blob], 'pdf-background.png', { type: 'image/png' });
+      const { signedUrl } = await uploadAndGetSignedUrl(imgFile, 'pdfbg-');
+      canvas.setBackgroundImage(signedUrl);
+      canvas.setBackground('image' as CanvasBackground);
+      toast.success('PDF imported as canvas background');
+    } catch (err) {
+      console.error('PDF import failed:', err);
+      toast.error('Failed to import PDF as background');
+    }
+  }, [canvas.setBackgroundImage, canvas.setBackground]);
+
   const handleAddShape = useCallback((shape: BlockShape) => {
     setPendingShape(shape);
     canvas.setTool('add');
