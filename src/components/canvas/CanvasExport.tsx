@@ -158,7 +158,7 @@ function parseFontSize(fs: string | undefined, defaultPt: number): number {
 
 // ─── Canvas Map PDF (multi-page tiled for accuracy) ─────────
 
-async function generateCanvasMapPdf(state: CanvasExportState): Promise<Uint8Array> {
+async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<Uint8Array> {
   const { blocks, connections, groups, strokes, background, backgroundImage } = state;
   if (blocks.length === 0) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
