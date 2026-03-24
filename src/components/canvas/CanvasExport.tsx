@@ -907,7 +907,7 @@ async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uin
     const pdfBlob = await html2pdf()
       .set({
         margin: 0.5,
-        filename,
+        filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
