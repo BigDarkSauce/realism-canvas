@@ -897,21 +897,22 @@ ${fileContent ? `<hr style="border:none;border-top:1px solid #e2e8f0;margin:24px
 
 // ─── Collect block file data for PDF attachment embedding ────────
 
-function collectBlockFiles(
+async function collectBlockFiles(
   state: CanvasExportState,
   format: ExportFormat
-): Map<string, { data: Uint8Array; fileName: string }> {
-  const { blocks, groups } = state;
-  const groupMap = new Map<string, Group>();
-  groups.forEach(g => groupMap.set(g.id, g));
+): Promise<Map<string, { data: Uint8Array; fileName: string }>> {
+  const { blocks } = state;
   const ext = format === 'pdf' ? '.pdf' : '.doc';
   const result = new Map<string, { data: Uint8Array; fileName: string }>();
 
-  for (const block of blocks) {
-    const fileData = format === 'pdf' ? generateBlockPdf(block) : generateBlockWordDoc(block);
-    const fileName = `${sanitize(block.label)}${ext}`;
-    result.set(block.id, { data: fileData, fileName });
-  }
+  const entries = await Promise.all(
+    blocks.map(async (block) => {
+      const fileData = format === 'pdf' ? generateBlockPdf(block) : await generateBlockWordDoc(block);
+      const fileName = `${sanitize(block.label)}${ext}`;
+      return { id: block.id, data: fileData, fileName };
+    })
+  );
+  for (const e of entries) result.set(e.id, { data: e.data, fileName: e.fileName });
   return result;
 }
 
