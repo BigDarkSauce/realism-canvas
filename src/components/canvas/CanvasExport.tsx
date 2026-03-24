@@ -41,7 +41,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const zip = new JSZip();
 
       // 1. Collect block documents data for embedding
-      const blockFiles = collectBlockFiles(state, format);
+      const blockFiles = await collectBlockFiles(state, format);
 
       // 2. Generate visual canvas map PDF with embedded file attachments (Acrobat)
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
