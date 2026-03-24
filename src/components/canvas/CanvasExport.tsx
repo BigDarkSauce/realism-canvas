@@ -10,6 +10,11 @@ import { toast } from 'sonner';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import jsPDF from 'jspdf';
+import {
+  Document as DocxDocument, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  ExternalHyperlink, HeadingLevel, BorderStyle, WidthType, ShadingType,
+  AlignmentType
+} from 'docx';
 
 export interface CanvasExportState {
   blocks: Block[];
