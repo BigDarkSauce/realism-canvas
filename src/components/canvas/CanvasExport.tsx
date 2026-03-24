@@ -44,9 +44,9 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const mapPdf = await generateCanvasMapPdf(state, format);
       zip.file('canvas-map.pdf', mapPdf, { binary: true });
 
-      // 2. Generate clickable DOCX map with hyperlinks to exported files
-      const mapDocx = await generateCanvasMapDocx(state, format);
-      zip.file('canvas-map.docx', mapDocx, { binary: true });
+      // 2. Generate clickable PPTX map with hyperlinks to exported files
+      const mapPptx = await generateCanvasMapPptx(state, format);
+      zip.file('canvas-map.pptx', mapPptx, { binary: true });
 
       // 2. Generate block documents organized by group
       generateBlockDocuments(state, zip, format);
@@ -74,8 +74,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export all blocks as documents organized by group, with a clickable DOCX canvas map
-            and a visual PDF reference. Click blocks in the DOCX map to open their files.
+            Export all blocks as documents organized by group, with a clickable PPTX canvas map
+            and a visual PDF reference. Click blocks in the PPTX map to open their files.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -166,300 +166,202 @@ function hexFromRgb(r: number, g: number, b: number): string {
   return [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('').toUpperCase();
 }
 
-async function generateCanvasMapDocx(state: CanvasExportState, exportFormat: ExportFormat): Promise<Uint8Array> {
-  const docx = await import('docx');
-  const {
-    Document: DocxDocument,
-    Packer,
-    Paragraph,
-    TextRun,
-    Table,
-    TableRow,
-    TableCell,
-    ExternalHyperlink,
-    HeadingLevel,
-    BorderStyle,
-    WidthType,
-    ShadingType,
-    AlignmentType,
-    VerticalAlign,
-  } = docx;
-
+async function generateCanvasMapPptx(state: CanvasExportState, exportFormat: ExportFormat): Promise<Uint8Array> {
+  const PptxGenJS = (await import('pptxgenjs')).default;
   const { blocks, connections, groups } = state;
   const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
+
   const groupMap = new Map<string, Group>();
-  groups.forEach((g) => groupMap.set(g.id, g));
-
-  const grouped = new Map<string, Block[]>();
-  const ungrouped: Block[] = [];
-  blocks.forEach((b) => {
-    if (b.groupId && groupMap.has(b.groupId)) {
-      const arr = grouped.get(b.groupId) || [];
-      arr.push(b);
-      grouped.set(b.groupId, arr);
-    } else {
-      ungrouped.push(b);
-    }
-  });
-
-  const cellBorder = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' };
-  const cellBorders = { top: cellBorder, bottom: cellBorder, left: cellBorder, right: cellBorder };
+  groups.forEach(g => groupMap.set(g.id, g));
   const blockMap = new Map<string, Block>();
-  blocks.forEach((b) => blockMap.set(b.id, b));
+  blocks.forEach(b => blockMap.set(b.id, b));
 
-  const children: any[] = [];
-
-  children.push(
-    new Paragraph({
-      heading: HeadingLevel.HEADING_1,
-      children: [new TextRun({ text: 'Canvas Map', bold: true, size: 36, font: 'Arial' })],
-    })
-  );
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: `Exported on ${new Date().toLocaleString()} • ${blocks.length} blocks, ${connections.length} connections, ${groups.length} groups`,
-          size: 18,
-          color: '888888',
-          font: 'Arial',
-        }),
-      ],
-      spacing: { after: 300 },
-    })
-  );
-  children.push(
-    new Paragraph({
-      children: [
-        new TextRun({
-          text: 'Click any block name below to open its corresponding file.',
-          size: 20,
-          italics: true,
-          color: '2563EB',
-          font: 'Arial',
-        }),
-      ],
-      spacing: { after: 400 },
-    })
-  );
-
-  const renderGroupSection = (groupLabel: string, groupBlocks: Block[], folderName: string, groupColor?: string) => {
-    const bgRgb = groupColor ? parseColor(groupColor, [100, 149, 237]) : [100, 149, 237] as [number, number, number];
-    const headerHex = hexFromRgb(bgRgb[0], bgRgb[1], bgRgb[2]);
-    const lightHex = hexFromRgb(
-      Math.min(255, bgRgb[0] + Math.round((255 - bgRgb[0]) * 0.85)),
-      Math.min(255, bgRgb[1] + Math.round((255 - bgRgb[1]) * 0.85)),
-      Math.min(255, bgRgb[2] + Math.round((255 - bgRgb[2]) * 0.85))
-    );
-
-    children.push(
-      new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: groupLabel, bold: true, size: 28, font: 'Arial', color: headerHex })],
-        spacing: { before: 400, after: 200 },
-      })
-    );
-
-    const headerRow = new TableRow({
-      children: [
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 1200, type: WidthType.DXA },
-          shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [new TextRun({ text: 'Shape', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
-            }),
-          ],
-        }),
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 4500, type: WidthType.DXA },
-          shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: 'Block (click to open file)', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
-            }),
-          ],
-        }),
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 3660, type: WidthType.DXA },
-          shading: { fill: headerHex, type: ShadingType.CLEAR },
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: 'Notes / Content', bold: true, size: 18, color: 'FFFFFF', font: 'Arial' })],
-            }),
-          ],
-        }),
-      ],
-    });
-
-    const dataRows = groupBlocks.map((b, i) => {
-      const shapeLabel = b.shape === 'circle' ? 'Rounded' : b.shape === 'sticky' ? 'Sticky' : b.shape === 'text' ? 'Text' : 'Rect';
-      const blockBg = b.bgColor
-        ? parseColor(b.bgColor, [245, 245, 250])
-        : i % 2 === 0
-          ? [255, 255, 255] as [number, number, number]
-          : [248, 248, 252] as [number, number, number];
-      const rowFill = hexFromRgb(blockBg[0], blockBg[1], blockBg[2]);
-      const notes = (b.markdown || b.comment || '').slice(0, 120);
-      const fileName = `${sanitize(b.label)}${ext}`;
-      const relPath = `${folderName}/${fileName}`;
-
-      return new TableRow({
-        children: [
-          new TableCell({
-            borders: cellBorders,
-            width: { size: 1200, type: WidthType.DXA },
-            shading: { fill: lightHex, type: ShadingType.CLEAR },
-            verticalAlign: VerticalAlign.CENTER,
-            children: [
-              new Paragraph({
-                alignment: AlignmentType.CENTER,
-                children: [new TextRun({ text: shapeLabel, size: 18, font: 'Arial' })],
-              }),
-            ],
-          }),
-          new TableCell({
-            borders: cellBorders,
-            width: { size: 4500, type: WidthType.DXA },
-            shading: { fill: rowFill, type: ShadingType.CLEAR },
-            margins: { top: 80, bottom: 80, left: 120, right: 120 },
-            children: [
-              new Paragraph({
-                children: [
-                  new ExternalHyperlink({
-                    link: relPath,
-                    children: [new TextRun({ text: b.label, style: 'Hyperlink', size: 22, font: 'Arial' })],
-                  }),
-                ],
-              }),
-            ],
-          }),
-          new TableCell({
-            borders: cellBorders,
-            width: { size: 3660, type: WidthType.DXA },
-            shading: { fill: rowFill, type: ShadingType.CLEAR },
-            margins: { top: 80, bottom: 80, left: 120, right: 120 },
-            children: [
-              new Paragraph({
-                children: [new TextRun({ text: notes || '—', size: 18, color: notes ? '333333' : 'CCCCCC', font: 'Arial' })],
-              }),
-            ],
-          }),
-        ],
-      });
-    });
-
-    children.push(
-      new Table({
-        width: { size: 9360, type: WidthType.DXA },
-        columnWidths: [1200, 4500, 3660],
-        rows: [headerRow, ...dataRows],
-      })
-    );
-  };
-
-  for (const [gId, gBlocks] of grouped.entries()) {
-    const group = groupMap.get(gId)!;
-    renderGroupSection(group.label, gBlocks, sanitize(group.label), group.bgColor);
+  if (blocks.length === 0) {
+    const pptx = new PptxGenJS();
+    const slide = pptx.addSlide();
+    slide.addText('Canvas Map — No blocks', { x: 1, y: 2, w: 8, h: 1, fontSize: 24, color: '333333' });
+    const data = await pptx.write({ outputType: 'arraybuffer' }) as ArrayBuffer;
+    return new Uint8Array(data);
   }
 
-  if (ungrouped.length > 0) {
-    renderGroupSection('Ungrouped', ungrouped, 'Ungrouped');
+  // Compute bounding box
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const b of blocks) {
+    minX = Math.min(minX, b.x); minY = Math.min(minY, b.y);
+    maxX = Math.max(maxX, b.x + b.width); maxY = Math.max(maxY, b.y + b.height);
+  }
+  for (const group of groups) {
+    const gBlocks = blocks.filter(b => b.groupId === group.id);
+    if (gBlocks.length === 0) continue;
+    for (const b of gBlocks) minY = Math.min(minY, b.y - 50);
   }
 
-  if (connections.length > 0) {
-    children.push(
-      new Paragraph({
-        heading: HeadingLevel.HEADING_2,
-        children: [new TextRun({ text: 'Connections', bold: true, size: 28, font: 'Arial', color: 'F59E0B' })],
-        spacing: { before: 400, after: 200 },
-      })
-    );
+  const padding = 40;
+  const contentW = maxX - minX + padding * 2;
+  const contentH = maxY - minY + padding * 2;
 
-    const connHeaderRow = new TableRow({
-      children: [
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 4000, type: WidthType.DXA },
-          shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
-          children: [new Paragraph({ children: [new TextRun({ text: 'From', bold: true, size: 18, font: 'Arial' })] })],
-        }),
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 1360, type: WidthType.DXA },
-          shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
-          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '→', bold: true, size: 22 })] })],
-        }),
-        new TableCell({
-          borders: cellBorders,
-          width: { size: 4000, type: WidthType.DXA },
-          shading: { fill: 'FEF3C7', type: ShadingType.CLEAR },
-          children: [new Paragraph({ children: [new TextRun({ text: 'To', bold: true, size: 18, font: 'Arial' })] })],
-        }),
-      ],
-    });
+  // Slide dimensions in inches (widescreen 13.33 x 7.5)
+  const slideW = 13.333;
+  const slideH = 7.5;
+  const margin = 0.4;
+  const availW = slideW - margin * 2;
+  const availH = slideH - margin * 2;
 
-    const connRows = connections
-      .map((c) => {
-        const from = blockMap.get(c.fromId);
-        const to = blockMap.get(c.toId);
-        if (!from || !to) return null;
+  // Scale + multi-page tiling
+  const singlePageScale = Math.min(availW / contentW, availH / contentH);
+  const avgBlockW = blocks.reduce((s, b) => s + b.width, 0) / blocks.length;
+  const minBlockInches = 0.6;
+  const minScale = minBlockInches / avgBlockW;
+  const scale = Math.max(singlePageScale, minScale, 0.002);
+  const isSinglePage = contentW * scale <= availW && contentH * scale <= availH;
+  const tilesX = isSinglePage ? 1 : Math.ceil((contentW * scale) / availW);
+  const tilesY = isSinglePage ? 1 : Math.ceil((contentH * scale) / availH);
 
-        return new TableRow({
-          children: [
-            new TableCell({
-              borders: cellBorders,
-              width: { size: 4000, type: WidthType.DXA },
-              margins: { top: 60, bottom: 60, left: 120, right: 120 },
-              children: [new Paragraph({ children: [new TextRun({ text: from.label, size: 20, font: 'Arial' })] })],
-            }),
-            new TableCell({
-              borders: cellBorders,
-              width: { size: 1360, type: WidthType.DXA },
-              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '→', size: 20, color: '6EE7B7' })] })],
-            }),
-            new TableCell({
-              borders: cellBorders,
-              width: { size: 4000, type: WidthType.DXA },
-              margins: { top: 60, bottom: 60, left: 120, right: 120 },
-              children: [new Paragraph({ children: [new TextRun({ text: to.label, size: 20, font: 'Arial' })] })],
-            }),
-          ],
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+
+  const rgbHex = (c: [number, number, number]) => hexFromRgb(c[0], c[1], c[2]);
+
+  for (let tileY = 0; tileY < tilesY; tileY++) {
+    for (let tileX = 0; tileX < tilesX; tileX++) {
+      const slide = pptx.addSlide();
+      slide.background = { color: 'FCFCFE' };
+
+      const vpLeft = minX - padding + (tileX * availW) / scale;
+      const vpTop = minY - padding + (tileY * availH) / scale;
+
+      const tx = (x: number) => margin + (x - vpLeft) * scale;
+      const ty = (y: number) => margin + (y - vpTop) * scale;
+
+      // Draw group rectangles
+      for (const group of groups) {
+        const gBlocks = blocks.filter(b => b.groupId === group.id);
+        if (gBlocks.length === 0) continue;
+        let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
+        for (const b of gBlocks) {
+          gMinX = Math.min(gMinX, b.x); gMinY = Math.min(gMinY, b.y);
+          gMaxX = Math.max(gMaxX, b.x + b.width); gMaxY = Math.max(gMaxY, b.y + b.height);
+        }
+        const gPad = 20;
+        const gx = tx(gMinX - gPad);
+        const gy = ty(gMinY - gPad) - 0.3;
+        const gw = (gMaxX - gMinX + gPad * 2) * scale;
+        const gh = (gMaxY - gMinY + gPad * 2) * scale + 0.3;
+        if (gx + gw < 0 || gx > slideW || gy + gh < 0 || gy > slideH) continue;
+
+        const isTransparent = !group.bgColor || group.bgColor === 'transparent';
+        const groupBg = parseColor(isTransparent ? undefined : group.bgColor, [100, 149, 237]);
+        const fillHex = isTransparent ? undefined : rgbHex([
+          Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.88)),
+          Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.88)),
+          Math.min(255, groupBg[2] + Math.round((255 - groupBg[2]) * 0.88)),
+        ]);
+
+        slide.addShape(pptx.ShapeType.roundRect, {
+          x: gx, y: gy, w: gw, h: gh,
+          rectRadius: 0.1,
+          fill: fillHex ? { color: fillHex } : undefined,
+          line: { color: isTransparent ? '9696AA' : rgbHex(groupBg), width: 1.5, dashType: 'dash' },
         });
-      })
-      .filter(Boolean);
 
-    if (connRows.length > 0) {
-      children.push(
-        new Table({
-          width: { size: 9360, type: WidthType.DXA },
-          columnWidths: [4000, 1360, 4000],
-          rows: [connHeaderRow, ...connRows],
-        })
-      );
+        // Group label
+        const labelFontSize = Math.max(7, Math.min(14, 10 * scale * 100));
+        slide.addText(group.label, {
+          x: gx + 0.1, y: gy + 0.05, w: gw - 0.2, h: 0.25,
+          fontSize: labelFontSize, bold: true, fontFace: 'Arial',
+          color: isTransparent ? '505064' : rgbHex(groupBg),
+          align: 'center',
+        });
+      }
+
+      // Draw blocks as shapes with hyperlinks
+      for (const b of blocks) {
+        const bx = tx(b.x);
+        const by = ty(b.y);
+        const bw = b.width * scale;
+        const bh = b.height * scale;
+        if (bx + bw < 0 || bx > slideW || by + bh < 0 || by > slideH) continue;
+
+        const bgCol = parseColor(b.bgColor, b.shape === 'sticky' ? [255, 249, 196] : [245, 245, 250]);
+        const borderCol = parseColor(b.borderColor, [80, 80, 100]);
+        const textCol = parseColor(b.textColor, [20, 20, 40]);
+
+        const group = b.groupId ? groupMap.get(b.groupId) : undefined;
+        const folderName = group ? sanitize(group.label) : 'Ungrouped';
+        const fileName = `${sanitize(b.label)}${ext}`;
+        const relPath = `${folderName}/${fileName}`;
+
+        const shapeType = b.shape === 'circle'
+          ? pptx.ShapeType.roundRect
+          : b.shape === 'sticky' ? pptx.ShapeType.rect
+          : pptx.ShapeType.roundRect;
+
+        const cornerRadius = b.shape === 'circle'
+          ? Math.min(bw, bh) / 2
+          : b.shape === 'sticky' ? 0 : 0.08;
+
+        const fontSize = Math.max(6, Math.min(parseFontSize(b.fontSize, 10), 14) * scale * 80);
+
+        slide.addText(b.label, {
+          shape: shapeType,
+          x: bx, y: by, w: bw, h: bh,
+          rectRadius: cornerRadius,
+          fill: { color: rgbHex(bgCol) },
+          line: {
+            color: rgbHex(borderCol), width: 1,
+            dashType: b.borderStyle === 'dashed' ? 'dash' : b.borderStyle === 'dotted' ? 'sysDot' : 'solid',
+          },
+          fontSize, fontFace: 'Arial', color: rgbHex(textCol),
+          align: 'center', valign: 'middle',
+          hyperlink: { url: relPath, tooltip: `Open ${fileName}` },
+          rotate: b.rotation ?? 0,
+        });
+      }
+
+      // Draw connections as lines
+      for (const conn of connections) {
+        const fromBlock = blockMap.get(conn.fromId);
+        const toBlock = blockMap.get(conn.toId);
+        if (!fromBlock || !toBlock) continue;
+
+        const fx = tx(fromBlock.x + fromBlock.width / 2);
+        const fy = ty(fromBlock.y + fromBlock.height / 2);
+        const toX = tx(toBlock.x + toBlock.width / 2);
+        const toY = ty(toBlock.y + toBlock.height / 2);
+
+        const connColor = parseColor(conn.color, [60, 60, 80]);
+        const lx = Math.min(fx, toX);
+        const ly = Math.min(fy, toY);
+        const lw = Math.abs(toX - fx) || 0.01;
+        const lh = Math.abs(toY - fy) || 0.01;
+
+        const flipH = toX < fx;
+        const flipV = toY < fy;
+
+        slide.addShape(pptx.ShapeType.line, {
+          x: lx, y: ly, w: lw, h: lh,
+          flipH, flipV,
+          line: {
+            color: rgbHex(connColor),
+            width: Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 40),
+            dashType: conn.arrowStyle === 'dashed' ? 'dash' : conn.arrowStyle === 'dotted' ? 'sysDot' : 'solid',
+            endArrowType: 'triangle',
+          },
+        });
+      }
+
+      // Page label
+      if (tilesX * tilesY > 1) {
+        slide.addText(`Page ${tileY * tilesX + tileX + 1}/${tilesX * tilesY}`, {
+          x: slideW - 2, y: slideH - 0.4, w: 1.8, h: 0.3,
+          fontSize: 8, color: '999999', align: 'right', fontFace: 'Arial',
+        });
+      }
     }
   }
 
-  const doc = new DocxDocument({
-    sections: [
-      {
-        properties: {
-          page: {
-            size: { width: 12240, height: 15840 },
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
-          },
-        },
-        children,
-      },
-    ],
-  });
-
-  const blob = await Packer.toBlob(doc);
-  return new Uint8Array(await blob.arrayBuffer());
+  const data = await pptx.write({ outputType: 'arraybuffer' }) as ArrayBuffer;
+  return new Uint8Array(data);
 }
 
 // ─── Canvas Map PDF (multi-page tiled, visual reference) ─────
