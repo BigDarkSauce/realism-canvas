@@ -40,7 +40,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const state = getState();
       const zip = new JSZip();
 
-      // 1. Generate visual canvas map PDF (multi-page for accuracy)
+      // 1. Generate visual canvas map PDF with embedded block pages & internal links
       const mapPdf = await generateCanvasMapPdf(state, format);
       zip.file('canvas-map.pdf', mapPdf, { binary: true });
 
@@ -72,6 +72,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
             Export all blocks as documents organized by group, with a visual canvas map PDF.
+            Blocks in the map are clickable — they link to their detail pages within the same PDF.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -156,7 +157,7 @@ function parseFontSize(fs: string | undefined, defaultPt: number): number {
   return n;
 }
 
-// ─── Canvas Map PDF (multi-page tiled for accuracy) ─────────
+// ─── Canvas Map PDF (multi-page tiled, with embedded block detail pages) ─────
 
 async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: ExportFormat = 'pdf'): Promise<Uint8Array> {
   const { blocks, connections, groups, strokes, background, backgroundImage } = state;
@@ -175,12 +176,11 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
     maxX = Math.max(maxX, b.x + b.width);
     maxY = Math.max(maxY, b.y + b.height);
   }
-  // Include group label padding above groups
   for (const group of groups) {
     const gBlocks = blocks.filter(b => b.groupId === group.id);
     if (gBlocks.length === 0) continue;
     for (const b of gBlocks) {
-      minY = Math.min(minY, b.y - 40); // label space above
+      minY = Math.min(minY, b.y - 40);
     }
   }
   for (const stroke of strokes) {
@@ -203,23 +203,16 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const availW = pageW - margin * 2;
   const availH = pageH - margin * 2;
 
-  // Determine scale: use a fixed scale that keeps blocks readable.
-  // If everything fits on one page at scale >= 0.5, use single page.
-  // Otherwise tile across multiple pages at a scale that keeps blocks ≥ 40pt wide.
   const singlePageScale = Math.min(availW / contentW, availH / contentH);
-  
-  // Minimum block size in PDF points for readability
   const minBlockSize = 35;
   const avgBlockW = blocks.reduce((s, b) => s + b.width, 0) / blocks.length;
   const minScale = minBlockSize / avgBlockW;
-  
   const scale = Math.max(singlePageScale, minScale, 0.15);
   const isSinglePage = contentW * scale <= availW && contentH * scale <= availH;
 
-  // Tile dimensions
   const tilesX = isSinglePage ? 1 : Math.ceil((contentW * scale) / availW);
   const tilesY = isSinglePage ? 1 : Math.ceil((contentH * scale) / availH);
-  const totalPages = tilesX * tilesY;
+  const totalMapPages = tilesX * tilesY;
 
   // Try to load background image if present
   let bgImgData: string | null = null;
@@ -232,7 +225,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         reader.onload = () => resolve(reader.result as string);
         reader.readAsDataURL(blob);
       });
-    } catch { /* ignore - no background image */ }
+    } catch { /* ignore */ }
   }
 
   const groupMap = new Map<string, Group>();
@@ -240,41 +233,38 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
   const blockMap = new Map<string, Block>();
   blocks.forEach(b => blockMap.set(b.id, b));
 
-  // Build file path map for clickable links
-  const ext = exportFormat === 'pdf' ? '.pdf' : '.doc';
-  const blockFilePaths = new Map<string, string>();
-  for (const b of blocks) {
-    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
-    const folderName = group ? sanitize(group.label) : 'Ungrouped';
-    blockFilePaths.set(b.id, `${folderName}/${sanitize(b.label)}${ext}`);
-  }
+  // We'll track which page each block's detail starts on.
+  // Map pages come first (totalMapPages), then block detail pages appended after.
+  // We'll assign page numbers after drawing map pages.
+  const blockPageMap = new Map<string, number>(); // blockId -> 1-indexed page number in final PDF
+
+  // Collect block link rects so we can add internal links after we know page numbers
+  interface BlockLinkInfo { blockId: string; mapPage: number; x: number; y: number; w: number; h: number; }
+  const blockLinks: BlockLinkInfo[] = [];
 
   for (let tileY = 0; tileY < tilesY; tileY++) {
     for (let tileX = 0; tileX < tilesX; tileX++) {
       if (tileX > 0 || tileY > 0) doc.addPage();
+      const currentMapPage = tileY * tilesX + tileX + 1; // 1-indexed
 
-      // Viewport in canvas coords for this tile
       const vpLeft = minX - padding + (tileX * availW) / scale;
       const vpTop = minY - padding + (tileY * availH) / scale;
       const vpRight = vpLeft + availW / scale;
       const vpBottom = vpTop + availH / scale;
 
-      // Transform canvas coords to page coords
       const tx = (x: number) => margin + (x - vpLeft) * scale;
       const ty = (y: number) => margin + (y - vpTop) * scale;
 
-      // Clip to page area
       doc.saveGraphicsState();
       doc.rect(margin, margin, availW, availH);
-      (doc as any).internal.write('W n'); // clip
+      (doc as any).internal.write('W n');
 
-      // ── Background ──
+      // Background
       drawBackground(doc, background, bgImgData, margin, margin, availW, availH, scale);
 
-      // ── Drawing strokes ──
+      // Drawing strokes
       for (const stroke of strokes) {
         if (stroke.points.length < 2) continue;
-        // Quick bounds check - skip if entirely outside viewport
         const strokeMinX = Math.min(...stroke.points.map(p => p.x));
         const strokeMaxX = Math.max(...stroke.points.map(p => p.x));
         const strokeMinY = Math.min(...stroke.points.map(p => p.y));
@@ -285,20 +275,18 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         doc.setDrawColor(col[0], col[1], col[2]);
         doc.setLineWidth(Math.max(0.5, stroke.width * scale));
         doc.setLineDashPattern([], 0);
-        
         const pts = stroke.points;
         for (let i = 0; i < pts.length - 1; i++) {
           doc.line(tx(pts[i].x), ty(pts[i].y), tx(pts[i+1].x), ty(pts[i+1].y));
         }
       }
 
-      // ── Precompute group rects to detect overlaps ──
+      // Group rects
       interface GroupRect { group: Group; rx: number; ry: number; rw: number; rh: number; isTransparent: boolean; groupBg: [number,number,number]; }
       const groupRects: GroupRect[] = [];
       for (const group of groups) {
         const gBlocks = blocks.filter(b => b.groupId === group.id);
         if (gBlocks.length === 0) continue;
-
         let gMinX = Infinity, gMinY = Infinity, gMaxX = -Infinity, gMaxY = -Infinity;
         for (const b of gBlocks) {
           gMinX = Math.min(gMinX, b.x);
@@ -306,52 +294,41 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
           gMaxX = Math.max(gMaxX, b.x + b.width);
           gMaxY = Math.max(gMaxY, b.y + b.height);
         }
-
         if (gMaxX < vpLeft || gMinX > vpRight || gMaxY < vpTop || gMinY > vpBottom) continue;
-
         const gPad = 20;
         const labelScale = group.labelScale ?? 1;
         const groupFontSize = parseFontSize(group.fontSize, 10) * scale * labelScale;
         const labelAreaH = groupFontSize + 16;
-
         const rx = tx(gMinX - gPad);
         const ry = ty(gMinY - gPad) - labelAreaH;
         const rw = (gMaxX - gMinX + gPad * 2) * scale;
         const rh = (gMaxY - gMinY + gPad * 2) * scale + labelAreaH;
-
         const isTransparent = !group.bgColor || group.bgColor === 'transparent';
         const groupBg = parseColor(isTransparent ? undefined : group.bgColor, [100, 149, 237]);
         groupRects.push({ group, rx, ry, rw, rh, isTransparent, groupBg });
       }
 
-      // ── Draw group outlines (render non-overlapping) ──
+      // Draw group fills with overlap clipping
       for (let gi = 0; gi < groupRects.length; gi++) {
         const { group, rx, ry, rw, rh, isTransparent, groupBg } = groupRects[gi];
-
         if (!isTransparent) {
-          // Clip this group's fill to avoid overlapping other groups
           doc.saveGraphicsState();
-          // Define the group rect as a path, then subtract any overlapping group rects
           const internal = (doc as any).internal;
           const f = (n: number) => n.toFixed(4);
-          // Main rect path (clockwise)
           internal.write(`${f(rx)} ${f(pageH - ry)} m`);
           internal.write(`${f(rx + rw)} ${f(pageH - ry)} l`);
           internal.write(`${f(rx + rw)} ${f(pageH - (ry + rh))} l`);
           internal.write(`${f(rx)} ${f(pageH - (ry + rh))} l`);
           internal.write('h');
-          // Subtract overlapping groups (counter-clockwise holes)
           for (let gj = 0; gj < groupRects.length; gj++) {
             if (gi === gj) continue;
             const other = groupRects[gj];
-            // Check if they actually overlap
             const ox1 = Math.max(rx, other.rx);
             const oy1 = Math.max(ry, other.ry);
             const ox2 = Math.min(rx + rw, other.rx + other.rw);
             const oy2 = Math.min(ry + rh, other.ry + other.rh);
             if (ox1 < ox2 && oy1 < oy2) {
-              // Cut out the overlap area (counter-clockwise)
-              const inset = 2; // small inset to avoid edge artifacts
+              const inset = 2;
               internal.write(`${f(ox1 + inset)} ${f(pageH - (oy1 + inset))} m`);
               internal.write(`${f(ox1 + inset)} ${f(pageH - (oy2 - inset))} l`);
               internal.write(`${f(ox2 - inset)} ${f(pageH - (oy2 - inset))} l`);
@@ -359,8 +336,7 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
               internal.write('h');
             }
           }
-          internal.write('W n'); // clip with even-odd rule
-
+          internal.write('W n');
           doc.setFillColor(
             Math.min(255, groupBg[0] + Math.round((255 - groupBg[0]) * 0.88)),
             Math.min(255, groupBg[1] + Math.round((255 - groupBg[1]) * 0.88)),
@@ -370,7 +346,6 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
           doc.restoreGraphicsState();
         }
 
-        // Border (dashed outline always drawn)
         const borderCol = isTransparent ? [150, 150, 170] as [number,number,number] : groupBg;
         doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
         doc.setLineWidth(1.5);
@@ -385,10 +360,8 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         doc.setFontSize(fontSize);
         doc.setFont('helvetica', 'bold');
         const txtColor = parseColor(group.textColor, isTransparent ? [80,80,100] : [groupBg[0], groupBg[1], groupBg[2]]);
-
         const labelX = rx + rw / 2 + (group.labelOffsetX ?? 0) * scale;
         const labelY = ry + fontSize + 6;
-
         const labelW = doc.getTextWidth(group.label) + 14;
         const labelH = fontSize + 10;
         doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
@@ -399,24 +372,19 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         doc.text(group.label, labelX, labelY, { align: 'center' });
       }
 
-      // ── Blocks ──
+      // Blocks
       for (const b of blocks) {
-        // Skip if entirely outside viewport
         if (b.x + b.width < vpLeft || b.x > vpRight || b.y + b.height < vpTop || b.y > vpBottom) continue;
-
         const bx = tx(b.x);
         const by = ty(b.y);
         const bw = b.width * scale;
         const bh = b.height * scale;
-
         const bgCol = parseColor(b.bgColor, b.shape === 'sticky' ? [255, 249, 196] : [245, 245, 250]);
         const borderCol = parseColor(b.borderColor, [80, 80, 100]);
         const textCol = parseColor(b.textColor, [20, 20, 40]);
-
         doc.setFillColor(bgCol[0], bgCol[1], bgCol[2]);
         doc.setDrawColor(borderCol[0], borderCol[1], borderCol[2]);
         doc.setLineWidth(1);
-
         if (b.borderStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
         else if (b.borderStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
         else doc.setLineDashPattern([], 0);
@@ -425,11 +393,6 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         const cx = bx + bw / 2;
         const cy = by + bh / 2;
         const needsRotation = Math.abs(rotation) > 0.5;
-
-        // Compute corner radius matching CSS:
-        // 'circle' = rounded-full = min(w,h)/2 (pill shape)
-        // 'sticky' = rounded-sm ≈ 2
-        // default 'rectangle' = rounded-lg ≈ 8 scaled
         const cornerR = b.shape === 'circle'
           ? Math.min(bw, bh) / 2
           : b.shape === 'sticky' ? 2 : Math.min(8 * scale, Math.min(bw, bh) / 3);
@@ -442,58 +405,48 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
           const internal = (doc as any).internal;
           const f2 = (n: number) => n.toFixed(4);
           internal.write(`${f2(cos)} ${f2(sin)} ${f2(-sin)} ${f2(cos)} ${f2(cx)} ${f2(pageH - cy)} cm`);
-
           doc.roundedRect(-bw / 2, -bh / 2, bw, bh, cornerR, cornerR, 'FD');
-
           if (b.shape === 'sticky') {
             const foldSize = 10 * scale;
             doc.setFillColor(Math.max(0, bgCol[0] - 30), Math.max(0, bgCol[1] - 30), Math.max(0, bgCol[2] - 30));
             doc.triangle(bw / 2 - foldSize, -bh / 2, bw / 2, -bh / 2, bw / 2, -bh / 2 + foldSize, 'F');
           }
-
-          const fontSize = Math.max(5, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
-          doc.setFontSize(fontSize);
+          const fSize = Math.max(5, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
+          doc.setFontSize(fSize);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(textCol[0], textCol[1], textCol[2]);
           const labelLines = doc.splitTextToSize(b.label, bw - 8);
-          const textStartY = -(labelLines.length - 1) * (fontSize * 0.6);
+          const textStartY = -(labelLines.length - 1) * (fSize * 0.6);
           for (let i = 0; i < Math.min(labelLines.length, 4); i++) {
-            doc.text(labelLines[i], 0, textStartY + i * (fontSize * 1.2), { align: 'center' });
+            doc.text(labelLines[i], 0, textStartY + i * (fSize * 1.2), { align: 'center' });
           }
-
           doc.restoreGraphicsState();
         } else {
           doc.roundedRect(bx, by, bw, bh, cornerR, cornerR, 'FD');
-
           if (b.shape === 'sticky') {
             const foldSize = 10 * scale;
             doc.setFillColor(Math.max(0, bgCol[0] - 30), Math.max(0, bgCol[1] - 30), Math.max(0, bgCol[2] - 30));
             doc.triangle(bx + bw - foldSize, by, bx + bw, by, bx + bw, by + foldSize, 'F');
           }
-
-          const fontSize = Math.max(5, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
-          doc.setFontSize(fontSize);
+          const fSize = Math.max(5, Math.min(parseFontSize(b.fontSize, 10), 14) * scale);
+          doc.setFontSize(fSize);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(textCol[0], textCol[1], textCol[2]);
           const labelLines = doc.splitTextToSize(b.label, bw - 8);
-          const textStartY = by + bh / 2 - (labelLines.length - 1) * (fontSize * 0.6);
+          const textStartY = by + bh / 2 - (labelLines.length - 1) * (fSize * 0.6);
           for (let i = 0; i < Math.min(labelLines.length, 4); i++) {
-            doc.text(labelLines[i], cx, textStartY + i * (fontSize * 1.2), { align: 'center' });
+            doc.text(labelLines[i], cx, textStartY + i * (fSize * 1.2), { align: 'center' });
           }
         }
-
         doc.setLineDashPattern([], 0);
 
-        // Add clickable link to the exported file
-        const filePath = blockFilePaths.get(b.id);
-        if (filePath) {
-          const linkX = needsRotation ? cx - bw / 2 : bx;
-          const linkY = needsRotation ? cy - bh / 2 : by;
-          doc.link(linkX, linkY, bw, bh, { url: filePath });
-        }
+        // Record link rect for later (we'll add internal links after appending detail pages)
+        const linkX = needsRotation ? cx - bw / 2 : bx;
+        const linkY = needsRotation ? cy - bh / 2 : by;
+        blockLinks.push({ blockId: b.id, mapPage: currentMapPage, x: linkX, y: linkY, w: bw, h: bh });
       }
 
-      // ── Connections ──
+      // Connections
       const getEdgePointPdf = (fromPt: {x:number,y:number}, toPt: {x:number,y:number}, block: Block) => {
         const bcx = tx(block.x + block.width / 2);
         const bcy = ty(block.y + block.height / 2);
@@ -521,8 +474,6 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         const fromBlock = blockMap.get(conn.fromId);
         const toBlock = blockMap.get(conn.toId);
         if (!fromBlock || !toBlock) continue;
-
-        // Skip if both endpoints outside viewport
         const fCenterX = fromBlock.x + fromBlock.width / 2;
         const fCenterY = fromBlock.y + fromBlock.height / 2;
         const tCenterX = toBlock.x + toBlock.width / 2;
@@ -535,22 +486,18 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
 
         const fromCenter = { x: tx(fCenterX), y: ty(fCenterY) };
         const toCenter = { x: tx(tCenterX), y: ty(tCenterY) };
-
         const midX = (fromCenter.x + toCenter.x) / 2 + (conn.cpX || 0) * scale;
         const midY = (fromCenter.y + toCenter.y) / 2 + (conn.cpY || 0) * scale;
         const hasBend = conn.cpX !== undefined && conn.cpY !== undefined && (Math.abs(conn.cpX) > 2 || Math.abs(conn.cpY) > 2);
-
         const aimPoint = hasBend ? { x: midX, y: midY } : toCenter;
         const aimPointReverse = hasBend ? { x: midX, y: midY } : fromCenter;
         const from = getEdgePointPdf(fromCenter, aimPoint, fromBlock);
         const to = getEdgePointPdf(toCenter, aimPointReverse, toBlock);
-
         const connColor = parseColor(conn.color, [60, 60, 80]);
         doc.setDrawColor(connColor[0], connColor[1], connColor[2]);
         doc.setFillColor(connColor[0], connColor[1], connColor[2]);
         const connWidth = Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 0.5);
         doc.setLineWidth(connWidth);
-
         if (conn.arrowStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
         else if (conn.arrowStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
         else doc.setLineDashPattern([], 0);
@@ -588,14 +535,82 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
 
       doc.restoreGraphicsState(); // end clip
 
-      // Page label for multi-page
-      if (totalPages > 1) {
+      if (totalMapPages > 1) {
         doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(150, 150, 150);
-        doc.text(`Page ${tileY * tilesX + tileX + 1}/${totalPages} (${tileX + 1},${tileY + 1})`, margin, pageH - 10);
+        doc.text(`Page ${currentMapPage}/${totalMapPages} (${tileX + 1},${tileY + 1})`, margin, pageH - 10);
       }
     }
+  }
+
+  // ── Append block detail pages ──
+  // Each block gets its own page. Track page numbers.
+  let currentPage = totalMapPages;
+  for (const b of blocks) {
+    doc.addPage('a4', 'portrait');
+    currentPage++;
+    blockPageMap.set(b.id, currentPage);
+
+    const pW = doc.internal.pageSize.getWidth();
+    const m = 50;
+    const maxWidth = pW - m * 2;
+    let y = m;
+
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 30, 50);
+    const titleLines = doc.splitTextToSize(b.label, maxWidth);
+    doc.text(titleLines, m, y);
+    y += titleLines.length * 22 + 8;
+
+    doc.setDrawColor(110, 231, 183);
+    doc.setLineWidth(2);
+    doc.line(m, y, pW - m, y);
+    y += 16;
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(120, 120, 120);
+    const group = b.groupId ? groupMap.get(b.groupId) : undefined;
+    const meta = `Shape: ${b.shape || 'rectangle'}  |  Size: ${b.width}×${b.height}${group ? `  |  Group: ${group.label}` : ''}`;
+    doc.text(meta, m, y);
+    y += 14;
+
+    // "← Back to map" link text
+    doc.setFontSize(9);
+    doc.setTextColor(37, 99, 235);
+    doc.textWithLink('← Back to canvas map', m, y, { pageNumber: 1 });
+    y += 20;
+
+    const notes = b.markdown || b.comment || '';
+    if (notes) {
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(45, 55, 72);
+      doc.text('Notes', m, y);
+      y += 18;
+
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 41, 59);
+      const noteLines = doc.splitTextToSize(notes, maxWidth);
+      const pH = doc.internal.pageSize.getHeight();
+      for (const line of noteLines) {
+        if (y > pH - m) { doc.addPage(); currentPage++; y = m; }
+        doc.text(line, m, y);
+        y += 15;
+      }
+    }
+  }
+
+  // ── Add internal links on map pages ──
+  // Now we know which page each block detail is on.
+  for (const link of blockLinks) {
+    const targetPage = blockPageMap.get(link.blockId);
+    if (!targetPage) continue;
+    doc.setPage(link.mapPage);
+    doc.link(link.x, link.y, link.w, link.h, { pageNumber: targetPage });
   }
 
   return new Uint8Array(doc.output('arraybuffer'));
@@ -611,12 +626,9 @@ function drawBackground(
     } catch { /* fallback to white */ }
     return;
   }
-
-  // Fill background color
   if (bg === 'blueprint') {
-    doc.setFillColor(17, 42, 75); // dark blue
+    doc.setFillColor(17, 42, 75);
     doc.rect(x, y, w, h, 'F');
-    // Grid lines
     const step = 20 * scale;
     doc.setDrawColor(30, 70, 120);
     doc.setLineWidth(0.3);
@@ -646,7 +658,7 @@ function drawBackground(
   }
 }
 
-// ─── Block Document Generators ──────────────────────────────
+// ─── Block Document Generators (for ZIP files) ─────────────
 
 function generateBlockPdf(block: Block): Uint8Array {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
