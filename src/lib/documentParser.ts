@@ -237,6 +237,18 @@ export function splitBySelectedHeadings(
   return sections;
 }
 
+/**
+ * Split a paragraph into the first sentence (heading) and the remainder.
+ */
+function splitHeadingSentence(text: string): { heading: string; remainder: string } {
+  // Match first sentence ending with . ! or ? followed by space or end
+  const match = text.match(/^(.+?[.!?])(?:\s+(.+))?$/s);
+  if (match) {
+    return { heading: match[1].trim(), remainder: (match[2] || '').trim() };
+  }
+  return { heading: text.trim(), remainder: '' };
+}
+
 function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
