@@ -442,22 +442,53 @@ function HtmlEditor({ url, htmlContent, onClose }: { url: string; htmlContent: s
     setShowDownloadMenu(false);
   }, [getEditedHtml, promptFileName]);
 
-  const downloadAsPdf = useCallback(async () => {
+  const downloadAsPdf = useCallback(() => {
     const editedHtml = getEditedHtml();
     if (!editedHtml) return;
-    const fileName = promptFileName('pdf');
-    if (!fileName) return;
 
-    try {
-      const bytes = await renderHtmlToPdfBytes(editedHtml, fileName);
-      downloadBytesAsFile(bytes, fileName, 'application/pdf');
-      toast.success('Downloaded as PDF');
-    } catch (err) {
-      console.error('PDF export error:', err);
-      toast.error('PDF export failed');
-    }
+    // Use browser's native print-to-PDF for perfect quality
+    const printIframe = document.createElement('iframe');
+    printIframe.style.position = 'fixed';
+    printIframe.style.top = '0';
+    printIframe.style.left = '0';
+    printIframe.style.width = '100%';
+    printIframe.style.height = '100%';
+    printIframe.style.opacity = '0';
+    printIframe.style.pointerEvents = 'none';
+    printIframe.style.zIndex = '-1';
+
+    const printHtml = editedHtml.replace(
+      '</head>',
+      `<style>
+        @media print {
+          @page { margin: 0.6in; }
+          html, body { background: #fff !important; color: #000 !important; }
+          body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
+          img { max-width: 100% !important; height: auto !important; break-inside: avoid; }
+          table, figure, pre, blockquote { break-inside: avoid; }
+          .math-expression, [class*="ML__"] { font-family: 'Cambria Math', Cambria, serif !important; }
+        }
+      </style></head>`
+    );
+
+    printIframe.srcdoc = printHtml;
+    document.body.appendChild(printIframe);
+
+    printIframe.onload = () => {
+      setTimeout(() => {
+        try {
+          printIframe.contentWindow?.print();
+        } catch (err) {
+          console.error('Print failed:', err);
+          toast.error('PDF print failed');
+        }
+        setTimeout(() => document.body.removeChild(printIframe), 1000);
+      }, 500);
+    };
+
+    toast.success('Print dialog opened — choose "Save as PDF"');
     setShowDownloadMenu(false);
-  }, [getEditedHtml, promptFileName]);
+  }, [getEditedHtml]);
 
   return (
     <div className="fixed inset-0 z-[100] bg-black/80 flex flex-col">
