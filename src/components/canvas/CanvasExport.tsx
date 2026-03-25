@@ -988,7 +988,7 @@ async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uin
     const docBody = iframe.contentDocument?.body;
     if (!docBody) throw new Error('Export view failed to load');
 
-    const pdfBlob = await html2pdf()
+    const pdfBlob = await (html2pdf() as any)
       .set({
         margin: [0.5, 0.5, 0.5, 0.5],
         filename: fileName,
