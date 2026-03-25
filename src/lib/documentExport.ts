@@ -141,8 +141,21 @@ function replaceMathMarkup(doc: Document): void {
 
 function ensureExportStyles(doc: Document, mode: ExportMode): void {
   doc.querySelectorAll('script, noscript').forEach((node) => node.remove());
-  doc.querySelectorAll('link[rel="preload"], link[rel="modulepreload"], link[href*="mathlive-static.css"]').forEach((node) => node.remove());
+  doc.querySelectorAll('link[rel="preload"], link[rel="modulepreload"]').forEach((node) => node.remove());
   doc.getElementById('__viewer-theme')?.remove();
+
+  if (mode === 'word') {
+    // Word can't use mathlive CSS — remove it (math already converted to Unicode)
+    doc.querySelectorAll('link[href*="mathlive"]').forEach((node) => node.remove());
+  } else {
+    // PDF: ensure mathlive-static.css IS present for proper rendering
+    if (!doc.querySelector('link[href*="mathlive"]')) {
+      const link = doc.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+      doc.head.appendChild(link);
+    }
+  }
 
   if (!doc.querySelector('meta[charset]')) {
     const meta = doc.createElement('meta');
