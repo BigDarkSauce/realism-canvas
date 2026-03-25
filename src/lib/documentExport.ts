@@ -292,11 +292,27 @@ async function withOffscreenDocument<T>(html: string, run: (doc: Document) => Pr
     }
 
     await waitForImages(doc);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    // Wait for external stylesheets (mathlive CSS) to load
+    await waitForStylesheets(doc);
+    await new Promise((resolve) => setTimeout(resolve, 300));
     return run(doc);
   } finally {
     document.body.removeChild(iframe);
   }
+}
+
+async function waitForStylesheets(doc: Document): Promise<void> {
+  const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+  await Promise.all(links.map((link) => {
+    if (link.sheet) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = () => { resolve(); };
+      link.addEventListener('load', done, { once: true });
+      link.addEventListener('error', done, { once: true });
+      // Timeout after 3s
+      setTimeout(done, 3000);
+    });
+  }));
 }
 
 export async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
