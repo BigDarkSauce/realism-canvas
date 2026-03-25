@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import type jsPDF from 'jspdf';
 
 type ExportMode = 'pdf' | 'word';
 
