@@ -324,15 +324,16 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
 
     const pdfBlob = await (html2pdf() as any)
       .set({
-        margin: [0.4, 0.4, 0.4, 0.4],
+        margin: [0.5, 0.5, 0.5, 0.5],
         filename: fileName,
-        image: { type: 'jpeg', quality: 0.95 },
+        image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
-          scale: 2,
+          scale: 3,
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
-          windowWidth: 900,
+          windowWidth: 794,
+          letterRendering: true,
         },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
