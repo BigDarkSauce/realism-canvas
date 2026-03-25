@@ -863,6 +863,9 @@ function createViewerEquivalentHtml(block: Block, source: BlockSourceFile | null
   const themeStyle = doc.getElementById('__viewer-theme');
   themeStyle?.remove();
 
+  // Remove scripts/preloads that interfere with rendering
+  doc.querySelectorAll('script, noscript, link[rel="preload"], link[rel="modulepreload"]').forEach(n => n.remove());
+
   if (!doc.querySelector('link[href*="mathlive-static.css"]')) {
     const link = doc.createElement('link');
     link.rel = 'stylesheet';
@@ -870,16 +873,67 @@ function createViewerEquivalentHtml(block: Block, source: BlockSourceFile | null
     doc.head.appendChild(link);
   }
 
-  if (!doc.querySelector('style[data-export-base="true"]')) {
-    const style = doc.createElement('style');
-    style.setAttribute('data-export-base', 'true');
-    style.textContent = `
-      html, body { background: #ffffff !important; color: #000000 !important; }
-      img { max-width: 100%; height: auto; }
-      .math-expression, .math-unicode, .math-template { font-family: 'Cambria Math', 'Cambria', serif; }
-    `;
-    doc.head.appendChild(style);
-  }
+  // Apply the same print-quality styles used by the native print-to-PDF in FileViewer
+  const existingExportStyle = doc.querySelector('style[data-export-base="true"]');
+  if (existingExportStyle) existingExportStyle.remove();
+
+  const style = doc.createElement('style');
+  style.setAttribute('data-export-base', 'true');
+  style.textContent = `
+    html, body {
+      background: #ffffff !important;
+      color: #000000 !important;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: Calibri, Arial, sans-serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      padding: 0.4in;
+      overflow-wrap: anywhere;
+      word-break: normal;
+    }
+    * { box-sizing: border-box; color: #000000 !important; }
+    a { color: #1a0dab !important; }
+    body > *:first-child { margin-top: 0 !important; }
+    img, svg, canvas {
+      display: block;
+      max-width: 100% !important;
+      height: auto !important;
+      margin: 0.75em 0;
+      object-fit: contain;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    table, figure, pre, blockquote, ul, ol {
+      max-width: 100% !important;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    table {
+      width: 100% !important;
+      border-collapse: collapse;
+    }
+    td, th { vertical-align: top; }
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    p, li, h1, h2, h3, h4, h5, h6 {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .math-expression, .math-unicode, .math-template, .math-symbol,
+    [class*="ML__"] {
+      font-family: 'Cambria Math', Cambria, serif !important;
+    }
+    .math-export, [data-export-math="true"] {
+      font-family: 'Cambria Math', Cambria, serif !important;
+      white-space: pre-wrap;
+    }
+  `;
+  doc.head.appendChild(style);
 
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 }
