@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import EditorToolbar from './EditorToolbar';
 import { ThemeToggle } from '@/components/ThemeSelector';
-import { downloadBytesAsFile, renderHtmlToDocxBytes, renderHtmlToPdfBytes } from '@/lib/documentExport';
+import { downloadBytesAsFile, renderHtmlToDocxBytes } from '@/lib/documentExport';
 
 export type FileViewerMode = 'view' | 'edit';
 
