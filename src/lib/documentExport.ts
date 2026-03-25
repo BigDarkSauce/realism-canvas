@@ -346,8 +346,8 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
 
 export async function renderHtmlToDocxBytes(html: string): Promise<Uint8Array> {
   const preparedHtml = prepareHtmlForDocumentExport(html, 'word');
-  const htmlToDocxModule = await import('@turbodocx/html-to-docx');
-  const htmlToDocx = htmlToDocxModule.default;
+  const htmlToDocxModule = await import('@turbodocx/html-to-docx') as any;
+  const htmlToDocx = htmlToDocxModule.default || htmlToDocxModule;
   const output = await htmlToDocx(preparedHtml, null, {
     table: { row: { cantSplit: true } },
   });
