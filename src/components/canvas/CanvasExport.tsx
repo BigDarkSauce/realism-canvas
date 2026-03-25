@@ -956,7 +956,33 @@ async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uin
     await new Promise<void>((resolve) => {
       iframe.onload = () => resolve();
     });
-    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    // Wait for stylesheets (mathlive CSS) and images
+    const doc = iframe.contentDocument;
+    if (doc) {
+      const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+      await Promise.all(links.map(link => {
+        if (link.sheet) return Promise.resolve();
+        return new Promise<void>(resolve => {
+          link.addEventListener('load', () => resolve(), { once: true });
+          link.addEventListener('error', () => resolve(), { once: true });
+          setTimeout(resolve, 3000);
+        });
+      }));
+      const images = Array.from(doc.images);
+      await Promise.all(images.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise<void>(resolve => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        });
+      }));
+      if (doc.fonts) {
+        try { await doc.fonts.ready; } catch {}
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
 
     const html2pdf = (await import('html2pdf.js')).default;
     const docBody = iframe.contentDocument?.body;
@@ -964,11 +990,19 @@ async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uin
 
     const pdfBlob = await html2pdf()
       .set({
-        margin: 0.5,
+        margin: [0.5, 0.5, 0.5, 0.5],
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false },
+        html2canvas: {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: 794,
+          letterRendering: true,
+        },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       })
       .from(docBody)
       .outputPdf('blob');
