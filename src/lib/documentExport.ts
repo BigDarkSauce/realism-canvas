@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+// PDF export uses html2pdf.js (dynamically imported), Word uses @turbodocx/html-to-docx
 
 type ExportMode = 'pdf' | 'word';
 
@@ -141,8 +141,21 @@ function replaceMathMarkup(doc: Document): void {
 
 function ensureExportStyles(doc: Document, mode: ExportMode): void {
   doc.querySelectorAll('script, noscript').forEach((node) => node.remove());
-  doc.querySelectorAll('link[rel="preload"], link[rel="modulepreload"], link[href*="mathlive-static.css"]').forEach((node) => node.remove());
+  doc.querySelectorAll('link[rel="preload"], link[rel="modulepreload"]').forEach((node) => node.remove());
   doc.getElementById('__viewer-theme')?.remove();
+
+  if (mode === 'word') {
+    // Word can't use mathlive CSS — remove it (math already converted to Unicode)
+    doc.querySelectorAll('link[href*="mathlive"]').forEach((node) => node.remove());
+  } else {
+    // PDF: ensure mathlive-static.css IS present for proper rendering
+    if (!doc.querySelector('link[href*="mathlive"]')) {
+      const link = doc.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/mathlive/mathlive-static.css';
+      doc.head.appendChild(link);
+    }
+  }
 
   if (!doc.querySelector('meta[charset]')) {
     const meta = doc.createElement('meta');
@@ -217,7 +230,13 @@ function prepareHtmlForDocumentExport(html: string, mode: ExportMode): string {
     : `<!DOCTYPE html><html><head></head><body>${html}</body></html>`;
 
   const doc = parser.parseFromString(documentHtml, 'text/html');
-  replaceMathMarkup(doc);
+
+  if (mode === 'word') {
+    // For Word: convert math to Unicode text (Word can't render MathLive HTML)
+    replaceMathMarkup(doc);
+  }
+  // For PDF: keep math HTML intact so html2canvas renders it visually
+
   ensureExportStyles(doc, mode);
 
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
@@ -273,11 +292,27 @@ async function withOffscreenDocument<T>(html: string, run: (doc: Document) => Pr
     }
 
     await waitForImages(doc);
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    // Wait for external stylesheets (mathlive CSS) to load
+    await waitForStylesheets(doc);
+    await new Promise((resolve) => setTimeout(resolve, 300));
     return run(doc);
   } finally {
     document.body.removeChild(iframe);
   }
+}
+
+async function waitForStylesheets(doc: Document): Promise<void> {
+  const links = Array.from(doc.querySelectorAll('link[rel="stylesheet"]')) as HTMLLinkElement[];
+  await Promise.all(links.map((link) => {
+    if (link.sheet) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      const done = () => { resolve(); };
+      link.addEventListener('load', done, { once: true });
+      link.addEventListener('error', done, { once: true });
+      // Timeout after 3s
+      setTimeout(done, 3000);
+    });
+  }));
 }
 
 export async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
@@ -285,38 +320,34 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
 
   return withOffscreenDocument(preparedHtml, async (doc) => {
     const element = doc.body;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-    const margin = 36;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const contentWidth = pageWidth - margin * 2;
-    const windowWidth = Math.max(doc.documentElement.scrollWidth, element.scrollWidth, 900);
+    const html2pdf = (await import('html2pdf.js')).default;
 
-    await new Promise<void>((resolve) => {
-      pdf.html(element, {
-        callback: () => resolve(),
-        x: margin,
-        y: margin,
-        width: contentWidth,
-        windowWidth,
-        margin: [margin, margin, margin, margin],
-        autoPaging: 'text',
+    const pdfBlob = await (html2pdf() as any)
+      .set({
+        margin: [0.4, 0.4, 0.4, 0.4],
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
-          scale: 1,
+          scale: 2,
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          windowWidth: 900,
         },
-      });
-    });
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      })
+      .from(element)
+      .outputPdf('blob');
 
-    return new Uint8Array(pdf.output('arraybuffer'));
+    return new Uint8Array(await pdfBlob.arrayBuffer());
   });
 }
 
 export async function renderHtmlToDocxBytes(html: string): Promise<Uint8Array> {
   const preparedHtml = prepareHtmlForDocumentExport(html, 'word');
-  const htmlToDocxModule = await import('@turbodocx/html-to-docx');
-  const htmlToDocx = htmlToDocxModule.default;
+  const htmlToDocxModule = await import('@turbodocx/html-to-docx') as any;
+  const htmlToDocx = htmlToDocxModule.default || htmlToDocxModule;
   const output = await htmlToDocx(preparedHtml, null, {
     table: { row: { cantSplit: true } },
   });
