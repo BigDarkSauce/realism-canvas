@@ -322,7 +322,7 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
     const element = doc.body;
     const html2pdf = (await import('html2pdf.js')).default;
 
-    const pdfBlob = await html2pdf()
+    const pdfBlob = await (html2pdf() as any)
       .set({
         margin: [0.4, 0.4, 0.4, 0.4],
         filename: fileName,
