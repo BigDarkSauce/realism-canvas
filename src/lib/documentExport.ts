@@ -320,31 +320,27 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
 
   return withOffscreenDocument(preparedHtml, async (doc) => {
     const element = doc.body;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-    const margin = 36;
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    const contentWidth = pageWidth - margin * 2;
-    const windowWidth = Math.max(doc.documentElement.scrollWidth, element.scrollWidth, 900);
+    const html2pdf = (await import('html2pdf.js')).default;
 
-    await new Promise<void>((resolve) => {
-      pdf.html(element, {
-        callback: () => resolve(),
-        x: margin,
-        y: margin,
-        width: contentWidth,
-        windowWidth,
-        margin: [margin, margin, margin, margin],
-        autoPaging: 'text',
+    const pdfBlob = await html2pdf()
+      .set({
+        margin: [0.4, 0.4, 0.4, 0.4],
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
-          scale: 1,
+          scale: 2,
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          windowWidth: 900,
         },
-      });
-    });
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      })
+      .from(element)
+      .outputPdf('blob');
 
-    return new Uint8Array(pdf.output('arraybuffer'));
+    return new Uint8Array(await pdfBlob.arrayBuffer());
   });
 }
 
