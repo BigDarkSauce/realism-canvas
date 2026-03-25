@@ -1,4 +1,4 @@
-import type jsPDF from 'jspdf';
+// PDF export uses html2pdf.js (dynamically imported), Word uses @turbodocx/html-to-docx
 
 type ExportMode = 'pdf' | 'word';
 
