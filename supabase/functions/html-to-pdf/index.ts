@@ -26,7 +26,7 @@ serve(async (req) => {
     }
 
     // Call Browserless Chrome /pdf endpoint — renders HTML with Chrome's print engine
-    const browserlessUrl = `https://chrome.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+    const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
 
     const response = await fetch(browserlessUrl, {
       method: "POST",
