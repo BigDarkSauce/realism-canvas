@@ -12,11 +12,12 @@ serve(async (req) => {
   }
 
   try {
-    const BROWSERLESS_API_KEY = Deno.env.get("BROWSERLESS_API_KEY");
-    if (!BROWSERLESS_API_KEY) {
-      // No API key configured — signal client to use fallback
+    const WEASYPRINT_URL = Deno.env.get("WEASYPRINT_URL");
+    const WEASYPRINT_SECRET = Deno.env.get("WEASYPRINT_SECRET");
+
+    if (!WEASYPRINT_URL) {
       return new Response(
-        JSON.stringify({ error: "BROWSERLESS_API_KEY is not configured", fallback: true }),
+        JSON.stringify({ error: "WEASYPRINT_URL is not configured", fallback: true }),
         { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -29,38 +30,23 @@ serve(async (req) => {
       );
     }
 
-    // Call Browserless Chrome /pdf endpoint
-    const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (WEASYPRINT_SECRET) {
+      headers["Authorization"] = `Bearer ${WEASYPRINT_SECRET}`;
+    }
 
-    const response = await fetch(browserlessUrl, {
+    const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
+    const response = await fetch(pdfUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html,
-        options: {
-          format: "A4",
-          printBackground: true,
-          margin: {
-            top: "0.5in",
-            right: "0.5in",
-            bottom: "0.5in",
-            left: "0.5in",
-          },
-          displayHeaderFooter: false,
-          preferCSSPageSize: false,
-        },
-        gotoOptions: {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        },
-      }),
+      headers,
+      body: JSON.stringify({ html }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`Browserless API error [${response.status}]:`, errorText);
+      console.error(`WeasyPrint API error [${response.status}]:`, errorText);
       return new Response(
-        JSON.stringify({ error: `Browserless API failed: ${errorText}`, fallback: true }),
+        JSON.stringify({ error: `WeasyPrint API failed: ${errorText}`, fallback: true }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

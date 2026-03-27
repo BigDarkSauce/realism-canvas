@@ -303,10 +303,42 @@ async function waitForStylesheets(doc: Document): Promise<void> {
   }));
 }
 
-// Server-side PDF generation is disabled (no valid API key configured).
-// Uses optimized client-side html2pdf.js rendering instead.
-async function tryServerPdf(_preparedHtml: string, _fileName: string): Promise<Uint8Array | null> {
-  return null;
+async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uint8Array | null> {
+  try {
+    const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
+    if (!projectId) return null;
+
+    const url = `https://${projectId}.supabase.co/functions/v1/html-to-pdf`;
+    const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${anonKey}`,
+        'apikey': anonKey,
+      },
+      body: JSON.stringify({ html: preparedHtml, filename: fileName }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      if (body.fallback) return null;
+      console.warn('Server PDF failed:', res.status);
+      return null;
+    }
+
+    const { pdf } = await res.json();
+    if (!pdf) return null;
+
+    const binary = atob(pdf);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  } catch (err) {
+    console.warn('Server PDF error, using client fallback:', err);
+    return null;
+  }
 }
 
 export async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
