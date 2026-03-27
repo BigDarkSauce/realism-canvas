@@ -1,9 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { parseHTML } from "npm:linkedom@0.16.11";
+import htmlToPdfmake from "npm:html-to-pdfmake@2.5.15";
+import PdfPrinter from "npm:pdfmake@0.2.15/src/printer.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+
+// Standard built-in fonts from pdfmake
+const fonts = {
+  Roboto: {
+    normal: "node_modules/pdfmake/build/vfs_fonts.js",
+    bold: "node_modules/pdfmake/build/vfs_fonts.js",
+    italics: "node_modules/pdfmake/build/vfs_fonts.js",
+    bolditalics: "node_modules/pdfmake/build/vfs_fonts.js",
+  },
 };
 
 serve(async (req) => {
@@ -12,11 +25,6 @@ serve(async (req) => {
   }
 
   try {
-    const BROWSERLESS_API_KEY = Deno.env.get("BROWSERLESS_API_KEY");
-    if (!BROWSERLESS_API_KEY) {
-      throw new Error("BROWSERLESS_API_KEY is not configured");
-    }
-
     const { html, filename } = await req.json();
     if (!html || typeof html !== "string") {
       return new Response(
@@ -25,42 +33,58 @@ serve(async (req) => {
       );
     }
 
-    // Call Browserless Chrome /pdf endpoint — renders HTML with Chrome's print engine
-    const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+    // Parse HTML using linkedom (lightweight DOM for server)
+    const { document } = parseHTML(html);
 
-    const response = await fetch(browserlessUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html,
-        options: {
-          format: "A4",
-          printBackground: true,
-          margin: {
-            top: "0.5in",
-            right: "0.5in",
-            bottom: "0.5in",
-            left: "0.5in",
-          },
-          displayHeaderFooter: false,
-          preferCSSPageSize: false,
-        },
-        gotoOptions: {
-          waitUntil: "networkidle2",
-          timeout: 30000,
-        },
-      }),
+    // Convert HTML DOM to pdfmake content definition
+    const pdfContent = htmlToPdfmake(document.body.innerHTML, {
+      window: { document },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Browserless API error [${response.status}]:`, errorText);
-      throw new Error(`Browserless API failed [${response.status}]: ${errorText}`);
+    const docDefinition = {
+      content: pdfContent,
+      pageSize: "A4" as const,
+      pageMargins: [36, 36, 36, 36] as [number, number, number, number], // 0.5 inch margins
+      defaultStyle: {
+        font: "Roboto",
+        fontSize: 11,
+        lineHeight: 1.4,
+      },
+      styles: {
+        "html-h1": { fontSize: 22, bold: true, marginBottom: 8 },
+        "html-h2": { fontSize: 18, bold: true, marginBottom: 6 },
+        "html-h3": { fontSize: 15, bold: true, marginBottom: 4 },
+        "html-h4": { fontSize: 13, bold: true, marginBottom: 4 },
+        "html-p": { marginBottom: 6 },
+        "html-strong": { bold: true },
+        "html-em": { italics: true },
+        "html-a": { color: "#1a73e8", decoration: "underline" as const },
+      },
+    };
+
+    // Generate PDF using pdfmake
+    const printer = new PdfPrinter(fonts);
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+    // Collect PDF bytes
+    const chunks: Uint8Array[] = [];
+    await new Promise<void>((resolve, reject) => {
+      pdfDoc.on("data", (chunk: Uint8Array) => chunks.push(chunk));
+      pdfDoc.on("end", () => resolve());
+      pdfDoc.on("error", (err: Error) => reject(err));
+      pdfDoc.end();
+    });
+
+    // Concatenate chunks
+    const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+    const pdfBytes = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of chunks) {
+      pdfBytes.set(chunk, offset);
+      offset += chunk.length;
     }
 
-    const pdfBytes = new Uint8Array(await response.arrayBuffer());
-
-    // Return PDF bytes as base64 to avoid binary transport issues
+    // Return PDF bytes as base64
     const base64 = btoa(String.fromCharCode(...pdfBytes));
 
     return new Response(
