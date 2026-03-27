@@ -231,11 +231,9 @@ function prepareHtmlForDocumentExport(html: string, mode: ExportMode): string {
 
   const doc = parser.parseFromString(documentHtml, 'text/html');
 
-  if (mode === 'word') {
-    // For Word: convert math to Unicode text (Word can't render MathLive HTML)
-    replaceMathMarkup(doc);
-  }
-  // For PDF: keep math HTML intact so html2canvas renders it visually
+  // For both PDF and Word: convert math to Unicode text
+  // html2canvas can't render MathLive elements properly, so we convert to Unicode
+  replaceMathMarkup(doc);
 
   ensureExportStyles(doc, mode);
 
