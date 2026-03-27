@@ -303,22 +303,10 @@ async function waitForStylesheets(doc: Document): Promise<void> {
   }));
 }
 
-async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uint8Array | null> {
-  try {
-    const { supabase } = await import('@/integrations/supabase/client');
-    const { data, error } = await supabase.functions.invoke('html-to-pdf', {
-      body: { html: preparedHtml, filename: fileName },
-    });
-    if (error || !data?.pdf) return null;
-    const binaryString = atob(data.pdf);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes;
-  } catch {
-    return null;
-  }
+// Server-side PDF generation is disabled (no valid API key configured).
+// Uses optimized client-side html2pdf.js rendering instead.
+async function tryServerPdf(_preparedHtml: string, _fileName: string): Promise<Uint8Array | null> {
+  return null;
 }
 
 export async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
