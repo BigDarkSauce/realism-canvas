@@ -313,31 +313,61 @@ async function waitForStylesheets(doc: Document): Promise<void> {
   }));
 }
 
+async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uint8Array | null> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data, error } = await supabase.functions.invoke('html-to-pdf', {
+      body: { html: preparedHtml, filename: fileName },
+    });
+    if (error || !data?.pdf) return null;
+    const binaryString = atob(data.pdf);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
 export async function renderHtmlToPdfBytes(html: string, fileName: string): Promise<Uint8Array> {
   const preparedHtml = prepareHtmlForDocumentExport(html, 'pdf');
 
-  // Use server-side headless Chrome for print-quality PDF rendering
-  const { supabase } = await import('@/integrations/supabase/client');
+  // Try server-side headless Chrome first (if BROWSERLESS_API_KEY is configured)
+  const serverResult = await tryServerPdf(preparedHtml, fileName);
+  if (serverResult && serverResult.length > 500) {
+    return serverResult;
+  }
 
-  const { data, error } = await supabase.functions.invoke('html-to-pdf', {
-    body: { html: preparedHtml, filename: fileName },
+  // Fallback: high-quality client-side rendering
+  return withOffscreenDocument(preparedHtml, async (doc) => {
+    const element = doc.body;
+    const html2pdf = (await import('html2pdf.js')).default;
+
+    const pdfBlob = await (html2pdf() as any)
+      .set({
+        margin: [0.5, 0.5, 0.5, 0.5],
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+          scale: 3,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          windowWidth: 794,
+          letterRendering: true,
+          scrollX: 0,
+          scrollY: 0,
+        },
+        jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+      })
+      .from(element)
+      .outputPdf('blob');
+
+    return new Uint8Array(await pdfBlob.arrayBuffer());
   });
-
-  if (error) {
-    throw new Error(`Server PDF generation failed: ${error.message}`);
-  }
-
-  if (!data?.pdf) {
-    throw new Error('Server returned empty PDF');
-  }
-
-  // Decode base64 PDF bytes
-  const binaryString = atob(data.pdf);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
 }
 
 export async function renderHtmlToDocxBytes(html: string): Promise<Uint8Array> {
