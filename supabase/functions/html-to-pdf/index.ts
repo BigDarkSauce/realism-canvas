@@ -14,7 +14,11 @@ serve(async (req) => {
   try {
     const BROWSERLESS_API_KEY = Deno.env.get("BROWSERLESS_API_KEY");
     if (!BROWSERLESS_API_KEY) {
-      throw new Error("BROWSERLESS_API_KEY is not configured");
+      // No API key configured — signal client to use fallback
+      return new Response(
+        JSON.stringify({ error: "BROWSERLESS_API_KEY is not configured", fallback: true }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { html, filename } = await req.json();
@@ -25,7 +29,7 @@ serve(async (req) => {
       );
     }
 
-    // Call Browserless Chrome /pdf endpoint — renders HTML with Chrome's print engine
+    // Call Browserless Chrome /pdf endpoint
     const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
 
     const response = await fetch(browserlessUrl, {
@@ -55,13 +59,21 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Browserless API error [${response.status}]:`, errorText);
-      throw new Error(`Browserless API failed [${response.status}]: ${errorText}`);
+      return new Response(
+        JSON.stringify({ error: `Browserless API failed: ${errorText}`, fallback: true }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const pdfBytes = new Uint8Array(await response.arrayBuffer());
 
-    // Return PDF bytes as base64 to avoid binary transport issues
-    const base64 = btoa(String.fromCharCode(...pdfBytes));
+    // Return PDF bytes as base64
+    const CHUNK = 8192;
+    let binary = "";
+    for (let i = 0; i < pdfBytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...pdfBytes.subarray(i, i + CHUNK));
+    }
+    const base64 = btoa(binary);
 
     return new Response(
       JSON.stringify({ pdf: base64, filename: filename || "export.pdf" }),
@@ -74,7 +86,7 @@ serve(async (req) => {
     console.error("html-to-pdf error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: message, fallback: true }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
