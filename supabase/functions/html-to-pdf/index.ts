@@ -9,7 +9,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Standard built-in fonts from pdfmake
 const fonts = {
   Roboto: {
     normal: "node_modules/pdfmake/build/vfs_fonts.js",
@@ -33,18 +32,18 @@ serve(async (req) => {
       );
     }
 
-    // Parse HTML using linkedom (lightweight DOM for server)
-    const { document } = parseHTML(html);
+    // Parse HTML using linkedom — provides window, document, DOMParser
+    const { window, document } = parseHTML(html);
 
-    // Convert HTML DOM to pdfmake content definition
+    // html-to-pdfmake needs window with DOMParser
     const pdfContent = htmlToPdfmake(document.body.innerHTML, {
-      window: { document },
+      window: window,
     });
 
     const docDefinition = {
       content: pdfContent,
       pageSize: "A4" as const,
-      pageMargins: [36, 36, 36, 36] as [number, number, number, number], // 0.5 inch margins
+      pageMargins: [36, 36, 36, 36] as [number, number, number, number],
       defaultStyle: {
         font: "Roboto",
         fontSize: 11,
@@ -62,11 +61,9 @@ serve(async (req) => {
       },
     };
 
-    // Generate PDF using pdfmake
     const printer = new PdfPrinter(fonts);
     const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
-    // Collect PDF bytes
     const chunks: Uint8Array[] = [];
     await new Promise<void>((resolve, reject) => {
       pdfDoc.on("data", (chunk: Uint8Array) => chunks.push(chunk));
@@ -75,7 +72,6 @@ serve(async (req) => {
       pdfDoc.end();
     });
 
-    // Concatenate chunks
     const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
     const pdfBytes = new Uint8Array(totalLength);
     let offset = 0;
@@ -84,8 +80,13 @@ serve(async (req) => {
       offset += chunk.length;
     }
 
-    // Return PDF bytes as base64
-    const base64 = btoa(String.fromCharCode(...pdfBytes));
+    // Return as base64
+    let base64 = "";
+    const CHUNK_SIZE = 8192;
+    for (let i = 0; i < pdfBytes.length; i += CHUNK_SIZE) {
+      base64 += String.fromCharCode(...pdfBytes.subarray(i, i + CHUNK_SIZE));
+    }
+    base64 = btoa(base64);
 
     return new Response(
       JSON.stringify({ pdf: base64, filename: filename || "export.pdf" }),
