@@ -1,21 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { parseHTML } from "npm:linkedom@0.16.11";
 import htmlToPdfmake from "npm:html-to-pdfmake@2.5.15";
-import PdfPrinter from "npm:pdfmake@0.2.15/src/printer.js";
+import pdfMake from "npm:pdfmake@0.2.15/build/pdfmake.js";
+import pdfFonts from "npm:pdfmake@0.2.15/build/vfs_fonts.js";
+
+// Register fonts
+(pdfMake as any).vfs = (pdfFonts as any).vfs || (pdfFonts as any).pdfMake?.vfs;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
-
-const fonts = {
-  Roboto: {
-    normal: "node_modules/pdfmake/build/vfs_fonts.js",
-    bold: "node_modules/pdfmake/build/vfs_fonts.js",
-    italics: "node_modules/pdfmake/build/vfs_fonts.js",
-    bolditalics: "node_modules/pdfmake/build/vfs_fonts.js",
-  },
 };
 
 serve(async (req) => {
@@ -32,20 +27,17 @@ serve(async (req) => {
       );
     }
 
-    // Parse HTML using linkedom — provides window, document, DOMParser
-    const { window, document } = parseHTML(html);
+    const { window } = parseHTML(html);
 
-    // html-to-pdfmake needs window with DOMParser
-    const pdfContent = htmlToPdfmake(document.body.innerHTML, {
+    const pdfContent = htmlToPdfmake(window.document.body.innerHTML, {
       window: window,
     });
 
     const docDefinition = {
       content: pdfContent,
-      pageSize: "A4" as const,
-      pageMargins: [36, 36, 36, 36] as [number, number, number, number],
+      pageSize: "A4",
+      pageMargins: [36, 36, 36, 36],
       defaultStyle: {
-        font: "Roboto",
         fontSize: 11,
         lineHeight: 1.4,
       },
@@ -57,30 +49,23 @@ serve(async (req) => {
         "html-p": { marginBottom: 6 },
         "html-strong": { bold: true },
         "html-em": { italics: true },
-        "html-a": { color: "#1a73e8", decoration: "underline" as const },
+        "html-a": { color: "#1a73e8", decoration: "underline" },
       },
     };
 
-    const printer = new PdfPrinter(fonts);
-    const pdfDoc = printer.createPdfKitDocument(docDefinition);
-
-    const chunks: Uint8Array[] = [];
-    await new Promise<void>((resolve, reject) => {
-      pdfDoc.on("data", (chunk: Uint8Array) => chunks.push(chunk));
-      pdfDoc.on("end", () => resolve());
-      pdfDoc.on("error", (err: Error) => reject(err));
-      pdfDoc.end();
+    // Generate PDF bytes using pdfmake's getBuffer
+    const pdfBytes = await new Promise<Uint8Array>((resolve, reject) => {
+      try {
+        const pdfDocGenerator = (pdfMake as any).createPdf(docDefinition);
+        pdfDocGenerator.getBuffer((buffer: ArrayBuffer) => {
+          resolve(new Uint8Array(buffer));
+        });
+      } catch (err) {
+        reject(err);
+      }
     });
 
-    const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
-    const pdfBytes = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      pdfBytes.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    // Return as base64
+    // Convert to base64 in chunks to avoid stack overflow
     let base64 = "";
     const CHUNK_SIZE = 8192;
     for (let i = 0; i < pdfBytes.length; i += CHUNK_SIZE) {
