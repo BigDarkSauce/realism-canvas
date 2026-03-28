@@ -227,11 +227,24 @@ export function splitBySelectedHeadings(
   }
 
   if (currentHeading || currentContent.length > 0) {
-    sections.push({
-      heading: currentHeading || 'Introduction',
-      content: currentContent.join('\n').trim(),
-      htmlParagraphs: currentHtml,
-    });
+    // If the last section has a heading but no content, include the full heading paragraph text
+    const finalContent = currentContent.join('\n').trim();
+    const headingIdx = [...headingIndices].pop();
+    if (!finalContent && currentHeading && headingIdx !== undefined) {
+      const fullText = paragraphs[headingIdx].text;
+      const fullHtml = paragraphs[headingIdx].html || `<p>${escapeHtml(fullText)}</p>`;
+      sections.push({
+        heading: currentHeading,
+        content: fullText,
+        htmlParagraphs: [fullHtml],
+      });
+    } else {
+      sections.push({
+        heading: currentHeading || 'Introduction',
+        content: finalContent,
+        htmlParagraphs: currentHtml,
+      });
+    }
   }
 
   return sections;

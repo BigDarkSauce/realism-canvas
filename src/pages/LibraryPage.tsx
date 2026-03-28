@@ -9,7 +9,6 @@ import { ThemeToggle } from '@/components/ThemeSelector';
 import {
   ArrowLeft,
   FolderPlus,
-  Plus,
   Trash2,
   ChevronDown,
   ChevronRight,
@@ -181,18 +180,14 @@ export default function LibraryPage() {
   const [unlocked, setUnlocked] = useState(isLibraryUnlocked);
   const [library, setLibrary] = useState<LibraryData>(loadLibrary);
 
-  // Add document form
-  const [addName, setAddName] = useState('');
-  const [addKey, setAddKey] = useState('');
-  const [addLoading, setAddLoading] = useState(false);
-  const [targetFolder, setTargetFolder] = useState<string | null>(null);
+  // Create document form
 
   // Create document form
   const [createName, setCreateName] = useState('');
   const [createKey, setCreateKey] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   const [createTargetFolder, setCreateTargetFolder] = useState<string | null>(null);
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  
 
   // New folder
   const [newFolderName, setNewFolderName] = useState('');
@@ -254,59 +249,10 @@ export default function LibraryPage() {
     setCreateName('');
     setCreateKey('');
     setCreateTargetFolder(null);
-    setShowCreateForm(false);
+    
     setCreateLoading(false);
   };
 
-  const handleAddDocument = async (folderId: string | null) => {
-    if (!addName.trim() || !addKey.trim()) {
-      toast.error('Enter both file name and key');
-      return;
-    }
-    setAddLoading(true);
-    const hashedName = await hashSHA256(addName.trim());
-    const hashedKey = await hashSHA256(addKey.trim());
-
-    const { data, error } = await supabase.rpc('rpc_verify_document', {
-      p_name: hashedName,
-      p_access_key: hashedKey,
-    });
-
-    if (error || !data) {
-      toast.error('File not found or incorrect key');
-      setAddLoading(false);
-      return;
-    }
-
-    const allItems = [...library.unsorted, ...library.folders.flatMap(f => f.items)];
-    if (allItems.some(i => i.documentId === (data as string))) {
-      toast.error('Already in your library');
-      setAddLoading(false);
-      return;
-    }
-
-    // Store hashed access key for this document session
-    sessionStorage.setItem(`doc_key_${data}`, hashedKey);
-    const newItem: LibraryItem = { documentId: data as string, displayName: addName.trim() };
-
-    setLibrary(prev => {
-      if (folderId) {
-        return {
-          ...prev,
-          folders: prev.folders.map(f =>
-            f.id === folderId ? { ...f, items: [...f.items, newItem] } : f
-          ),
-        };
-      }
-      return { ...prev, unsorted: [...prev.unsorted, newItem] };
-    });
-
-    toast.success('Added to library!');
-    setAddName('');
-    setAddKey('');
-    setTargetFolder(null);
-    setAddLoading(false);
-  };
 
   const removeItem = (documentId: string) => {
     setLibrary(prev => ({
@@ -393,91 +339,41 @@ export default function LibraryPage() {
           <h1 className="text-2xl font-bold text-foreground">My Library</h1>
         </div>
 
-        {/* Add document form */}
+        {/* Create new document form */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-lg">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Plus className="h-4 w-4" /> Add Document to Library
+            <FilePlus className="h-4 w-4 text-primary" /> Create New Document
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
-              value={addName}
-              onChange={e => setAddName(e.target.value)}
-              placeholder="File name"
+              value={createName}
+              onChange={e => setCreateName(e.target.value)}
+              placeholder="New file name"
               maxLength={100}
             />
             <Input
               type="password"
-              value={addKey}
-              onChange={e => setAddKey(e.target.value)}
-              placeholder="Access key"
+              value={createKey}
+              onChange={e => setCreateKey(e.target.value)}
+              placeholder="Create a key"
               maxLength={100}
             />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <select
               className="text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
-              value={targetFolder ?? ''}
-              onChange={e => setTargetFolder(e.target.value || null)}
+              value={createTargetFolder ?? ''}
+              onChange={e => setCreateTargetFolder(e.target.value || null)}
             >
               <option value="">Unsorted</option>
               {library.folders.map(f => (
                 <option key={f.id} value={f.id}>{f.name}</option>
               ))}
             </select>
-            <Button size="sm" onClick={() => handleAddDocument(targetFolder)} disabled={addLoading}>
-              {addLoading ? 'Verifying...' : 'Add'}
+            <Button size="sm" onClick={handleCreateDocument} disabled={createLoading}>
+              {createLoading ? 'Creating...' : 'Create & Add to Library'}
             </Button>
           </div>
-        </div>
-
-        {/* Create new document form */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden shadow-lg">
-          <button
-            className="w-full flex items-center gap-2 p-5 text-left hover:bg-accent/30 transition-colors"
-            onClick={() => setShowCreateForm(prev => !prev)}
-          >
-            <FilePlus className="h-4 w-4 text-primary" />
-            <h2 className="text-base font-semibold text-foreground">Create New Document</h2>
-            {showCreateForm ? (
-              <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto" />
-            ) : (
-              <ChevronRight className="h-4 w-4 text-muted-foreground ml-auto" />
-            )}
-          </button>
-          {showCreateForm && (
-            <div className="px-5 pb-5 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  value={createName}
-                  onChange={e => setCreateName(e.target.value)}
-                  placeholder="New file name"
-                  maxLength={100}
-                />
-                <Input
-                  type="password"
-                  value={createKey}
-                  onChange={e => setCreateKey(e.target.value)}
-                  placeholder="Create a key"
-                  maxLength={100}
-                />
-              </div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <select
-                  className="text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
-                  value={createTargetFolder ?? ''}
-                  onChange={e => setCreateTargetFolder(e.target.value || null)}
-                >
-                  <option value="">Unsorted</option>
-                  {library.folders.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
-                  ))}
-                </select>
-                <Button size="sm" onClick={handleCreateDocument} disabled={createLoading}>
-                  {createLoading ? 'Creating...' : 'Create & Add to Library'}
-                </Button>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2">

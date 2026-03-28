@@ -15,14 +15,32 @@ const MINIMAP_W = 180;
 const MINIMAP_H = 120;
 
 export default function Minimap({ blocks, canvasSize, pan, zoom, viewportWidth, viewportHeight, onNavigate }: MinimapProps) {
-  const scale = useMemo(() => Math.min(MINIMAP_W / canvasSize.width, MINIMAP_H / canvasSize.height), [canvasSize]);
+  // Include block extents in the effective canvas size so minimap covers all content
+  const effectiveSize = useMemo(() => {
+    let maxX = canvasSize.width;
+    let maxY = canvasSize.height;
+    for (const b of blocks) {
+      maxX = Math.max(maxX, b.x + b.width);
+      maxY = Math.max(maxY, b.y + b.height);
+    }
+    return { width: maxX, height: maxY };
+  }, [blocks, canvasSize]);
 
-  const viewport = useMemo(() => ({
-    x: (-pan.x / zoom) * scale,
-    y: (-pan.y / zoom) * scale,
-    w: (viewportWidth / zoom) * scale,
-    h: (viewportHeight / zoom) * scale,
-  }), [pan, zoom, scale, viewportWidth, viewportHeight]);
+  const scale = useMemo(() => Math.min(MINIMAP_W / effectiveSize.width, MINIMAP_H / effectiveSize.height), [effectiveSize]);
+
+  const viewport = useMemo(() => {
+    const rawX = (-pan.x / zoom) * scale;
+    const rawY = (-pan.y / zoom) * scale;
+    const rawW = (viewportWidth / zoom) * scale;
+    const rawH = (viewportHeight / zoom) * scale;
+    // Clamp viewport rect to minimap bounds
+    return {
+      x: Math.max(0, rawX),
+      y: Math.max(0, rawY),
+      w: Math.min(rawW, MINIMAP_W - Math.max(0, rawX)),
+      h: Math.min(rawH, MINIMAP_H - Math.max(0, rawY)),
+    };
+  }, [pan, zoom, scale, viewportWidth, viewportHeight]);
 
   const handleClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -30,11 +48,14 @@ export default function Minimap({ blocks, canvasSize, pan, zoom, viewportWidth, 
     const my = e.clientY - rect.top;
     const canvasX = mx / scale;
     const canvasY = my / scale;
+    // Clamp so we don't navigate past canvas bounds
+    const clampedX = Math.max(0, Math.min(canvasX, effectiveSize.width));
+    const clampedY = Math.max(0, Math.min(canvasY, effectiveSize.height));
     onNavigate({
-      x: -(canvasX - viewportWidth / zoom / 2) * zoom,
-      y: -(canvasY - viewportHeight / zoom / 2) * zoom,
+      x: -(clampedX - viewportWidth / zoom / 2) * zoom,
+      y: -(clampedY - viewportHeight / zoom / 2) * zoom,
     });
-  }, [scale, zoom, viewportWidth, viewportHeight, onNavigate]);
+  }, [scale, zoom, viewportWidth, viewportHeight, onNavigate, effectiveSize]);
 
   return (
     <div className="absolute bottom-14 right-4 z-50 bg-card/90 backdrop-blur border border-border rounded-lg shadow-lg overflow-hidden">
