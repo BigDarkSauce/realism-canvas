@@ -249,7 +249,7 @@ export default function LibraryPage() {
     setCreateName('');
     setCreateKey('');
     setCreateTargetFolder(null);
-    setShowCreateForm(false);
+    
     setCreateLoading(false);
   };
 
