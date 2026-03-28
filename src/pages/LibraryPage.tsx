@@ -9,7 +9,6 @@ import { ThemeToggle } from '@/components/ThemeSelector';
 import {
   ArrowLeft,
   FolderPlus,
-  Plus,
   Trash2,
   ChevronDown,
   ChevronRight,
