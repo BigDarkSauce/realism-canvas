@@ -191,13 +191,30 @@ const LATEX_TO_UNICODE: Record<string, string> = {
   '\\ldots': '…', '\\cdots': '⋯',
   '\\langle': '⟨', '\\rangle': '⟩',
   '\\oplus': '⊕', '\\otimes': '⊗',
+  '\\log': 'log', '\\ln': 'ln', '\\lg': 'lg',
+  '\\sin': 'sin', '\\cos': 'cos', '\\tan': 'tan',
+  '\\sec': 'sec', '\\csc': 'csc', '\\cot': 'cot',
+  '\\arcsin': 'arcsin', '\\arccos': 'arccos', '\\arctan': 'arctan',
+  '\\sinh': 'sinh', '\\cosh': 'cosh', '\\tanh': 'tanh',
+  '\\lim': 'lim', '\\sup': 'sup', '\\inf': 'inf',
+  '\\max': 'max', '\\min': 'min', '\\exp': 'exp',
+  '\\det': 'det', '\\dim': 'dim', '\\ker': 'ker',
+  '\\hom': 'hom', '\\deg': 'deg', '\\gcd': 'gcd',
+  '\\bmod': 'mod',
+  '\\left': '', '\\right': '', '\\displaystyle': '', '\\textstyle': '',
+  '\\mathrm': '', '\\mathit': '', '\\mathbf': '', '\\text': '',
 };
 
 const SUPERSCRIPT_MAP: Record<string, string> = {
   '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
   '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
   '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
-  'n': 'ⁿ', 'i': 'ⁱ',
+  'n': 'ⁿ', 'i': 'ⁱ', 'x': 'ˣ', 'y': 'ʸ',
+  'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'd': 'ᵈ', 'e': 'ᵉ',
+  'f': 'ᶠ', 'g': 'ᵍ', 'h': 'ʰ', 'j': 'ʲ', 'k': 'ᵏ',
+  'l': 'ˡ', 'm': 'ᵐ', 'o': 'ᵒ', 'p': 'ᵖ', 'r': 'ʳ',
+  's': 'ˢ', 't': 'ᵗ', 'u': 'ᵘ', 'v': 'ᵛ', 'w': 'ʷ',
+  'z': 'ᶻ',
 };
 
 const SUBSCRIPT_MAP: Record<string, string> = {
@@ -209,28 +226,63 @@ const SUBSCRIPT_MAP: Record<string, string> = {
 };
 
 function latexToUnicode(latex: string): string {
-  let result = decodeURIComponent(latex);
+  let result = latex;
 
-  // \frac{a}{b} → a/b
-  result = result.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1/$2)');
+  try {
+    result = decodeURIComponent(latex);
+  } catch {
+    result = latex;
+  }
 
-  // \sqrt{x} → √(x)
-  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, '$1√($2)');
-  result = result.replace(/\\sqrt\{([^}]*)\}/g, '√($1)');
+  let safety = 0;
 
-  // \binom{n}{k} → C(n,k)
-  result = result.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, 'C($1,$2)');
+  // Multi-pass for \frac{a}{b}
+  while (result.includes('\\frac{') && safety++ < 10) {
+    result = result.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1/$2)');
+  }
+
+  // \sqrt with optional index
+  while (result.includes('\\sqrt[') && safety++ < 20) {
+    result = result.replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, '$1√($2)');
+  }
+  while (result.includes('\\sqrt{') && safety++ < 30) {
+    result = result.replace(/\\sqrt\{([^{}]*)\}/g, '√($1)');
+  }
+  result = result.replace(/\\sqrt\s+([a-zA-Z0-9])/g, '√$1');
+
+  result = result.replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, 'C($1,$2)');
+
+  // \log_{base}(arg) patterns
+  result = result.replace(/\\log_\{([^{}]*)\}/g, 'log_$1');
+  result = result.replace(/\\log_([a-zA-Z0-9])/g, 'log_$1');
+
+  // Limits: \lim_{x \to a}
+  result = result.replace(/\\lim_\{([^{}]*)\}/g, 'lim[$1]');
+
+  // \int_{a}^{b}, \sum_{i=0}^{n}
+  result = result.replace(/\\(int|iint|oint|sum|prod)_\{([^{}]*)\}\^\{([^{}]*)\}/g, (_, cmd, lo, hi) => {
+    const sym = LATEX_TO_UNICODE[`\\${cmd}`] || cmd;
+    return `${sym}[${lo}→${hi}]`;
+  });
+  result = result.replace(/\\(int|iint|oint|sum|prod)_\{([^{}]*)\}/g, (_, cmd, lo) => {
+    const sym = LATEX_TO_UNICODE[`\\${cmd}`] || cmd;
+    return `${sym}[${lo}]`;
+  });
 
   // Superscripts: x^{abc} or x^n
-  result = result.replace(/\^{([^}]*)}/g, (_, content) => {
-    return [...content].map((c: string) => SUPERSCRIPT_MAP[c] || c).join('');
-  });
+  while (result.match(/\^\{[^{}]*\}/) && safety++ < 40) {
+    result = result.replace(/\^\{([^{}]*)\}/g, (_, content) => {
+      return [...content].map((c: string) => SUPERSCRIPT_MAP[c] || c).join('');
+    });
+  }
   result = result.replace(/\^([a-zA-Z0-9])/g, (_, c) => SUPERSCRIPT_MAP[c] || `^${c}`);
 
   // Subscripts: x_{abc} or x_n
-  result = result.replace(/_{([^}]*)}/g, (_, content) => {
-    return [...content].map((c: string) => SUBSCRIPT_MAP[c] || c).join('');
-  });
+  while (result.match(/_\{[^{}]*\}/) && safety++ < 50) {
+    result = result.replace(/_\{([^{}]*)\}/g, (_, content) => {
+      return [...content].map((c: string) => SUBSCRIPT_MAP[c] || c).join('');
+    });
+  }
   result = result.replace(/_([a-zA-Z0-9])/g, (_, c) => SUBSCRIPT_MAP[c] || `_${c}`);
 
   // Replace LaTeX commands with Unicode (longest first)
@@ -239,6 +291,9 @@ function latexToUnicode(latex: string): string {
     const escaped = cmd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     result = result.replace(new RegExp(escaped + '(?![a-zA-Z{])', 'g'), char);
   }
+
+  // Handle remaining \command{content} patterns
+  result = result.replace(/\\[a-zA-Z]+\{([^{}]*)\}/g, '$1');
 
   // Clean up remaining braces and backslashes
   result = result.replace(/[{}]/g, '').replace(/\\\s/g, ' ');

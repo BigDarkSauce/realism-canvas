@@ -26,13 +26,30 @@ const LATEX_TO_UNICODE: Record<string, string> = {
   '\\ldots': '…', '\\cdots': '⋯',
   '\\langle': '⟨', '\\rangle': '⟩',
   '\\oplus': '⊕', '\\otimes': '⊗',
+  '\\log': 'log', '\\ln': 'ln', '\\lg': 'lg',
+  '\\sin': 'sin', '\\cos': 'cos', '\\tan': 'tan',
+  '\\sec': 'sec', '\\csc': 'csc', '\\cot': 'cot',
+  '\\arcsin': 'arcsin', '\\arccos': 'arccos', '\\arctan': 'arctan',
+  '\\sinh': 'sinh', '\\cosh': 'cosh', '\\tanh': 'tanh',
+  '\\lim': 'lim', '\\sup': 'sup', '\\inf': 'inf',
+  '\\max': 'max', '\\min': 'min', '\\exp': 'exp',
+  '\\det': 'det', '\\dim': 'dim', '\\ker': 'ker',
+  '\\hom': 'hom', '\\deg': 'deg', '\\gcd': 'gcd',
+  '\\bmod': 'mod',
+  '\\left': '', '\\right': '', '\\displaystyle': '', '\\textstyle': '',
+  '\\mathrm': '', '\\mathit': '', '\\mathbf': '', '\\text': '',
 };
 
 const SUPERSCRIPT_MAP: Record<string, string> = {
   '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
   '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹',
   '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾',
-  'n': 'ⁿ', 'i': 'ⁱ',
+  'n': 'ⁿ', 'i': 'ⁱ', 'x': 'ˣ', 'y': 'ʸ',
+  'a': 'ᵃ', 'b': 'ᵇ', 'c': 'ᶜ', 'd': 'ᵈ', 'e': 'ᵉ',
+  'f': 'ᶠ', 'g': 'ᵍ', 'h': 'ʰ', 'j': 'ʲ', 'k': 'ᵏ',
+  'l': 'ˡ', 'm': 'ᵐ', 'o': 'ᵒ', 'p': 'ᵖ', 'r': 'ʳ',
+  's': 'ˢ', 't': 'ᵗ', 'u': 'ᵘ', 'v': 'ᵛ', 'w': 'ʷ',
+  'z': 'ᶻ',
 };
 
 const SUBSCRIPT_MAP: Record<string, string> = {
@@ -61,6 +78,29 @@ export function downloadBytesAsFile(bytes: Uint8Array, fileName: string, mimeTyp
   URL.revokeObjectURL(url);
 }
 
+function matchBalancedBrace(str: string, start: number): string {
+  if (str[start] !== '{') return '';
+  let depth = 0;
+  for (let i = start; i < str.length; i++) {
+    if (str[i] === '{') depth++;
+    else if (str[i] === '}') { depth--; if (depth === 0) return str.slice(start + 1, i); }
+  }
+  return str.slice(start + 1);
+}
+
+function replaceBalancedPattern(str: string, prefix: string, replacer: (inner: string) => string): string {
+  let result = str;
+  let idx = 0;
+  while ((idx = result.indexOf(prefix, idx)) !== -1) {
+    const braceStart = idx + prefix.length;
+    if (result[braceStart] !== '{') { idx++; continue; }
+    const inner = matchBalancedBrace(result, braceStart);
+    const end = braceStart + inner.length + 2; // +2 for { and }
+    result = result.slice(0, idx) + replacer(inner) + result.slice(end);
+  }
+  return result;
+}
+
 function latexToUnicode(latex: string): string {
   let result = latex;
 
@@ -70,26 +110,72 @@ function latexToUnicode(latex: string): string {
     result = latex;
   }
 
-  result = result.replace(/\\frac\{([^}]*)\}\{([^}]*)\}/g, '($1/$2)');
-  result = result.replace(/\\sqrt\[([^\]]*)\]\{([^}]*)\}/g, '$1√($2)');
-  result = result.replace(/\\sqrt\{([^}]*)\}/g, '√($1)');
-  result = result.replace(/\\binom\{([^}]*)\}\{([^}]*)\}/g, 'C($1,$2)');
-
-  result = result.replace(/\^\{([^}]*)}/g, (_, content) => {
-    return [...content].map((char: string) => SUPERSCRIPT_MAP[char] || char).join('');
+  // Handle nested structures with balanced brace matching
+  result = replaceBalancedPattern(result, '\\frac', (inner) => {
+    // \frac{a}{b} - need second arg
+    const rest = result.slice(result.indexOf(inner) + inner.length + 1);
+    return `(${latexToUnicode(inner)}`;
   });
-  result = result.replace(/\^([a-zA-Z0-9])/g, (_, char) => SUPERSCRIPT_MAP[char] || `^${char}`);
+  // Multi-pass for \frac{a}{b}
+  let safety = 0;
+  while (result.includes('\\frac{') && safety++ < 10) {
+    result = result.replace(/\\frac\{([^{}]*)\}\{([^{}]*)\}/g, '($1/$2)');
+  }
 
-  result = result.replace(/_\{([^}]*)}/g, (_, content) => {
-    return [...content].map((char: string) => SUBSCRIPT_MAP[char] || char).join('');
+  // \sqrt with optional index
+  while (result.includes('\\sqrt[') && safety++ < 20) {
+    result = result.replace(/\\sqrt\[([^\]]*)\]\{([^{}]*)\}/g, '$1√($2)');
+  }
+  while (result.includes('\\sqrt{') && safety++ < 30) {
+    result = result.replace(/\\sqrt\{([^{}]*)\}/g, '√($1)');
+  }
+  // Bare \sqrt followed by a single token
+  result = result.replace(/\\sqrt\s+([a-zA-Z0-9])/g, '√$1');
+
+  result = result.replace(/\\binom\{([^{}]*)\}\{([^{}]*)\}/g, 'C($1,$2)');
+
+  // \log_{base}(arg) patterns
+  result = result.replace(/\\log_\{([^{}]*)\}/g, 'log_$1');
+  result = result.replace(/\\log_([a-zA-Z0-9])/g, 'log_$1');
+
+  // Limits: \lim_{x \to a}
+  result = result.replace(/\\lim_\{([^{}]*)\}/g, 'lim[$1]');
+
+  // \int_{a}^{b}, \sum_{i=0}^{n}
+  result = result.replace(/\\(int|iint|oint|sum|prod)_\{([^{}]*)\}\^\{([^{}]*)\}/g, (_, cmd, lo, hi) => {
+    const sym = LATEX_TO_UNICODE[`\\${cmd}`] || cmd;
+    return `${sym}[${lo}→${hi}]`;
   });
-  result = result.replace(/_([a-zA-Z0-9])/g, (_, char) => SUBSCRIPT_MAP[char] || `_${char}`);
+  result = result.replace(/\\(int|iint|oint|sum|prod)_\{([^{}]*)\}/g, (_, cmd, lo) => {
+    const sym = LATEX_TO_UNICODE[`\\${cmd}`] || cmd;
+    return `${sym}[${lo}]`;
+  });
 
+  // Superscripts: x^{abc} or x^n (handle nested braces)
+  while (result.match(/\^\{[^{}]*\}/) && safety++ < 40) {
+    result = result.replace(/\^\{([^{}]*)\}/g, (_, content) => {
+      return [...content].map((char: string) => SUPERSCRIPT_MAP[char] || char).join('');
+    });
+  }
+  result = result.replace(/\^([a-zA-Z0-9])/g, (_, c) => SUPERSCRIPT_MAP[c] || `^${c}`);
+
+  // Subscripts: x_{abc} or x_n
+  while (result.match(/_\{[^{}]*\}/) && safety++ < 50) {
+    result = result.replace(/_\{([^{}]*)\}/g, (_, content) => {
+      return [...content].map((char: string) => SUBSCRIPT_MAP[char] || char).join('');
+    });
+  }
+  result = result.replace(/_([a-zA-Z0-9])/g, (_, c) => SUBSCRIPT_MAP[c] || `_${c}`);
+
+  // Replace LaTeX commands with Unicode (longest first)
   const replacements = Object.entries(LATEX_TO_UNICODE).sort((a, b) => b[0].length - a[0].length);
   for (const [command, replacement] of replacements) {
     const escaped = command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    result = result.replace(new RegExp(`${escaped}(?![a-zA-Z{])`, 'g'), replacement);
+    result = result.replace(new RegExp(escaped + '(?![a-zA-Z{])', 'g'), replacement);
   }
+
+  // Handle remaining \command{content} patterns - just extract content
+  result = result.replace(/\\[a-zA-Z]+\{([^{}]*)\}/g, '$1');
 
   return result.replace(/[{}]/g, '').replace(/\\\s/g, ' ').replace(/\u200B/g, '').trim();
 }
