@@ -287,9 +287,15 @@ function ensureExportStyles(doc: Document, mode: ExportMode): void {
       break-inside: avoid;
       page-break-inside: avoid;
     }
-    .math-export, [data-export-math="true"] {
+    .math-export, [data-export-math="true"], math, mrow, mi, mn, mo, mtext, mfrac, msqrt, mroot, msub, msup, msubsup, munder, mover, munderover, mtable, mtr, mtd, .docx-math, .docx-cambria-math {
       font-family: 'Cambria Math', 'Cambria', serif !important;
       white-space: pre-wrap;
+    }
+    .docx-math-block, math[display="block"] {
+      display: block;
+      text-align: center;
+      margin: 0.75em 0;
+      overflow-x: auto;
     }
     ${mode === 'word' ? `
       body { margin: 0; }

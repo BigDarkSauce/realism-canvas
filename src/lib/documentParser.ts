@@ -1,4 +1,5 @@
 import mammoth from 'mammoth-plus';
+import { extractDocxRichParagraphs } from './docxMath';
 
 export interface DocumentSection {
   heading: string;
@@ -43,28 +44,34 @@ export async function extractDocxParagraphs(
   setTarget(0.15);
   const arrayBuffer = await file.arrayBuffer();
   setTarget(0.3);
-  const result = await mammoth.convertToHtml({ arrayBuffer });
-  setTarget(0.75);
-  const html = result.value;
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, 'text/html');
-  const elements = Array.from(doc.body.children);
-  setTarget(0.9);
+  let paragraphs = await extractDocxRichParagraphs(arrayBuffer);
 
-  const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
+  if (paragraphs.length === 0) {
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    setTarget(0.75);
+    const html = result.value;
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const elements = Array.from(doc.body.children);
+    setTarget(0.9);
 
-  const paragraphs = elements
-    .map(el => {
-      const text = el.textContent?.trim() || '';
-      const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
-      if (!text && !hasMedia) return null;
-      return {
-        text: text || (hasMedia ? '[Image]' : ''),
-        html: (el as HTMLElement).outerHTML,
-        isLikelyHeading: isHeadingTag(el.tagName),
-      };
-    })
-    .filter(Boolean) as DocumentParagraph[];
+    const isHeadingTag = (tag: string) => /^H[1-6]$/.test(tag);
+    paragraphs = elements
+      .map(el => {
+        const text = el.textContent?.trim() || '';
+        const hasMedia = el.querySelector('img, video, svg, canvas, picture') !== null;
+        if (!text && !hasMedia) return null;
+        return {
+          text: text || (hasMedia ? '[Image]' : ''),
+          html: (el as HTMLElement).outerHTML,
+          isLikelyHeading: isHeadingTag(el.tagName),
+        };
+      })
+      .filter(Boolean) as DocumentParagraph[];
+  } else {
+    setTarget(0.9);
+  }
+
   targetProgress = 1;
   currentProgress = 1;
   onProgress?.(1);
@@ -274,6 +281,15 @@ function escapeHtml(text: string): string {
  */
 export async function parseDocxSections(file: File): Promise<DocumentSection[]> {
   const arrayBuffer = await file.arrayBuffer();
+
+  const richParagraphs = await extractDocxRichParagraphs(arrayBuffer);
+  if (richParagraphs.length > 0) {
+    const initialHeadings = new Set<number>();
+    richParagraphs.forEach((paragraph, index) => {
+      if (paragraph.isLikelyHeading) initialHeadings.add(index);
+    });
+    return splitBySelectedHeadings(richParagraphs, initialHeadings);
+  }
 
   // First try HTML-based heading detection
   const result = await mammoth.convertToHtml({ arrayBuffer });
@@ -671,8 +687,11 @@ export function createSectionFile(section: DocumentSection, index: number, forma
   img { max-width: 100%; height: auto; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   td, th { border: 1px solid #ccc; padding: 6px 10px; }
-  math { font-size: 1.1em; }
+  math { font-size: 1.1em; font-family: 'Cambria Math', 'Cambria', serif; }
   .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
+  .docx-math { font-family: 'Cambria Math', 'Cambria', serif; }
+  .docx-math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
+  .docx-cambria-math { font-family: 'Cambria Math', 'Cambria', serif; }
 </style>
 </head>
 <body>
