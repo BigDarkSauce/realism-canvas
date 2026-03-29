@@ -44,7 +44,7 @@ export async function extractDocxParagraphs(
   setTarget(0.15);
   const arrayBuffer = await file.arrayBuffer();
   setTarget(0.3);
-  let paragraphs = await extractDocxRichParagraphs(arrayBuffer);
+  let paragraphs: DocumentParagraph[] = await extractDocxRichParagraphs(arrayBuffer);
 
   if (paragraphs.length === 0) {
     const result = await mammoth.convertToHtml({ arrayBuffer });
