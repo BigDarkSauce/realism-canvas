@@ -184,9 +184,10 @@ function normalizeWhitespace(value: string): string {
   return value.replace(/\u200B/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function replaceMathMarkup(doc: Document): void {
+function replaceMathMarkupWithUnicode(doc: Document): void {
   doc.querySelectorAll('.math-expression').forEach((node) => {
     const element = node as HTMLElement;
+    if (element.querySelector('math')) return;
     const latex = element.getAttribute('data-latex');
     const text = latex ? latexToUnicode(latex) : normalizeWhitespace(element.textContent || '');
     const span = doc.createElement('span');
@@ -199,6 +200,7 @@ function replaceMathMarkup(doc: Document): void {
   doc.querySelectorAll('.math-unicode, .math-template, .math-symbol').forEach((node) => {
     const element = node as HTMLElement;
     if (element.closest('[data-export-math="true"]')) return;
+    if (element.closest('math')) return;
 
     const span = doc.createElement('span');
     span.textContent = normalizeWhitespace(element.textContent || '');
@@ -210,6 +212,50 @@ function replaceMathMarkup(doc: Document): void {
   doc.querySelectorAll('[class*="ML__"]').forEach((node) => {
     const element = node as HTMLElement;
     if (element.closest('[data-export-math="true"]')) return;
+    if (element.closest('math')) return;
+
+    const text = normalizeWhitespace(element.textContent || '');
+    if (!text) {
+      element.remove();
+      return;
+    }
+
+    const span = doc.createElement('span');
+    span.textContent = text;
+    span.className = 'math-export';
+    span.setAttribute('data-export-math', 'true');
+    element.replaceWith(span);
+  });
+}
+
+function preservePdfMathMarkup(doc: Document): void {
+  doc.querySelectorAll('math').forEach((node) => {
+    const math = node as Element;
+    math.setAttribute('xmlns', 'http://www.w3.org/1998/Math/MathML');
+    math.classList.add('docx-math');
+
+    if (math.getAttribute('display') === 'block') {
+      math.classList.add('docx-math-block');
+    }
+  });
+
+  doc.querySelectorAll('.math-expression').forEach((node) => {
+    const element = node as HTMLElement;
+    if (element.querySelector('math')) return;
+
+    const latex = element.getAttribute('data-latex');
+    if (!latex) return;
+
+    const span = doc.createElement('span');
+    span.textContent = latexToUnicode(latex);
+    span.className = 'math-export';
+    span.setAttribute('data-export-math', 'true');
+    element.replaceWith(span);
+  });
+
+  doc.querySelectorAll('[class*="ML__"], .math-unicode, .math-template, .math-symbol').forEach((node) => {
+    const element = node as HTMLElement;
+    if (element.closest('math') || element.closest('[data-export-math="true"]')) return;
 
     const text = normalizeWhitespace(element.textContent || '');
     if (!text) {
@@ -230,7 +276,7 @@ function ensureExportStyles(doc: Document, mode: ExportMode): void {
   doc.querySelectorAll('link[rel="preload"], link[rel="modulepreload"]').forEach((node) => node.remove());
   doc.getElementById('__viewer-theme')?.remove();
 
-  // Math is now converted to Unicode for both modes — remove mathlive CSS
+  // Remove MathLive CSS; PDF keeps native MathML, Word uses Unicode fallback.
   doc.querySelectorAll('link[href*="mathlive"]').forEach((node) => node.remove());
 
   if (!doc.querySelector('meta[charset]')) {
@@ -313,9 +359,11 @@ function prepareHtmlForDocumentExport(html: string, mode: ExportMode): string {
 
   const doc = parser.parseFromString(documentHtml, 'text/html');
 
-  // For both PDF and Word: convert math to Unicode text
-  // html2canvas can't render MathLive elements properly, so we convert to Unicode
-  replaceMathMarkup(doc);
+  if (mode === 'pdf') {
+    preservePdfMathMarkup(doc);
+  } else {
+    replaceMathMarkupWithUnicode(doc);
+  }
 
   ensureExportStyles(doc, mode);
 
