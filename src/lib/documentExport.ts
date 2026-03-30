@@ -468,13 +468,9 @@ async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uin
       return null;
     }
 
-    const { pdf } = await res.json();
-    if (!pdf) return null;
-
-    const binary = atob(pdf);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+    const buf = await res.arrayBuffer();
+    if (!buf || buf.byteLength < 100) return null;
+    return new Uint8Array(buf);
   } catch (err) {
     console.warn('Server PDF error, using client fallback:', err);
     return null;

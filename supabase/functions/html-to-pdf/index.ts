@@ -51,23 +51,17 @@ serve(async (req) => {
       );
     }
 
-    const pdfBytes = new Uint8Array(await response.arrayBuffer());
+    // Stream PDF bytes directly as binary — avoids CPU-heavy base64 encoding
+    const pdfBytes = await response.arrayBuffer();
 
-    // Return PDF bytes as base64
-    const CHUNK = 8192;
-    let binary = "";
-    for (let i = 0; i < pdfBytes.length; i += CHUNK) {
-      binary += String.fromCharCode(...pdfBytes.subarray(i, i + CHUNK));
-    }
-    const base64 = btoa(binary);
-
-    return new Response(
-      JSON.stringify({ pdf: base64, filename: filename || "export.pdf" }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(pdfBytes, {
+      status: 200,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${(filename || "export.pdf").replace(/"/g, "_")}"`,
+      },
+    });
   } catch (error: unknown) {
     console.error("html-to-pdf error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
