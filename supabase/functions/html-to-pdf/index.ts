@@ -1,5 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+async function signPayload(secret: string, timestamp: string, body: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${body}`));
+  return Array.from(new Uint8Array(signature)).map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -30,49 +44,29 @@ serve(async (req) => {
       );
     }
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (WEASYPRINT_SECRET) {
-      headers["Authorization"] = `Bearer ${WEASYPRINT_SECRET}`;
-    }
-
     const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
-    const response = await fetch(pdfUrl, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ html }),
-    });
+    const sanitizedFilename = (filename || "export.pdf").replace(/"/g, "_");
+    const body = JSON.stringify({ html });
+    let timestamp: string | null = null;
+    let signature: string | null = null;
 
-    if (!response.ok) {
-      const errorText = (await response.text()).slice(0, 2000);
-      console.error(`WeasyPrint API error [${response.status}]:`, errorText);
-      return new Response(
-        JSON.stringify({ error: `WeasyPrint API failed: ${errorText}`, fallback: true }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (WEASYPRINT_SECRET) {
+      timestamp = Math.floor(Date.now() / 1000).toString();
+      signature = await signPayload(WEASYPRINT_SECRET, timestamp, body);
     }
 
-    if (!response.body) {
-      return new Response(
-        JSON.stringify({ error: "PDF service returned an empty response", fallback: true }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const outgoingHeaders = new Headers(corsHeaders);
-    outgoingHeaders.set("Content-Type", "application/pdf");
-    outgoingHeaders.set(
-      "Content-Disposition",
-      `attachment; filename="${(filename || "export.pdf").replace(/"/g, "_")}"`
-    );
-
-    const contentLength = response.headers.get("content-length");
-    if (contentLength) {
-      outgoingHeaders.set("Content-Length", contentLength);
-    }
-
-    return new Response(response.body, {
+    return new Response(JSON.stringify({
+      url: pdfUrl,
+      filename: sanitizedFilename,
+      timestamp,
+      signature,
+    }), {
       status: 200,
-      headers: outgoingHeaders,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
     });
   } catch (error: unknown) {
     console.error("html-to-pdf error:", error);
