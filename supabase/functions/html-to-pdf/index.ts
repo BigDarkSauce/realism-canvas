@@ -43,7 +43,7 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText = (await response.text()).slice(0, 2000);
       console.error(`WeasyPrint API error [${response.status}]:`, errorText);
       return new Response(
         JSON.stringify({ error: `WeasyPrint API failed: ${errorText}`, fallback: true }),
@@ -51,16 +51,28 @@ serve(async (req) => {
       );
     }
 
-    // Stream PDF bytes directly as binary — avoids CPU-heavy base64 encoding
-    const pdfBytes = await response.arrayBuffer();
+    if (!response.body) {
+      return new Response(
+        JSON.stringify({ error: "PDF service returned an empty response", fallback: true }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    return new Response(pdfBytes, {
+    const outgoingHeaders = new Headers(corsHeaders);
+    outgoingHeaders.set("Content-Type", "application/pdf");
+    outgoingHeaders.set(
+      "Content-Disposition",
+      `attachment; filename="${(filename || "export.pdf").replace(/"/g, "_")}"`
+    );
+
+    const contentLength = response.headers.get("content-length");
+    if (contentLength) {
+      outgoingHeaders.set("Content-Length", contentLength);
+    }
+
+    return new Response(response.body, {
       status: 200,
-      headers: {
-        ...corsHeaders,
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${(filename || "export.pdf").replace(/"/g, "_")}"`,
-      },
+      headers: outgoingHeaders,
     });
   } catch (error: unknown) {
     console.error("html-to-pdf error:", error);
