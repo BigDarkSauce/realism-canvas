@@ -4,6 +4,12 @@ type ExportMode = 'pdf' | 'word';
 
 const MAX_SERVER_PDF_HTML_LENGTH = 750_000;
 
+type PdfServiceConfig = {
+  url: string;
+  signature?: string;
+  timestamp?: string;
+};
+
 const LATEX_TO_UNICODE: Record<string, string> = {
   '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
   '\\epsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ',
@@ -455,10 +461,9 @@ async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uin
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     if (!projectId) return null;
 
-    const url = `https://${projectId}.supabase.co/functions/v1/html-to-pdf`;
+    const gatewayUrl = `https://${projectId}.supabase.co/functions/v1/html-to-pdf`;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-    const res = await fetch(url, {
+    const configResponse = await fetch(gatewayUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -468,9 +473,29 @@ async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uin
       body: JSON.stringify({ html: preparedHtml, filename: fileName }),
     });
 
+    const contentType = configResponse.headers.get('content-type') || '';
+    if (configResponse.ok && contentType.includes('application/pdf')) {
+      const buf = await configResponse.arrayBuffer();
+      if (!buf || buf.byteLength < 100) return null;
+      return new Uint8Array(buf);
+    }
+
+    const body = await configResponse.json().catch(() => null) as PdfServiceConfig | { fallback?: boolean } | null;
+    if (!configResponse.ok || !body || typeof body !== 'object' || !('url' in body) || !body.url) {
+      return null;
+    }
+
+    const res = await fetch(body.url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(body.signature ? { 'X-Lovable-Signature': body.signature } : {}),
+        ...(body.timestamp ? { 'X-Lovable-Timestamp': body.timestamp } : {}),
+      },
+      body: JSON.stringify({ html: preparedHtml }),
+    });
+
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      if (body.fallback) return null;
       console.warn('Server PDF failed:', res.status);
       return null;
     }

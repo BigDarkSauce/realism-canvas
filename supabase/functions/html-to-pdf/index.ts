@@ -1,5 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+async function signPayload(secret: string, timestamp: string, body: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${body}`));
+  return Array.from(new Uint8Array(signature)).map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -31,15 +45,19 @@ serve(async (req) => {
     }
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
+    const body = JSON.stringify({ html });
+
     if (WEASYPRINT_SECRET) {
-      headers["Authorization"] = `Bearer ${WEASYPRINT_SECRET}`;
+      const timestamp = Math.floor(Date.now() / 1000).toString();
+      headers["X-Lovable-Timestamp"] = timestamp;
+      headers["X-Lovable-Signature"] = await signPayload(WEASYPRINT_SECRET, timestamp, body);
     }
 
-    const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
     const response = await fetch(pdfUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({ html }),
+      body,
     });
 
     if (!response.ok) {
