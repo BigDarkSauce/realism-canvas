@@ -44,53 +44,29 @@ serve(async (req) => {
       );
     }
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
     const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
+    const sanitizedFilename = (filename || "export.pdf").replace(/"/g, "_");
     const body = JSON.stringify({ html });
+    let timestamp: string | null = null;
+    let signature: string | null = null;
 
     if (WEASYPRINT_SECRET) {
-      const timestamp = Math.floor(Date.now() / 1000).toString();
-      headers["X-Lovable-Timestamp"] = timestamp;
-      headers["X-Lovable-Signature"] = await signPayload(WEASYPRINT_SECRET, timestamp, body);
+      timestamp = Math.floor(Date.now() / 1000).toString();
+      signature = await signPayload(WEASYPRINT_SECRET, timestamp, body);
     }
 
-    const response = await fetch(pdfUrl, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    if (!response.ok) {
-      const errorText = (await response.text()).slice(0, 2000);
-      console.error(`WeasyPrint API error [${response.status}]:`, errorText);
-      return new Response(
-        JSON.stringify({ error: `WeasyPrint API failed: ${errorText}`, fallback: true }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!response.body) {
-      return new Response(
-        JSON.stringify({ error: "PDF service returned an empty response", fallback: true }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const outgoingHeaders = new Headers(corsHeaders);
-    outgoingHeaders.set("Content-Type", "application/pdf");
-    outgoingHeaders.set(
-      "Content-Disposition",
-      `attachment; filename="${(filename || "export.pdf").replace(/"/g, "_")}"`
-    );
-
-    const contentLength = response.headers.get("content-length");
-    if (contentLength) {
-      outgoingHeaders.set("Content-Length", contentLength);
-    }
-
-    return new Response(response.body, {
+    return new Response(JSON.stringify({
+      url: pdfUrl,
+      filename: sanitizedFilename,
+      timestamp,
+      signature,
+    }), {
       status: 200,
-      headers: outgoingHeaders,
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+      },
     });
   } catch (error: unknown) {
     console.error("html-to-pdf error:", error);
