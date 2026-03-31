@@ -2,6 +2,8 @@
 
 type ExportMode = 'pdf' | 'word';
 
+const MAX_SERVER_PDF_HTML_LENGTH = 750_000;
+
 const LATEX_TO_UNICODE: Record<string, string> = {
   '\\alpha': 'α', '\\beta': 'β', '\\gamma': 'γ', '\\delta': 'δ',
   '\\epsilon': 'ε', '\\zeta': 'ζ', '\\eta': 'η', '\\theta': 'θ',
@@ -445,6 +447,11 @@ async function waitForStylesheets(doc: Document): Promise<void> {
 
 async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uint8Array | null> {
   try {
+    if (preparedHtml.length > MAX_SERVER_PDF_HTML_LENGTH) {
+      console.info('Skipping server PDF export for large document payload');
+      return null;
+    }
+
     const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
     if (!projectId) return null;
 
