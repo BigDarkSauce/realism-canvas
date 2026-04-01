@@ -463,7 +463,8 @@ async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uin
 
     const gatewayUrl = `https://${projectId}.supabase.co/functions/v1/html-to-pdf`;
     const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const configResponse = await fetch(gatewayUrl, {
+
+    const response = await fetch(gatewayUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -473,36 +474,21 @@ async function tryServerPdf(preparedHtml: string, fileName: string): Promise<Uin
       body: JSON.stringify({ html: preparedHtml, filename: fileName }),
     });
 
-    const contentType = configResponse.headers.get('content-type') || '';
-    if (configResponse.ok && contentType.includes('application/pdf')) {
-      const buf = await configResponse.arrayBuffer();
+    const contentType = response.headers.get('content-type') || '';
+
+    // Browserless returns PDF directly via streaming
+    if (response.ok && contentType.includes('application/pdf')) {
+      const buf = await response.arrayBuffer();
       if (!buf || buf.byteLength < 100) return null;
       return new Uint8Array(buf);
     }
 
-    const body = await configResponse.json().catch(() => null) as PdfServiceConfig | { fallback?: boolean } | null;
-    if (!configResponse.ok || !body || typeof body !== 'object' || !('url' in body) || !body.url) {
-      return null;
+    // Non-PDF response means error/fallback
+    const body = await response.json().catch(() => null) as { fallback?: boolean; error?: string } | null;
+    if (body?.error) {
+      console.warn('Server PDF error:', body.error);
     }
-
-    const res = await fetch(body.url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(body.signature ? { 'X-Lovable-Signature': body.signature } : {}),
-        ...(body.timestamp ? { 'X-Lovable-Timestamp': body.timestamp } : {}),
-      },
-      body: JSON.stringify({ html: preparedHtml }),
-    });
-
-    if (!res.ok) {
-      console.warn('Server PDF failed:', res.status);
-      return null;
-    }
-
-    const buf = await res.arrayBuffer();
-    if (!buf || buf.byteLength < 100) return null;
-    return new Uint8Array(buf);
+    return null;
   } catch (err) {
     console.warn('Server PDF error, using client fallback:', err);
     return null;
