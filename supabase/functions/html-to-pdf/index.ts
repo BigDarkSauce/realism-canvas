@@ -31,7 +31,9 @@ serve(async (req) => {
     const sanitizedFilename = (filename || "export.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
 
     // Call Browserless /pdf endpoint — headless Chrome renders the HTML
-    const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+    // Support custom base URL via env, default to chrome.browserless.io
+    const browserlessBase = Deno.env.get("BROWSERLESS_URL") || "https://chrome.browserless.io";
+    const browserlessUrl = `${browserlessBase}/pdf?token=${BROWSERLESS_API_KEY}`;
 
     const pdfResponse = await fetch(browserlessUrl, {
       method: "POST",
