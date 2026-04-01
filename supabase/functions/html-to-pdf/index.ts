@@ -1,19 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-async function signPayload(secret: string, timestamp: string, body: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-
-  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${body}`));
-  return Array.from(new Uint8Array(signature)).map((value) => value.toString(16).padStart(2, "0")).join("");
-}
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -26,13 +12,11 @@ serve(async (req) => {
   }
 
   try {
-    const WEASYPRINT_URL = Deno.env.get("WEASYPRINT_URL");
-    const WEASYPRINT_SECRET = Deno.env.get("WEASYPRINT_SECRET");
-
-    if (!WEASYPRINT_URL) {
+    const BROWSERLESS_API_KEY = Deno.env.get("BROWSERLESS_API_KEY");
+    if (!BROWSERLESS_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "WEASYPRINT_URL is not configured", fallback: true }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "BROWSERLESS_API_KEY not configured", fallback: true }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
@@ -40,31 +24,48 @@ serve(async (req) => {
     if (!html || typeof html !== "string") {
       return new Response(
         JSON.stringify({ error: "Missing or invalid 'html' field" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
 
-    const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
-    const sanitizedFilename = (filename || "export.pdf").replace(/"/g, "_");
-    const body = JSON.stringify({ html });
-    let timestamp: string | null = null;
-    let signature: string | null = null;
+    const sanitizedFilename = (filename || "export.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
 
-    if (WEASYPRINT_SECRET) {
-      timestamp = Math.floor(Date.now() / 1000).toString();
-      signature = await signPayload(WEASYPRINT_SECRET, timestamp, body);
+    // Call Browserless /pdf endpoint — headless Chrome renders the HTML
+    const browserlessUrl = `https://production-sfo.browserless.io/pdf?token=${BROWSERLESS_API_KEY}`;
+
+    const pdfResponse = await fetch(browserlessUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-cache",
+      },
+      body: JSON.stringify({
+        html,
+        options: {
+          displayHeaderFooter: false,
+          printBackground: true,
+          format: "A4",
+          margin: { top: "0.5in", right: "0.5in", bottom: "0.5in", left: "0.5in" },
+        },
+      }),
+    });
+
+    if (!pdfResponse.ok) {
+      const errText = await pdfResponse.text().catch(() => "Unknown error");
+      console.error("Browserless PDF error:", pdfResponse.status, errText);
+      return new Response(
+        JSON.stringify({ error: `PDF service error: ${pdfResponse.status}`, fallback: true }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
-    return new Response(JSON.stringify({
-      url: pdfUrl,
-      filename: sanitizedFilename,
-      timestamp,
-      signature,
-    }), {
+    // Stream the PDF response body directly — no buffering in memory
+    return new Response(pdfResponse.body, {
       status: 200,
       headers: {
         ...corsHeaders,
-        "Content-Type": "application/json",
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${sanitizedFilename}"`,
         "Cache-Control": "no-store",
       },
     });
@@ -73,7 +74,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: message, fallback: true }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });
