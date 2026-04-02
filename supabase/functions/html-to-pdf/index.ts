@@ -1,5 +1,19 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
+async function signPayload(secret: string, timestamp: string, body: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(`${timestamp}.${body}`));
+  return Array.from(new Uint8Array(signature)).map((value) => value.toString(16).padStart(2, "0")).join("");
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -12,13 +26,13 @@ serve(async (req) => {
   }
 
   try {
-    const PDFCROWD_USERNAME = Deno.env.get("PDFCROWD_USERNAME");
-    const PDFCROWD_API_KEY = Deno.env.get("PDFCROWD_API_KEY");
+    const WEASYPRINT_URL = Deno.env.get("WEASYPRINT_URL");
+    const WEASYPRINT_SECRET = Deno.env.get("WEASYPRINT_SECRET");
 
-    if (!PDFCROWD_USERNAME || !PDFCROWD_API_KEY) {
+    if (!WEASYPRINT_URL) {
       return new Response(
-        JSON.stringify({ error: "PDFCrowd credentials not configured", fallback: true }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        JSON.stringify({ error: "WEASYPRINT_URL is not configured", fallback: true }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -26,50 +40,31 @@ serve(async (req) => {
     if (!html || typeof html !== "string") {
       return new Response(
         JSON.stringify({ error: "Missing or invalid 'html' field" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const sanitizedFilename = (filename || "export.pdf").replace(/[^a-zA-Z0-9._-]/g, "_");
+    const pdfUrl = `${WEASYPRINT_URL.replace(/\/$/, "")}/pdf`;
+    const sanitizedFilename = (filename || "export.pdf").replace(/"/g, "_");
+    const body = JSON.stringify({ html });
+    let timestamp: string | null = null;
+    let signature: string | null = null;
 
-    // Build multipart form for PDFCrowd API
-    const formData = new FormData();
-    formData.append("text", html);
-    formData.append("content_viewport_width", "balanced");
-    formData.append("no_margins", "false");
-    formData.append("margin_top", "0.5in");
-    formData.append("margin_right", "0.5in");
-    formData.append("margin_bottom", "0.5in");
-    formData.append("margin_left", "0.5in");
-    formData.append("page_size", "A4");
-    formData.append("output_name", sanitizedFilename);
-
-    const credentials = btoa(`${PDFCROWD_USERNAME}:${PDFCROWD_API_KEY}`);
-
-    const pdfResponse = await fetch("https://api.pdfcrowd.com/convert/24.04/", {
-      method: "POST",
-      headers: {
-        "Authorization": `Basic ${credentials}`,
-      },
-      body: formData,
-    });
-
-    if (!pdfResponse.ok) {
-      const errText = await pdfResponse.text().catch(() => "Unknown error");
-      console.error("PDFCrowd error:", pdfResponse.status, errText);
-      return new Response(
-        JSON.stringify({ error: `PDF service error: ${pdfResponse.status}`, details: errText, fallback: true }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    if (WEASYPRINT_SECRET) {
+      timestamp = Math.floor(Date.now() / 1000).toString();
+      signature = await signPayload(WEASYPRINT_SECRET, timestamp, body);
     }
 
-    // Stream PDF response directly — no buffering
-    return new Response(pdfResponse.body, {
+    return new Response(JSON.stringify({
+      url: pdfUrl,
+      filename: sanitizedFilename,
+      timestamp,
+      signature,
+    }), {
       status: 200,
       headers: {
         ...corsHeaders,
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${sanitizedFilename}"`,
+        "Content-Type": "application/json",
         "Cache-Control": "no-store",
       },
     });
@@ -78,7 +73,7 @@ serve(async (req) => {
     const message = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: message, fallback: true }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
