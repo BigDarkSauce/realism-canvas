@@ -57,6 +57,7 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [downloadGroup, setDownloadGroup] = useState<Group | null>(null);
   const dragStartRef = useRef<{ startX: number; startOffset: number } | null>(null);
   const groupWidthRef = useRef<number>(0);
 
