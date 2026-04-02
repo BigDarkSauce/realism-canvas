@@ -2,7 +2,8 @@ import { useState, useRef, useCallback } from 'react';
 import { Group, Block } from '@/types/canvas';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { Paintbrush } from 'lucide-react';
+import { Paintbrush, Download } from 'lucide-react';
+import GroupDownloadDialog from './GroupDownloadDialog';
 import {
   Popover,
   PopoverContent,
@@ -56,6 +57,7 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState('');
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [downloadGroup, setDownloadGroup] = useState<Group | null>(null);
   const dragStartRef = useRef<{ startX: number; startOffset: number } | null>(null);
   const groupWidthRef = useRef<number>(0);
 
@@ -170,6 +172,15 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                 </span>
               )}
 
+              <button
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent border border-border bg-card"
+                title="Download group files"
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); setDownloadGroup(group); }}
+              >
+                <Download className="h-3 w-3 text-muted-foreground" />
+              </button>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <button
@@ -266,6 +277,14 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
           </div>
         );
       })}
+      {downloadGroup && (
+        <GroupDownloadDialog
+          open={!!downloadGroup}
+          onClose={() => setDownloadGroup(null)}
+          group={downloadGroup}
+          blocks={blocks}
+        />
+      )}
     </>
   );
 }
