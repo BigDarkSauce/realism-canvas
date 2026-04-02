@@ -172,6 +172,15 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
                 </span>
               )}
 
+              <button
+                className="h-5 w-5 flex items-center justify-center rounded hover:bg-accent border border-border bg-card"
+                title="Download group files"
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => { e.stopPropagation(); setDownloadGroup(group); }}
+              >
+                <Download className="h-3 w-3 text-muted-foreground" />
+              </button>
+
               <Popover>
                 <PopoverTrigger asChild>
                   <button
