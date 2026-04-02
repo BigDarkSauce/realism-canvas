@@ -277,6 +277,14 @@ export default function GroupOverlays({ groups, blocks, onRenameGroup, onUpdateG
           </div>
         );
       })}
+      {downloadGroup && (
+        <GroupDownloadDialog
+          open={!!downloadGroup}
+          onClose={() => setDownloadGroup(null)}
+          group={downloadGroup}
+          blocks={blocks}
+        />
+      )}
     </>
   );
 }
