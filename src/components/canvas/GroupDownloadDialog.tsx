@@ -231,15 +231,12 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
         if (dirHandle) {
           const fileHandle = await dirHandle.getFileHandle(result.fileName, { create: true });
           const writable = await fileHandle.createWritable();
-          const ab = new ArrayBuffer(result.data.byteLength);
-          new Uint8Array(ab).set(result.data);
-          await writable.write(ab);
-          await writable.close();
+          await writable.write(result.data);
           await writable.close();
         } else {
           downloadBytesAsFile(result.data, result.fileName, result.mimeType);
-          // Small delay between downloads so the browser doesn't block them
-          if (done < total - 1) await new Promise(r => setTimeout(r, 300));
+          // Longer delay between downloads so the browser doesn't block them
+          if (done < total - 1) await new Promise(r => setTimeout(r, 800));
         }
 
         done++;
