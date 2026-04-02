@@ -231,12 +231,10 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
         if (dirHandle) {
           const fileHandle = await dirHandle.getFileHandle(result.fileName, { create: true });
           const writable = await fileHandle.createWritable();
-          await writable.write(new ArrayBuffer(result.data.byteLength));
           const ab = new ArrayBuffer(result.data.byteLength);
           new Uint8Array(ab).set(result.data);
-          const writable2 = await fileHandle.createWritable();
-          await writable2.write(ab);
-          await writable2.close();
+          await writable.write(ab);
+          await writable.close();
           await writable.close();
         } else {
           downloadBytesAsFile(result.data, result.fileName, result.mimeType);
