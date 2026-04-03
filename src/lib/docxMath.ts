@@ -178,6 +178,34 @@ function parseRelationships(xml: string): Map<string, string> {
   return map;
 }
 
+function parseImageRelationships(xml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const rels = Array.from(doc.getElementsByTagName('Relationship'));
+  for (const rel of rels) {
+    const id = rel.getAttribute('Id');
+    const target = rel.getAttribute('Target');
+    const type = rel.getAttribute('Type') || '';
+    if (id && target && /image/i.test(type)) map.set(id, target);
+  }
+  return map;
+}
+
+async function loadImages(zip: JSZip, imageRels: Map<string, string>): Promise<Map<string, string>> {
+  const dataUrls = new Map<string, string>();
+  for (const [relId, target] of imageRels) {
+    const path = target.startsWith('/') ? target.slice(1) : `word/${target}`;
+    const entry = zip.file(path);
+    if (!entry) continue;
+    const data = await entry.async('base64');
+    const ext = target.split('.').pop()?.toLowerCase() || 'png';
+    const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', emf: 'image/x-emf', wmf: 'image/x-wmf', tiff: 'image/tiff', tif: 'image/tiff', bmp: 'image/bmp' };
+    const mime = mimeMap[ext] || 'image/png';
+    dataUrls.set(relId, `data:${mime};base64,${data}`);
+  }
+  return dataUrls;
+}
+
 export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promise<DocxRichParagraph[]> {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const documentXml = await zip.file('word/document.xml')?.async('string');
