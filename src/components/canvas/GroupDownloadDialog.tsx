@@ -54,6 +54,17 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function extractTopHeading(html: string): string | null {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const heading = doc.querySelector('h1, h2, h3, h4, h5, h6, .section-heading');
+    const text = heading?.textContent?.trim();
+    return text && text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function getFileExtension(nameOrUrl?: string | null): string {
   if (!nameOrUrl) return '';
   const clean = nameOrUrl.split('?')[0].split('#')[0];
