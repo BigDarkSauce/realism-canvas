@@ -193,7 +193,9 @@ async function exportSingleBlockAsDocx(
     console.warn('Failed to fetch block source:', block.label, err);
   }
 
-  const safeName = sanitizeDocumentName(block.label);
+  const html = createViewerHtml(block, source);
+  const headingName = extractTopHeading(html) || block.label;
+  const safeName = sanitizeDocumentName(headingName);
 
   if (source?.ext === 'docx') {
     return {
@@ -203,7 +205,6 @@ async function exportSingleBlockAsDocx(
     };
   }
 
-  const html = createViewerHtml(block, source);
   const data = await renderHtmlToDocxBytes(html);
   return {
     data,
