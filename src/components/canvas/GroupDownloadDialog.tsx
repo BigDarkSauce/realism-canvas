@@ -385,12 +385,13 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Browser Render Export</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Export</AlertDialogTitle>
             <AlertDialogDescription>
-              {selected.size} file{selected.size !== 1 ? 's' : ''} will be rendered in-browser as {format === 'pdf' ? 'PDF' : 'Word (.docx)'} documents.
-              {' '}{'showDirectoryPicker' in window
-                ? 'You will be asked to choose a destination folder.'
-                : 'Files will be downloaded individually to your default downloads folder.'}
+              {format === 'pdf'
+                ? `${selected.size} file${selected.size !== 1 ? 's' : ''} will open the browser print dialog sequentially — choose "Save as PDF" for each one.`
+                : `${selected.size} file${selected.size !== 1 ? 's' : ''} will be rendered as Word (.docx) documents.${
+                    'showDirectoryPicker' in window ? ' You will be asked to choose a destination folder.' : ' Files will be downloaded individually.'
+                  }`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
