@@ -225,6 +225,8 @@ export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promi
 
   const relsXml = await zip.file('word/_rels/document.xml.rels')?.async('string');
   const relationships = relsXml ? parseRelationships(relsXml) : new Map<string, string>();
+  const imageRels = relsXml ? parseImageRelationships(relsXml) : new Map<string, string>();
+  const imageDataUrls = await loadImages(zip, imageRels);
   const xmlDoc = new DOMParser().parseFromString(documentXml, 'application/xml');
   const paragraphs = Array.from(xmlDoc.getElementsByTagNameNS(WORD_NS, 'p'));
 
@@ -238,11 +240,11 @@ export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promi
         const element = child as Element;
 
         if (element.namespaceURI === WORD_NS && element.localName === 'r') {
-          const rendered = renderRun(element);
+          const rendered = renderRun(element, imageDataUrls);
           htmlParts.push(rendered.html);
           textParts.push(rendered.text);
         } else if (element.namespaceURI === WORD_NS && element.localName === 'hyperlink') {
-          const rendered = renderHyperlink(element, relationships);
+          const rendered = renderHyperlink(element, relationships, imageDataUrls);
           htmlParts.push(rendered.html);
           textParts.push(rendered.text);
         } else if (element.namespaceURI === MATH_NS && (element.localName === 'oMath' || element.localName === 'oMathPara')) {
