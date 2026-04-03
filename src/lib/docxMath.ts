@@ -74,7 +74,7 @@ function wrapFormattedHtml(html: string, format: ReturnType<typeof getRunFormatt
   return result;
 }
 
-function renderRun(run: Element): { html: string; text: string } {
+function renderRun(run: Element, imageDataUrls?: Map<string, string>): { html: string; text: string } {
   const format = getRunFormatting(run);
   const parts: string[] = [];
   const textParts: string[] = [];
@@ -98,8 +98,20 @@ function renderRun(run: Element): { html: string; text: string } {
       parts.push('<br/>');
       textParts.push('\n');
     } else if (element.localName === 'drawing' || element.localName === 'object' || element.localName === 'pict') {
-      parts.push('<span class="docx-media-placeholder">[Image]</span>');
-      textParts.push('[Image]');
+      // Try to extract embedded image reference
+      const embedEl = element.querySelector('[*|embed]') ||
+        element.querySelector('*[r\\:embed]');
+      const embedId = embedEl?.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed')
+        || embedEl?.getAttribute('r:embed')
+        || '';
+      const dataUrl = embedId && imageDataUrls?.get(embedId);
+      if (dataUrl) {
+        parts.push(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0.5em auto;" />`);
+        textParts.push('[Image]');
+      } else {
+        parts.push('<span class="docx-media-placeholder">[Image]</span>');
+        textParts.push('[Image]');
+      }
     }
   }
 
