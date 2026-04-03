@@ -263,13 +263,16 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
           let source: BlockSourceFile | null = null;
           try { source = await fetchBlockSourceFile(block); } catch {}
 
+          const html = createViewerHtml(block, source);
+          const headingName = extractTopHeading(html) || block.label;
+          const safeName = sanitizeDocumentName(headingName);
+
           // If already a PDF, download directly
           if (source?.ext === 'pdf') {
-            downloadBytesAsFile(source.bytes, `${sanitizeDocumentName(block.label)}.pdf`, 'application/pdf');
+            downloadBytesAsFile(source.bytes, `${safeName}.pdf`, 'application/pdf');
           } else {
-            const html = createViewerHtml(block, source);
-            toast.info(`Print dialog for "${block.label}" — choose "Save as PDF"`, { duration: 4000 });
-            await printHtmlAsPdf(html, block.label);
+            toast.info(`Print dialog for "${headingName}" — choose "Save as PDF"`, { duration: 4000 });
+            await printHtmlAsPdf(html, headingName);
           }
 
           done++;
