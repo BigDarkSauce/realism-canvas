@@ -127,9 +127,54 @@ ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>`
 <h2>Document Content</h2>${content}</body></html>`;
 }
 
-async function exportSingleBlock(
+function printHtmlAsPdf(html: string, label: string): Promise<void> {
+  return new Promise((resolve) => {
+    const printIframe = document.createElement('iframe');
+    printIframe.style.position = 'fixed';
+    printIframe.style.top = '0';
+    printIframe.style.left = '0';
+    printIframe.style.width = '100%';
+    printIframe.style.height = '100%';
+    printIframe.style.opacity = '0';
+    printIframe.style.pointerEvents = 'none';
+    printIframe.style.zIndex = '-1';
+
+    const printHtml = html.replace(
+      '</head>',
+      `<style>
+        @media print {
+          @page { margin: 0.6in; }
+          html, body { background: #fff !important; color: #000 !important; }
+          body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
+          img { max-width: 100% !important; height: auto !important; break-inside: avoid; }
+          table, figure, pre, blockquote { break-inside: avoid; }
+          .math-expression, [class*="ML__"] { font-family: 'Cambria Math', Cambria, serif !important; }
+        }
+      </style></head>`
+    );
+
+    printIframe.srcdoc = printHtml;
+    document.body.appendChild(printIframe);
+
+    printIframe.onload = () => {
+      setTimeout(() => {
+        try {
+          printIframe.contentWindow?.print();
+        } catch (err) {
+          console.error('Print failed for', label, err);
+          toast.error(`Print failed for "${label}"`);
+        }
+        setTimeout(() => {
+          try { document.body.removeChild(printIframe); } catch {}
+          resolve();
+        }, 1000);
+      }, 500);
+    };
+  });
+}
+
+async function exportSingleBlockAsDocx(
   block: Block,
-  format: ExportFormat
 ): Promise<{ data: Uint8Array; fileName: string; mimeType: string }> {
   let source: BlockSourceFile | null = null;
   try {
@@ -140,11 +185,7 @@ async function exportSingleBlock(
 
   const safeName = sanitizeDocumentName(block.label);
 
-  // If the source is already in the target format, pass through
-  if (format === 'pdf' && source?.ext === 'pdf') {
-    return { data: source.bytes, fileName: `${safeName}.pdf`, mimeType: 'application/pdf' };
-  }
-  if (format === 'word' && source?.ext === 'docx') {
+  if (source?.ext === 'docx') {
     return {
       data: source.bytes,
       fileName: `${safeName}.docx`,
@@ -153,17 +194,12 @@ async function exportSingleBlock(
   }
 
   const html = createViewerHtml(block, source);
-  if (format === 'pdf') {
-    const data = await renderHtmlToPdfBytes(html, `${safeName}.pdf`);
-    return { data, fileName: `${safeName}.pdf`, mimeType: 'application/pdf' };
-  } else {
-    const data = await renderHtmlToDocxBytes(html);
-    return {
-      data,
-      fileName: `${safeName}.docx`,
-      mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    };
-  }
+  const data = await renderHtmlToDocxBytes(html);
+  return {
+    data,
+    fileName: `${safeName}.docx`,
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  };
 }
 
 export default function GroupDownloadDialog({ open, onClose, group, blocks }: GroupDownloadDialogProps) {
