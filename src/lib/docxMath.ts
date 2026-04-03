@@ -134,7 +134,7 @@ function renderMathElement(mathElement: Element): { html: string; text: string }
   };
 }
 
-function renderHyperlink(link: Element, relationships: Map<string, string>): { html: string; text: string } {
+function renderHyperlink(link: Element, relationships: Map<string, string>, imageDataUrls?: Map<string, string>): { html: string; text: string } {
   const relId = link.getAttributeNS(REL_NS, 'id') || link.getAttribute('r:id') || '';
   const href = relationships.get(relId) || '#';
   const parts: string[] = [];
@@ -144,7 +144,7 @@ function renderHyperlink(link: Element, relationships: Map<string, string>): { h
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
     const element = child as Element;
     if (element.namespaceURI === WORD_NS && element.localName === 'r') {
-      const rendered = renderRun(element);
+      const rendered = renderRun(element, imageDataUrls);
       parts.push(rendered.html);
       textParts.push(rendered.text);
     }
