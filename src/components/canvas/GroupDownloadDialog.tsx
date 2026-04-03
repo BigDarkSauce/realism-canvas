@@ -244,39 +244,59 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
     const total = selectedBlocks.length;
     let done = 0;
 
-    // Try File System Access API for folder selection (Chrome/Edge)
-    let dirHandle: FileSystemDirectoryHandle | null = null;
-    if ('showDirectoryPicker' in window) {
-      try {
-        dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          setExporting(false);
-          return;
-        }
-        // Fallback to individual downloads
-        dirHandle = null;
-      }
-    }
-
     try {
-      for (const block of selectedBlocks) {
-        setCurrentFile(block.label);
-        const result = await exportSingleBlock(block, format);
+      if (format === 'pdf') {
+        // Use browser native print-to-PDF for each file sequentially
+        for (const block of selectedBlocks) {
+          setCurrentFile(block.label);
 
-        if (dirHandle) {
-          const fileHandle = await dirHandle.getFileHandle(result.fileName, { create: true });
-          const writable = await fileHandle.createWritable();
-          await writable.write(result.data.buffer.slice(result.data.byteOffset, result.data.byteOffset + result.data.byteLength) as ArrayBuffer);
-          await writable.close();
-        } else {
-          downloadBytesAsFile(result.data, result.fileName, result.mimeType);
-          // Longer delay between downloads so the browser doesn't block them
-          if (done < total - 1) await new Promise(r => setTimeout(r, 800));
+          let source: BlockSourceFile | null = null;
+          try { source = await fetchBlockSourceFile(block); } catch {}
+
+          // If already a PDF, download directly
+          if (source?.ext === 'pdf') {
+            downloadBytesAsFile(source.bytes, `${sanitizeDocumentName(block.label)}.pdf`, 'application/pdf');
+          } else {
+            const html = createViewerHtml(block, source);
+            toast.info(`Print dialog for "${block.label}" — choose "Save as PDF"`, { duration: 4000 });
+            await printHtmlAsPdf(html, block.label);
+          }
+
+          done++;
+          setProgress(Math.round((done / total) * 100));
+        }
+      } else {
+        // Word export — use folder picker or individual downloads
+        let dirHandle: FileSystemDirectoryHandle | null = null;
+        if ('showDirectoryPicker' in window) {
+          try {
+            dirHandle = await (window as any).showDirectoryPicker({ mode: 'readwrite' });
+          } catch (err: any) {
+            if (err?.name === 'AbortError') {
+              setExporting(false);
+              return;
+            }
+            dirHandle = null;
+          }
         }
 
-        done++;
-        setProgress(Math.round((done / total) * 100));
+        for (const block of selectedBlocks) {
+          setCurrentFile(block.label);
+          const result = await exportSingleBlockAsDocx(block);
+
+          if (dirHandle) {
+            const fileHandle = await dirHandle.getFileHandle(result.fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(result.data.buffer.slice(result.data.byteOffset, result.data.byteOffset + result.data.byteLength) as ArrayBuffer);
+            await writable.close();
+          } else {
+            downloadBytesAsFile(result.data, result.fileName, result.mimeType);
+            if (done < total - 1) await new Promise(r => setTimeout(r, 800));
+          }
+
+          done++;
+          setProgress(Math.round((done / total) * 100));
+        }
       }
 
       toast.success(`${done} file${done > 1 ? 's' : ''} exported successfully!`);
