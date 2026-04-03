@@ -74,7 +74,7 @@ function wrapFormattedHtml(html: string, format: ReturnType<typeof getRunFormatt
   return result;
 }
 
-function renderRun(run: Element): { html: string; text: string } {
+function renderRun(run: Element, imageDataUrls?: Map<string, string>): { html: string; text: string } {
   const format = getRunFormatting(run);
   const parts: string[] = [];
   const textParts: string[] = [];
@@ -98,8 +98,20 @@ function renderRun(run: Element): { html: string; text: string } {
       parts.push('<br/>');
       textParts.push('\n');
     } else if (element.localName === 'drawing' || element.localName === 'object' || element.localName === 'pict') {
-      parts.push('<span class="docx-media-placeholder">[Image]</span>');
-      textParts.push('[Image]');
+      // Try to extract embedded image reference
+      const embedEl = element.querySelector('[*|embed]') ||
+        element.querySelector('*[r\\:embed]');
+      const embedId = embedEl?.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships', 'embed')
+        || embedEl?.getAttribute('r:embed')
+        || '';
+      const dataUrl = embedId && imageDataUrls?.get(embedId);
+      if (dataUrl) {
+        parts.push(`<img src="${dataUrl}" style="max-width:100%;height:auto;display:block;margin:0.5em auto;" />`);
+        textParts.push('[Image]');
+      } else {
+        parts.push('<span class="docx-media-placeholder">[Image]</span>');
+        textParts.push('[Image]');
+      }
     }
   }
 
@@ -122,7 +134,7 @@ function renderMathElement(mathElement: Element): { html: string; text: string }
   };
 }
 
-function renderHyperlink(link: Element, relationships: Map<string, string>): { html: string; text: string } {
+function renderHyperlink(link: Element, relationships: Map<string, string>, imageDataUrls?: Map<string, string>): { html: string; text: string } {
   const relId = link.getAttributeNS(REL_NS, 'id') || link.getAttribute('r:id') || '';
   const href = relationships.get(relId) || '#';
   const parts: string[] = [];
@@ -132,7 +144,7 @@ function renderHyperlink(link: Element, relationships: Map<string, string>): { h
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
     const element = child as Element;
     if (element.namespaceURI === WORD_NS && element.localName === 'r') {
-      const rendered = renderRun(element);
+      const rendered = renderRun(element, imageDataUrls);
       parts.push(rendered.html);
       textParts.push(rendered.text);
     }
@@ -178,6 +190,34 @@ function parseRelationships(xml: string): Map<string, string> {
   return map;
 }
 
+function parseImageRelationships(xml: string): Map<string, string> {
+  const map = new Map<string, string>();
+  const doc = new DOMParser().parseFromString(xml, 'application/xml');
+  const rels = Array.from(doc.getElementsByTagName('Relationship'));
+  for (const rel of rels) {
+    const id = rel.getAttribute('Id');
+    const target = rel.getAttribute('Target');
+    const type = rel.getAttribute('Type') || '';
+    if (id && target && /image/i.test(type)) map.set(id, target);
+  }
+  return map;
+}
+
+async function loadImages(zip: JSZip, imageRels: Map<string, string>): Promise<Map<string, string>> {
+  const dataUrls = new Map<string, string>();
+  for (const [relId, target] of imageRels) {
+    const path = target.startsWith('/') ? target.slice(1) : `word/${target}`;
+    const entry = zip.file(path);
+    if (!entry) continue;
+    const data = await entry.async('base64');
+    const ext = target.split('.').pop()?.toLowerCase() || 'png';
+    const mimeMap: Record<string, string> = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', emf: 'image/x-emf', wmf: 'image/x-wmf', tiff: 'image/tiff', tif: 'image/tiff', bmp: 'image/bmp' };
+    const mime = mimeMap[ext] || 'image/png';
+    dataUrls.set(relId, `data:${mime};base64,${data}`);
+  }
+  return dataUrls;
+}
+
 export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promise<DocxRichParagraph[]> {
   const zip = await JSZip.loadAsync(arrayBuffer);
   const documentXml = await zip.file('word/document.xml')?.async('string');
@@ -185,6 +225,8 @@ export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promi
 
   const relsXml = await zip.file('word/_rels/document.xml.rels')?.async('string');
   const relationships = relsXml ? parseRelationships(relsXml) : new Map<string, string>();
+  const imageRels = relsXml ? parseImageRelationships(relsXml) : new Map<string, string>();
+  const imageDataUrls = await loadImages(zip, imageRels);
   const xmlDoc = new DOMParser().parseFromString(documentXml, 'application/xml');
   const paragraphs = Array.from(xmlDoc.getElementsByTagNameNS(WORD_NS, 'p'));
 
@@ -198,11 +240,11 @@ export async function extractDocxRichParagraphs(arrayBuffer: ArrayBuffer): Promi
         const element = child as Element;
 
         if (element.namespaceURI === WORD_NS && element.localName === 'r') {
-          const rendered = renderRun(element);
+          const rendered = renderRun(element, imageDataUrls);
           htmlParts.push(rendered.html);
           textParts.push(rendered.text);
         } else if (element.namespaceURI === WORD_NS && element.localName === 'hyperlink') {
-          const rendered = renderHyperlink(element, relationships);
+          const rendered = renderHyperlink(element, relationships, imageDataUrls);
           htmlParts.push(rendered.html);
           textParts.push(rendered.text);
         } else if (element.namespaceURI === MATH_NS && (element.localName === 'oMath' || element.localName === 'oMathPara')) {

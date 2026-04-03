@@ -54,6 +54,17 @@ function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function extractTopHeading(html: string): string | null {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const heading = doc.querySelector('h1, h2, h3, h4, h5, h6, .section-heading');
+    const text = heading?.textContent?.trim();
+    return text && text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function getFileExtension(nameOrUrl?: string | null): string {
   if (!nameOrUrl) return '';
   const clean = nameOrUrl.split('?')[0].split('#')[0];
@@ -182,7 +193,9 @@ async function exportSingleBlockAsDocx(
     console.warn('Failed to fetch block source:', block.label, err);
   }
 
-  const safeName = sanitizeDocumentName(block.label);
+  const html = createViewerHtml(block, source);
+  const headingName = extractTopHeading(html) || block.label;
+  const safeName = sanitizeDocumentName(headingName);
 
   if (source?.ext === 'docx') {
     return {
@@ -192,7 +205,6 @@ async function exportSingleBlockAsDocx(
     };
   }
 
-  const html = createViewerHtml(block, source);
   const data = await renderHtmlToDocxBytes(html);
   return {
     data,
@@ -252,13 +264,16 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
           let source: BlockSourceFile | null = null;
           try { source = await fetchBlockSourceFile(block); } catch {}
 
+          const html = createViewerHtml(block, source);
+          const headingName = extractTopHeading(html) || block.label;
+          const safeName = sanitizeDocumentName(headingName);
+
           // If already a PDF, download directly
           if (source?.ext === 'pdf') {
-            downloadBytesAsFile(source.bytes, `${sanitizeDocumentName(block.label)}.pdf`, 'application/pdf');
+            downloadBytesAsFile(source.bytes, `${safeName}.pdf`, 'application/pdf');
           } else {
-            const html = createViewerHtml(block, source);
-            toast.info(`Print dialog for "${block.label}" — choose "Save as PDF"`, { duration: 4000 });
-            await printHtmlAsPdf(html, block.label);
+            toast.info(`Print dialog for "${headingName}" — choose "Save as PDF"`, { duration: 4000 });
+            await printHtmlAsPdf(html, headingName);
           }
 
           done++;
