@@ -27,7 +27,6 @@ import { Download, Loader2, FileText, File } from 'lucide-react';
 import { toast } from 'sonner';
 import { extractStoragePath, getSignedUrl } from '@/lib/storage';
 import {
-  renderHtmlToPdfBytes,
   renderHtmlToDocxBytes,
   sanitizeDocumentName,
   downloadBytesAsFile,
