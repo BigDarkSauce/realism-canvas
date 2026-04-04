@@ -282,7 +282,6 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
     const fromCenter = getCenter(fromBlock);
     const toCenter = getCenter(toBlock);
 
-    // Add a new cp at the midpoint of the last segment
     let newPt: ConnectionControlPoint;
     if (cps.length === 0) {
       newPt = { x: (fromCenter.x + toCenter.x) / 2, y: (fromCenter.y + toCenter.y) / 2 - 40 };
@@ -291,6 +290,18 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
       newPt = { x: (lastCp.x + toCenter.x) / 2, y: (lastCp.y + toCenter.y) / 2 };
     }
     onUpdateConnection(connId, { controlPoints: [...cps, newPt], cpX: undefined, cpY: undefined });
+  }, [connections, blockMap, onUpdateConnection]);
+
+  const handleRemoveNode = useCallback((connId: string) => {
+    const conn = connections.find(c => c.id === connId);
+    if (!conn) return;
+    const fromBlock = blockMap.get(conn.fromId);
+    const toBlock = blockMap.get(conn.toId);
+    if (!fromBlock || !toBlock) return;
+    const cps = getControlPoints(conn, fromBlock, toBlock);
+    if (cps.length === 0) return;
+    const newCps = cps.slice(0, -1);
+    onUpdateConnection(connId, { controlPoints: newCps, cpX: undefined, cpY: undefined });
   }, [connections, blockMap, onUpdateConnection]);
 
   const handleArrowClick = useCallback((connId: string) => {
