@@ -429,6 +429,8 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
             onUpdate={(updates) => onUpdateConnection(conn.id, updates)}
             onDelete={() => { onDelete(conn.id); setSelectedConn(null); }}
             onAddNode={() => handleAddNode(conn.id)}
+            onRemoveNode={() => handleRemoveNode(conn.id)}
+            nodeCount={cps.length}
           />
         );
       })()}
