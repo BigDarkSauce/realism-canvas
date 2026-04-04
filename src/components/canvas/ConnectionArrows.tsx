@@ -1,9 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Connection, Block, CanvasTool, ArrowStyle } from '@/types/canvas';
-import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Connection, Block, CanvasTool, ArrowStyle, ConnectionControlPoint } from '@/types/canvas';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Palette, Minus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 interface ConnectionArrowsProps {
   connections: Connection[];
@@ -58,16 +57,54 @@ function getDashArray(style?: ArrowStyle): string | undefined {
   return undefined;
 }
 
+/** Get all control points for a connection, converting legacy cpX/cpY */
+function getControlPoints(conn: Connection, fromBlock: Block, toBlock: Block): ConnectionControlPoint[] {
+  if (conn.controlPoints && conn.controlPoints.length > 0) {
+    return conn.controlPoints;
+  }
+  // Legacy single cp
+  if (conn.cpX !== undefined && conn.cpY !== undefined && (Math.abs(conn.cpX) > 2 || Math.abs(conn.cpY) > 2)) {
+    const fromCenter = getCenter(fromBlock);
+    const toCenter = getCenter(toBlock);
+    const midX = (fromCenter.x + toCenter.x) / 2 + conn.cpX;
+    const midY = (fromCenter.y + toCenter.y) / 2 + conn.cpY;
+    return [{ x: midX, y: midY }];
+  }
+  return [];
+}
+
+/** Build an SVG path through start, control points, and end using quadratic segments */
+function buildPath(start: { x: number; y: number }, end: { x: number; y: number }, cps: ConnectionControlPoint[]): string {
+  if (cps.length === 0) {
+    return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+  }
+  if (cps.length === 1) {
+    return `M ${start.x} ${start.y} Q ${cps[0].x} ${cps[0].y} ${end.x} ${end.y}`;
+  }
+  // Multiple CPs: use a series of quadratic curves through intermediate points
+  let d = `M ${start.x} ${start.y}`;
+  for (let i = 0; i < cps.length; i++) {
+    const cp = cps[i];
+    const nextPt = i < cps.length - 1
+      ? { x: (cps[i].x + cps[i + 1].x) / 2, y: (cps[i].y + cps[i + 1].y) / 2 }
+      : end;
+    d += ` Q ${cp.x} ${cp.y} ${nextPt.x} ${nextPt.y}`;
+  }
+  return d;
+}
+
 function ArrowStylePopover({
   conn,
   position,
   onUpdate,
   onDelete,
+  onAddNode,
 }: {
   conn: Connection;
   position: { x: number; y: number };
   onUpdate: (updates: Partial<Connection>) => void;
   onDelete: () => void;
+  onAddNode: () => void;
 }) {
   return (
     <div
@@ -134,6 +171,16 @@ function ArrowStylePopover({
           </div>
         </div>
 
+        {/* Add bend node */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-7 text-xs gap-1"
+          onClick={onAddNode}
+        >
+          <Plus className="h-3 w-3" /> Add Bend Node
+        </Button>
+
         {/* Delete */}
         <Button
           variant="destructive"
@@ -150,7 +197,7 @@ function ArrowStylePopover({
 
 export default function ConnectionArrows({ connections, blocks, tool, zoom, onDelete, onUpdateConnection }: ConnectionArrowsProps) {
   const blockMap = new Map(blocks.map(b => [b.id, b]));
-  const [draggingCp, setDraggingCp] = useState<string | null>(null);
+  const [draggingCp, setDraggingCp] = useState<{ connId: string; cpIndex: number } | null>(null);
   const [selectedConn, setSelectedConn] = useState<string | null>(null);
 
   // Close popover on outside click
@@ -165,10 +212,10 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
     return () => window.removeEventListener('mousedown', handler);
   }, [selectedConn]);
 
-  const handleCpMouseDown = useCallback((e: React.MouseEvent, connId: string) => {
+  const handleCpMouseDown = useCallback((e: React.MouseEvent, connId: string, cpIndex: number) => {
     if (tool !== 'select') return;
     e.stopPropagation();
-    setDraggingCp(connId);
+    setDraggingCp({ connId, cpIndex });
 
     const handleMove = (ev: MouseEvent) => {
       const svg = (e.target as SVGElement).closest('svg');
@@ -179,11 +226,14 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
       const fromBlock = blockMap.get(conn.fromId);
       const toBlock = blockMap.get(conn.toId);
       if (!fromBlock || !toBlock) return;
+
       const canvasX = (ev.clientX - rect.left) / zoom;
       const canvasY = (ev.clientY - rect.top) / zoom;
-      const midX = (getCenter(fromBlock).x + getCenter(toBlock).x) / 2;
-      const midY = (getCenter(fromBlock).y + getCenter(toBlock).y) / 2;
-      onUpdateConnection(connId, { cpX: canvasX - midX, cpY: canvasY - midY });
+
+      const cps = getControlPoints(conn, fromBlock, toBlock);
+      const newCps = [...cps];
+      newCps[cpIndex] = { x: canvasX, y: canvasY };
+      onUpdateConnection(connId, { controlPoints: newCps, cpX: undefined, cpY: undefined });
     };
 
     const handleUp = () => {
@@ -194,7 +244,41 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
 
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
-  }, [tool, connections, blockMap, onUpdateConnection]);
+  }, [tool, connections, blockMap, onUpdateConnection, zoom]);
+
+  const handleCpDoubleClick = useCallback((e: React.MouseEvent, connId: string, cpIndex: number) => {
+    e.stopPropagation();
+    const conn = connections.find(c => c.id === connId);
+    if (!conn) return;
+    const fromBlock = blockMap.get(conn.fromId);
+    const toBlock = blockMap.get(conn.toId);
+    if (!fromBlock || !toBlock) return;
+    const cps = getControlPoints(conn, fromBlock, toBlock);
+    if (cps.length <= 1) return; // don't remove if only 1 cp
+    const newCps = cps.filter((_, i) => i !== cpIndex);
+    onUpdateConnection(connId, { controlPoints: newCps, cpX: undefined, cpY: undefined });
+  }, [connections, blockMap, onUpdateConnection]);
+
+  const handleAddNode = useCallback((connId: string) => {
+    const conn = connections.find(c => c.id === connId);
+    if (!conn) return;
+    const fromBlock = blockMap.get(conn.fromId);
+    const toBlock = blockMap.get(conn.toId);
+    if (!fromBlock || !toBlock) return;
+    const cps = getControlPoints(conn, fromBlock, toBlock);
+    const fromCenter = getCenter(fromBlock);
+    const toCenter = getCenter(toBlock);
+
+    // Add a new cp at the midpoint of the last segment
+    let newPt: ConnectionControlPoint;
+    if (cps.length === 0) {
+      newPt = { x: (fromCenter.x + toCenter.x) / 2, y: (fromCenter.y + toCenter.y) / 2 - 40 };
+    } else {
+      const lastCp = cps[cps.length - 1];
+      newPt = { x: (lastCp.x + toCenter.x) / 2, y: (lastCp.y + toCenter.y) / 2 };
+    }
+    onUpdateConnection(connId, { controlPoints: [...cps, newPt], cpX: undefined, cpY: undefined });
+  }, [connections, blockMap, onUpdateConnection]);
 
   const handleArrowClick = useCallback((connId: string) => {
     if (tool !== 'select') return;
@@ -204,33 +288,40 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
   // Generate unique marker IDs per connection style
   const getMarkerId = (conn: Connection) => {
     const color = (conn.color || '#6b7280').replace('#', '');
-    return `arrowhead-${color}`;
+    const sw = conn.strokeWidth || 2;
+    return `arrowhead-${color}-${sw}`;
   };
 
-  // Collect unique marker defs
-  const markerColors = new Set(connections.map(c => c.color || '#6b7280'));
+  // Collect unique marker defs keyed by color+size
+  const markerKeys = new Set(connections.map(c => {
+    const color = c.color || '#6b7280';
+    const sw = c.strokeWidth || 2;
+    return `${color}|${sw}`;
+  }));
 
   return (
     <>
       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 5 }}>
         <defs>
-          {[...markerColors].map((color) => (
-            <marker
-              key={color}
-              id={`arrowhead-${color.replace('#', '')}`}
-              markerWidth="10"
-              markerHeight="7"
-              refX="9"
-              refY="3.5"
-              orient="auto"
-            >
-              <polygon points="0 0, 10 3.5, 0 7" fill={color} />
-            </marker>
-          ))}
-          {/* Fallback */}
-          <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-            <polygon points="0 0, 10 3.5, 0 7" className="fill-connection" />
-          </marker>
+          {[...markerKeys].map((key) => {
+            const [color, swStr] = key.split('|');
+            const sw = parseFloat(swStr);
+            const markerSize = Math.max(8, 6 + sw);
+            const id = `arrowhead-${color.replace('#', '')}-${sw}`;
+            return (
+              <marker
+                key={id}
+                id={id}
+                markerWidth={markerSize}
+                markerHeight={markerSize * 0.7}
+                refX={markerSize - 1}
+                refY={markerSize * 0.35}
+                orient="auto"
+              >
+                <polygon points={`0 0, ${markerSize} ${markerSize * 0.35}, 0 ${markerSize * 0.7}`} fill={color} />
+              </marker>
+            );
+          })}
         </defs>
         {connections.map(conn => {
           const fromBlock = blockMap.get(conn.fromId);
@@ -239,19 +330,19 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
 
           const fromCenter = getCenter(fromBlock);
           const toCenter = getCenter(toBlock);
-          const midX = (fromCenter.x + toCenter.x) / 2 + (conn.cpX || 0);
-          const midY = (fromCenter.y + toCenter.y) / 2 + (conn.cpY || 0);
-          const start = getEdgePoint(fromCenter, { x: midX, y: midY }, fromBlock);
-          const end = getEdgePoint(toCenter, { x: midX, y: midY }, toBlock);
-          const hasBend = conn.cpX !== undefined && conn.cpY !== undefined && (Math.abs(conn.cpX) > 2 || Math.abs(conn.cpY) > 2);
-          const pathD = hasBend
-            ? `M ${start.x} ${start.y} Q ${midX} ${midY} ${end.x} ${end.y}`
-            : `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+          const cps = getControlPoints(conn, fromBlock, toBlock);
 
+          // Compute edge points: aim at first CP or toCenter, and last CP or fromCenter
+          const firstAim = cps.length > 0 ? cps[0] : toCenter;
+          const lastAim = cps.length > 0 ? cps[cps.length - 1] : fromCenter;
+          const start = getEdgePoint(fromCenter, firstAim, fromBlock);
+          const end = getEdgePoint(toCenter, lastAim, toBlock);
+
+          const pathD = buildPath(start, end, cps);
           const strokeColor = conn.color || undefined;
           const strokeW = conn.strokeWidth || 2;
           const dashArray = getDashArray(conn.arrowStyle);
-          const markerId = conn.color ? getMarkerId(conn) : 'arrowhead';
+          const markerId = getMarkerId(conn);
 
           return (
             <g key={conn.id}>
@@ -273,17 +364,19 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
                 className="pointer-events-auto cursor-pointer"
                 onClick={() => handleArrowClick(conn.id)}
               />
-              {/* Control point handle */}
-              {tool === 'select' && (
+              {/* Control point handles */}
+              {tool === 'select' && cps.map((cp, i) => (
                 <circle
-                  cx={midX}
-                  cy={midY}
+                  key={i}
+                  cx={cp.x}
+                  cy={cp.y}
                   r={5}
                   className="fill-primary/40 stroke-primary pointer-events-auto cursor-grab"
                   strokeWidth={1.5}
-                  onMouseDown={(e) => handleCpMouseDown(e, conn.id)}
+                  onMouseDown={(e) => handleCpMouseDown(e, conn.id, i)}
+                  onDoubleClick={(e) => handleCpDoubleClick(e, conn.id, i)}
                 />
-              )}
+              ))}
             </g>
           );
         })}
@@ -298,17 +391,25 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
         if (!fromBlock || !toBlock) return null;
         const fromCenter = getCenter(fromBlock);
         const toCenter = getCenter(toBlock);
-        const mx = (fromCenter.x + toCenter.x) / 2 + (conn.cpX || 0);
-        const my = (fromCenter.y + toCenter.y) / 2 + (conn.cpY || 0);
+        const cps = getControlPoints(conn, fromBlock, toBlock);
+        const mx = cps.length > 0
+          ? cps[Math.floor(cps.length / 2)].x
+          : (fromCenter.x + toCenter.x) / 2;
+        const my = cps.length > 0
+          ? cps[Math.floor(cps.length / 2)].y
+          : (fromCenter.y + toCenter.y) / 2;
         return (
           <ArrowStylePopover
             conn={conn}
             position={{ x: mx, y: my }}
             onUpdate={(updates) => onUpdateConnection(conn.id, updates)}
             onDelete={() => { onDelete(conn.id); setSelectedConn(null); }}
+            onAddNode={() => handleAddNode(conn.id)}
           />
         );
       })()}
     </>
   );
 }
+
+export { getCenter, getEdgePoint, getControlPoints, buildPath };
