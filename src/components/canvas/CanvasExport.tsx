@@ -82,8 +82,8 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
         <DialogHeader>
           <DialogTitle>Export Canvas</DialogTitle>
           <DialogDescription>
-            Export a PDF canvas map plus attached block files organized by group folders.
-            The canvas map is always PDF; choose the format for attached block documents.
+            Export a PDF canvas map with embedded attachment links.
+            Block documents are not included — export them individually via group export buttons.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
