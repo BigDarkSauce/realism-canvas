@@ -360,7 +360,16 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
           const firstAim = cps.length > 0 ? cps[0] : toCenter;
           const lastAim = cps.length > 0 ? cps[cps.length - 1] : fromCenter;
           const start = getEdgePoint(fromCenter, firstAim, fromBlock);
-          const end = getEdgePoint(toCenter, lastAim, toBlock);
+          const rawEnd = getEdgePoint(toCenter, lastAim, toBlock);
+
+          // Pull back the endpoint so the arrowhead tip sits at the block edge
+          const markerSize = Math.max(8, 6 + (conn.strokeWidth || 2));
+          const pullbackSource = cps.length > 0 ? cps[cps.length - 1] : start;
+          const edgeAngle = Math.atan2(rawEnd.y - pullbackSource.y, rawEnd.x - pullbackSource.x);
+          const end = {
+            x: rawEnd.x - Math.cos(edgeAngle) * (markerSize - 1),
+            y: rawEnd.y - Math.sin(edgeAngle) * (markerSize - 1),
+          };
 
           const pathD = buildPath(start, end, cps);
           const strokeColor = conn.color || undefined;
