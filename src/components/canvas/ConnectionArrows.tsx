@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Connection, Block, CanvasTool, ArrowStyle, ConnectionControlPoint } from '@/types/canvas';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 
 interface ConnectionArrowsProps {
   connections: Connection[];
