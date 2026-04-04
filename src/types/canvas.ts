@@ -26,12 +26,18 @@ export interface Block {
 
 export type ArrowStyle = 'solid' | 'dashed' | 'dotted';
 
+export interface ConnectionControlPoint {
+  x: number;
+  y: number;
+}
+
 export interface Connection {
   id: string;
   fromId: string;
   toId: string;
   cpX?: number;
   cpY?: number;
+  controlPoints?: ConnectionControlPoint[];
   color?: string;
   strokeWidth?: number;
   arrowStyle?: ArrowStyle;
