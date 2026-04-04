@@ -693,44 +693,69 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
 
         const fromCenter = { x: tx(fCenterX), y: ty(fCenterY) };
         const toCenter = { x: tx(tCenterX), y: ty(tCenterY) };
-        const midX = (fromCenter.x + toCenter.x) / 2 + (conn.cpX || 0) * scale;
-        const midY = (fromCenter.y + toCenter.y) / 2 + (conn.cpY || 0) * scale;
-        const hasBend = conn.cpX !== undefined && conn.cpY !== undefined && (Math.abs(conn.cpX) > 2 || Math.abs(conn.cpY) > 2);
-        const aimPoint = hasBend ? { x: midX, y: midY } : toCenter;
-        const aimPointReverse = hasBend ? { x: midX, y: midY } : fromCenter;
-        const from = getEdgePointPdf(fromCenter, aimPoint, fromBlock);
-        const to = getEdgePointPdf(toCenter, aimPointReverse, toBlock);
+
+        // Get control points (supports multi-node and legacy)
+        const rawCps = getConnCPs(conn, fromBlock, toBlock);
+        const cps = rawCps.map(cp => ({ x: tx(cp.x), y: ty(cp.y) }));
+
+        const firstAim = cps.length > 0 ? cps[0] : toCenter;
+        const lastAim = cps.length > 0 ? cps[cps.length - 1] : fromCenter;
+        const from = getEdgePointPdf(fromCenter, firstAim, fromBlock);
+        const to = getEdgePointPdf(toCenter, lastAim, toBlock);
+
         const connColor = parseColor(conn.color, [60, 60, 80]);
         doc.setDrawColor(connColor[0], connColor[1], connColor[2]);
         doc.setFillColor(connColor[0], connColor[1], connColor[2]);
-        const connWidth = Math.max(0.5, (conn.strokeWidth ?? 2) * scale * 0.5);
+        const strokeWidth = conn.strokeWidth ?? 2;
+        const connWidth = Math.max(0.5, strokeWidth * scale);
         doc.setLineWidth(connWidth);
         if (conn.arrowStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
         else if (conn.arrowStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
         else doc.setLineDashPattern([], 0);
 
-        if (hasBend) {
-          const cp1x = from.x + (2/3) * (midX - from.x);
-          const cp1y = from.y + (2/3) * (midY - from.y);
-          const cp2x = to.x + (2/3) * (midX - to.x);
-          const cp2y = to.y + (2/3) * (midY - to.y);
-          const internal = (doc as any).internal;
-          const f = (n: number) => n.toFixed(4);
+        const internal = (doc as any).internal;
+        const f = (n: number) => n.toFixed(4);
+
+        if (cps.length === 0) {
+          doc.line(from.x, from.y, to.x, to.y);
+        } else if (cps.length === 1) {
+          // Single quadratic → approximate as cubic
+          const cp = cps[0];
+          const cp1x = from.x + (2/3) * (cp.x - from.x);
+          const cp1y = from.y + (2/3) * (cp.y - from.y);
+          const cp2x = to.x + (2/3) * (cp.x - to.x);
+          const cp2y = to.y + (2/3) * (cp.y - to.y);
           internal.write(`${f(from.x)} ${f(pageH - from.y)} m`);
           internal.write(`${f(cp1x)} ${f(pageH - cp1y)} ${f(cp2x)} ${f(pageH - cp2y)} ${f(to.x)} ${f(pageH - to.y)} c`);
           internal.write('S');
         } else {
-          doc.line(from.x, from.y, to.x, to.y);
+          // Multiple CPs: series of quadratic segments → cubic approximations
+          internal.write(`${f(from.x)} ${f(pageH - from.y)} m`);
+          for (let i = 0; i < cps.length; i++) {
+            const cp = cps[i];
+            const nextPt = i < cps.length - 1
+              ? { x: (cps[i].x + cps[i + 1].x) / 2, y: (cps[i].y + cps[i + 1].y) / 2 }
+              : to;
+            const prevPt = i === 0 ? from : { x: (cps[i - 1].x + cp.x) / 2, y: (cps[i - 1].y + cp.y) / 2 };
+            const c1x = prevPt.x + (2/3) * (cp.x - prevPt.x);
+            const c1y = prevPt.y + (2/3) * (cp.y - prevPt.y);
+            const c2x = nextPt.x + (2/3) * (cp.x - nextPt.x);
+            const c2y = nextPt.y + (2/3) * (cp.y - nextPt.y);
+            internal.write(`${f(c1x)} ${f(pageH - c1y)} ${f(c2x)} ${f(pageH - c2y)} ${f(nextPt.x)} ${f(pageH - nextPt.y)} c`);
+          }
+          internal.write('S');
         }
         doc.setLineDashPattern([], 0);
 
+        // Arrowhead - scale with stroke width
         let angle: number;
-        if (hasBend) {
-          angle = Math.atan2(to.y - midY, to.x - midX);
+        if (cps.length > 0) {
+          const lastCp = cps[cps.length - 1];
+          angle = Math.atan2(to.y - lastCp.y, to.x - lastCp.x);
         } else {
           angle = Math.atan2(to.y - from.y, to.x - from.x);
         }
-        const aLen = Math.max(6, 8 * scale);
+        const aLen = Math.max(6, (6 + strokeWidth) * scale);
         const aW = Math.PI / 7;
         doc.triangle(
           to.x, to.y,
