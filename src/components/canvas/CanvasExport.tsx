@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Block, Connection, Group, DrawingStroke, CanvasBackground } from '@/types/canvas';
+import { getCenter as getBlockCenter, getControlPoints as getConnCPs } from '@/components/canvas/ConnectionArrows';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
