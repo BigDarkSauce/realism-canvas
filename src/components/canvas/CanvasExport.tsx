@@ -1170,16 +1170,31 @@ async function embedFileAttachments(
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
+  // Build a map of blockId → group folder name for attachment path references
+  const blockGroupFolder = new Map<string, string>();
+  if (state) {
+    const groupMap = new Map<string, Group>();
+    state.groups.forEach(g => groupMap.set(g.id, g));
+    state.blocks.forEach(b => {
+      if (b.groupId && groupMap.has(b.groupId)) {
+        blockGroupFolder.set(b.id, sanitize(groupMap.get(b.groupId)!.label));
+      }
+    });
+  }
+
   for (const link of blockLinks) {
     const file = blockFiles.get(link.blockId);
     if (!file) continue;
 
-    const pageIndex = link.mapPage - 1; // 0-indexed
+    const pageIndex = link.mapPage - 1;
     if (pageIndex < 0 || pageIndex >= pages.length) continue;
     const page = pages[pageIndex];
     const pageHeight = page.getHeight();
 
-    // Create embedded file stream
+    // Use group-folder-prefixed path so user can place files in matching folders
+    const folderPrefix = blockGroupFolder.get(link.blockId);
+    const attachmentPath = folderPrefix ? `${folderPrefix}/${file.fileName}` : file.fileName;
+
     const mimeType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const embeddedFileStream = pdfDoc.context.stream(file.data, {
       Type: PDFName.of('EmbeddedFile'),
@@ -1188,18 +1203,16 @@ async function embedFileAttachments(
     });
     const embeddedFileStreamRef = pdfDoc.context.register(embeddedFileStream);
 
-    // Create EF dict
     const efDict = pdfDoc.context.obj({
       F: embeddedFileStreamRef,
     });
 
-    // Create file specification
     const fileSpecDict = pdfDoc.context.obj({
       Type: PDFName.of('Filespec'),
-      F: PDFString.of(file.fileName),
-      UF: PDFHexString.fromText(file.fileName),
+      F: PDFString.of(attachmentPath),
+      UF: PDFHexString.fromText(attachmentPath),
       EF: efDict,
-      Desc: PDFString.of(`Block: ${file.fileName}`),
+      Desc: PDFString.of(`Block: ${attachmentPath}`),
     });
     const fileSpecRef = pdfDoc.context.register(fileSpecDict);
 
