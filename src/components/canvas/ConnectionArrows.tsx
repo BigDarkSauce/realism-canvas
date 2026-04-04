@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Connection, Block, CanvasTool, ArrowStyle, ConnectionControlPoint } from '@/types/canvas';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 
 interface ConnectionArrowsProps {
   connections: Connection[];
@@ -99,12 +99,16 @@ function ArrowStylePopover({
   onUpdate,
   onDelete,
   onAddNode,
+  onRemoveNode,
+  nodeCount,
 }: {
   conn: Connection;
   position: { x: number; y: number };
   onUpdate: (updates: Partial<Connection>) => void;
   onDelete: () => void;
   onAddNode: () => void;
+  onRemoveNode: () => void;
+  nodeCount: number;
 }) {
   return (
     <div
@@ -171,15 +175,26 @@ function ArrowStylePopover({
           </div>
         </div>
 
-        {/* Add bend node */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full h-7 text-xs gap-1"
-          onClick={onAddNode}
-        >
-          <Plus className="h-3 w-3" /> Add Bend Node
-        </Button>
+        {/* Add/Remove bend node */}
+        <div className="flex gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs gap-1"
+            onClick={onAddNode}
+          >
+            <Plus className="h-3 w-3" /> Add Node
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs gap-1"
+            onClick={onRemoveNode}
+            disabled={nodeCount === 0}
+          >
+            <Minus className="h-3 w-3" /> Remove Node
+          </Button>
+        </div>
 
         {/* Delete */}
         <Button
@@ -269,7 +284,6 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
     const fromCenter = getCenter(fromBlock);
     const toCenter = getCenter(toBlock);
 
-    // Add a new cp at the midpoint of the last segment
     let newPt: ConnectionControlPoint;
     if (cps.length === 0) {
       newPt = { x: (fromCenter.x + toCenter.x) / 2, y: (fromCenter.y + toCenter.y) / 2 - 40 };
@@ -278,6 +292,18 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
       newPt = { x: (lastCp.x + toCenter.x) / 2, y: (lastCp.y + toCenter.y) / 2 };
     }
     onUpdateConnection(connId, { controlPoints: [...cps, newPt], cpX: undefined, cpY: undefined });
+  }, [connections, blockMap, onUpdateConnection]);
+
+  const handleRemoveNode = useCallback((connId: string) => {
+    const conn = connections.find(c => c.id === connId);
+    if (!conn) return;
+    const fromBlock = blockMap.get(conn.fromId);
+    const toBlock = blockMap.get(conn.toId);
+    if (!fromBlock || !toBlock) return;
+    const cps = getControlPoints(conn, fromBlock, toBlock);
+    if (cps.length === 0) return;
+    const newCps = cps.slice(0, -1);
+    onUpdateConnection(connId, { controlPoints: newCps, cpX: undefined, cpY: undefined });
   }, [connections, blockMap, onUpdateConnection]);
 
   const handleArrowClick = useCallback((connId: string) => {
@@ -336,7 +362,16 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
           const firstAim = cps.length > 0 ? cps[0] : toCenter;
           const lastAim = cps.length > 0 ? cps[cps.length - 1] : fromCenter;
           const start = getEdgePoint(fromCenter, firstAim, fromBlock);
-          const end = getEdgePoint(toCenter, lastAim, toBlock);
+          const rawEnd = getEdgePoint(toCenter, lastAim, toBlock);
+
+          // Pull back the endpoint so the arrowhead tip sits at the block edge
+          const markerSize = Math.max(8, 6 + (conn.strokeWidth || 2));
+          const pullbackSource = cps.length > 0 ? cps[cps.length - 1] : start;
+          const edgeAngle = Math.atan2(rawEnd.y - pullbackSource.y, rawEnd.x - pullbackSource.x);
+          const end = {
+            x: rawEnd.x - Math.cos(edgeAngle) * (markerSize - 1),
+            y: rawEnd.y - Math.sin(edgeAngle) * (markerSize - 1),
+          };
 
           const pathD = buildPath(start, end, cps);
           const strokeColor = conn.color || undefined;
@@ -405,6 +440,8 @@ export default function ConnectionArrows({ connections, blocks, tool, zoom, onDe
             onUpdate={(updates) => onUpdateConnection(conn.id, updates)}
             onDelete={() => { onDelete(conn.id); setSelectedConn(null); }}
             onAddNode={() => handleAddNode(conn.id)}
+            onRemoveNode={() => handleRemoveNode(conn.id)}
+            nodeCount={cps.length}
           />
         );
       })()}

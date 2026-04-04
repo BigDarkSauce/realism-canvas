@@ -137,7 +137,7 @@ ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>`
 <h2>Document Content</h2>${content}</body></html>`;
 }
 
-function printHtmlAsPdf(html: string, label: string): Promise<void> {
+function printHtmlAsPdf(html: string, label: string, fileName: string): Promise<void> {
   return new Promise((resolve) => {
     const printIframe = document.createElement('iframe');
     printIframe.style.position = 'fixed';
@@ -149,19 +149,22 @@ function printHtmlAsPdf(html: string, label: string): Promise<void> {
     printIframe.style.pointerEvents = 'none';
     printIframe.style.zIndex = '-1';
 
-    const printHtml = html.replace(
-      '</head>',
-      `<style>
-        @media print {
-          @page { margin: 0.6in; }
-          html, body { background: #fff !important; color: #000 !important; }
-          body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
-          img { max-width: 100% !important; height: auto !important; break-inside: avoid; }
-          table, figure, pre, blockquote { break-inside: avoid; }
-          .math-expression, [class*="ML__"] { font-family: 'Cambria Math', Cambria, serif !important; }
-        }
-      </style></head>`
-    );
+    // Set the document title to the actual file name so the browser print dialog uses it
+    const printHtml = html
+      .replace(/<title>[^<]*<\/title>/i, `<title>${esc(fileName)}</title>`)
+      .replace(
+        '</head>',
+        `<style>
+          @media print {
+            @page { margin: 0.6in; }
+            html, body { background: #fff !important; color: #000 !important; }
+            body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
+            img { max-width: 100% !important; height: auto !important; break-inside: avoid; }
+            table, figure, pre, blockquote { break-inside: avoid; }
+            .math-expression, [class*="ML__"] { font-family: 'Cambria Math', Cambria, serif !important; }
+          }
+        </style></head>`
+      );
 
     printIframe.srcdoc = printHtml;
     document.body.appendChild(printIframe);
@@ -273,7 +276,7 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
             downloadBytesAsFile(source.bytes, `${safeName}.pdf`, 'application/pdf');
           } else {
             toast.info(`Print dialog for "${headingName}" — choose "Save as PDF"`, { duration: 4000 });
-            await printHtmlAsPdf(html, headingName);
+            await printHtmlAsPdf(html, headingName, safeName);
           }
 
           done++;

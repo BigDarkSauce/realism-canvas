@@ -460,6 +460,15 @@ function DocxHighlightView({
                 </p>
               )}
               {isHeading && (
+                <button
+                  className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => { e.stopPropagation(); onToggle(i); }}
+                  title="Remove heading"
+                >
+                  ✕
+                </button>
+              )}
+              {isHeading && (
                 <span className="absolute -left-1 top-1/2 -translate-y-1/2 -translate-x-full text-[9px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 mr-1">
                   H
                 </span>
@@ -538,7 +547,7 @@ function PdfHighlightView({
                 ref={isActive ? activeRef : undefined}
                 onClick={() => onToggle(i)}
                 className={`
-                  cursor-pointer rounded px-2 py-1 transition-all select-none text-xs
+                  cursor-pointer rounded px-2 py-1 transition-all select-none text-xs relative group
                   ${isHeading
                     ? 'bg-primary/15 border-l-[3px] border-primary font-bold text-foreground my-1.5'
                     : 'text-muted-foreground hover:bg-accent/40 border-l-[3px] border-transparent'
@@ -548,6 +557,15 @@ function PdfHighlightView({
                 `}
               >
                 {p.text}
+                {isHeading && (
+                  <button
+                    className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-destructive/80 hover:bg-destructive text-destructive-foreground flex items-center justify-center text-[9px] opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => { e.stopPropagation(); onToggle(i); }}
+                    title="Remove heading"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             );
           })}

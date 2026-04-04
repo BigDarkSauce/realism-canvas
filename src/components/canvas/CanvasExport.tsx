@@ -57,7 +57,11 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, blockFiles, format, state);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
-      // No block files are written to ZIP - user exports them individually via group export
+      // Create empty group folders so user can place files there
+      for (const group of state.groups) {
+        const folderName = sanitize(group.label);
+        zip.folder(folderName);
+      }
 
       // 4. Download ZIP
       const zipData = await zip.generateAsync({
