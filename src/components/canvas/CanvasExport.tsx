@@ -1162,7 +1162,8 @@ async function embedFileAttachments(
   pdfBytes: Uint8Array,
   blockLinks: BlockLinkInfo[],
   blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
-  format: ExportFormat
+  format: ExportFormat,
+  state?: CanvasExportState
 ): Promise<Uint8Array> {
   const { PDFDocument, PDFName, PDFDict, PDFArray, PDFString, PDFStream, PDFHexString } = await import('pdf-lib');
 
