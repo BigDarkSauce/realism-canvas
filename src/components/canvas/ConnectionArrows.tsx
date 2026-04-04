@@ -99,6 +99,8 @@ function ArrowStylePopover({
   onUpdate,
   onDelete,
   onAddNode,
+  onRemoveNode,
+  nodeCount,
 }: {
   conn: Connection;
   position: { x: number; y: number };
