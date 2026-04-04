@@ -687,7 +687,13 @@ export function createSectionFile(section: DocumentSection, index: number, forma
   img, video { max-width: 100%; height: auto; display: block; margin: 0.75em auto; }
   table { border-collapse: collapse; width: 100%; margin: 1em 0; }
   td, th { border: 1px solid #ccc; padding: 6px 10px; }
-  math { font-size: 1.1em; font-family: 'Cambria Math', 'Cambria', serif; }
+  math { font-size: 1.1em; font-family: 'Cambria Math', 'Cambria', serif; display: inline-block; vertical-align: middle; }
+  math[display="block"] { display: block; text-align: center; margin: 1em 0; }
+  mfrac { display: inline-block; vertical-align: middle; text-align: center; }
+  mfrac > *:first-child { border-bottom: 1px solid currentColor; display: block; padding: 0 0.2em 0.1em; }
+  mfrac > *:last-child { display: block; padding: 0.1em 0.2em 0; }
+  msub, msup, msubsup { display: inline-block; vertical-align: baseline; }
+  mrow { display: inline; }
   .math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }
   .docx-math { font-family: 'Cambria Math', 'Cambria', serif; }
   .docx-math-block { display: block; text-align: center; margin: 1em 0; overflow-x: auto; }

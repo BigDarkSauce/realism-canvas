@@ -276,7 +276,7 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
             downloadBytesAsFile(source.bytes, `${safeName}.pdf`, 'application/pdf');
           } else {
             toast.info(`Print dialog for "${headingName}" — choose "Save as PDF"`, { duration: 4000 });
-            await printHtmlAsPdf(html, headingName);
+            await printHtmlAsPdf(html, headingName, safeName);
           }
 
           done++;

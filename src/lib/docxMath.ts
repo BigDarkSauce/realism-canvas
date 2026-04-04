@@ -127,6 +127,9 @@ function renderMathElement(mathElement: Element): { html: string; text: string }
   const existingClass = mathml.getAttribute('class') || '';
   const isBlock = mathElement.localName === 'oMathPara' || mathml.getAttribute('display') === 'block';
   mathml.setAttribute('class', `${existingClass} docx-math${isBlock ? ' docx-math-block' : ''}`.trim());
+  if (isBlock) {
+    mathml.setAttribute('display', 'block');
+  }
 
   return {
     html: new XMLSerializer().serializeToString(mathml),
