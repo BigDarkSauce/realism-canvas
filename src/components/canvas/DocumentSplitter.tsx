@@ -367,10 +367,40 @@ export default function DocumentSplitter({ open, onClose, onSectionsCreated }: D
               </p>
               <div className="max-h-60 overflow-y-auto space-y-1 border border-border rounded-lg p-2">
                 {sections.map((s, i) => (
-                  <div key={i} className="flex items-center gap-2 py-1 px-2 rounded text-xs hover:bg-accent/50">
+                  <div key={i} className="group flex items-center gap-2 py-1 px-2 rounded text-xs hover:bg-accent/50">
                     <span className="text-muted-foreground font-mono w-5">{i + 1}.</span>
                     <span className="text-foreground truncate">{s.heading}</span>
                     <span className="text-muted-foreground ml-auto shrink-0">{s.content.length} chars</span>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                      title="Remove section"
+                      onClick={() => {
+                        const updated = sections.filter((_, idx) => idx !== i);
+                        if (updated.length === 0) {
+                          toast.error('Cannot remove the last section');
+                          return;
+                        }
+                        // Merge removed section's content into the previous section (or next if first)
+                        if (i > 0) {
+                          const prev = { ...updated[i - 1] };
+                          prev.content = prev.content + '\n\n' + s.content;
+                          if (prev.htmlParagraphs && s.htmlParagraphs) {
+                            prev.htmlParagraphs = [...prev.htmlParagraphs, ...s.htmlParagraphs];
+                          }
+                          updated[i - 1] = prev;
+                        } else if (updated.length > 0) {
+                          const next = { ...updated[0] };
+                          next.content = s.content + '\n\n' + next.content;
+                          if (next.htmlParagraphs && s.htmlParagraphs) {
+                            next.htmlParagraphs = [...s.htmlParagraphs, ...next.htmlParagraphs];
+                          }
+                          updated[0] = next;
+                        }
+                        setSections(updated);
+                      }}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
                   </div>
                 ))}
               </div>

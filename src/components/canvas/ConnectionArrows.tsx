@@ -176,11 +176,11 @@ function ArrowStylePopover({
         </div>
 
         {/* Add/Remove bend node */}
-        <div className="flex gap-1">
+        <div className="grid grid-cols-2 gap-1">
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 h-7 text-xs gap-1"
+            className="h-7 text-xs gap-1"
             onClick={onAddNode}
           >
             <Plus className="h-3 w-3" /> Add Node
@@ -188,11 +188,11 @@ function ArrowStylePopover({
           <Button
             variant="outline"
             size="sm"
-            className="flex-1 h-7 text-xs gap-1"
+            className="h-7 text-xs gap-1"
             onClick={onRemoveNode}
             disabled={nodeCount === 0}
           >
-            <Minus className="h-3 w-3" /> Remove Node
+            <Minus className="h-3 w-3" /> Remove
           </Button>
         </div>
 
