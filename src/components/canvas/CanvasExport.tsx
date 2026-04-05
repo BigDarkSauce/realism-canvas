@@ -1140,40 +1140,37 @@ async function exportBlockFile(
   };
 }
 
-// ─── Collect block file data for PDF attachment embedding ────────
+// ─── Lightweight metadata builder (no file fetching) ────────
 
-async function collectBlockFiles(
+function buildBlockFileMeta(
   state: CanvasExportState,
   format: ExportFormat
-): Promise<Map<string, { data: Uint8Array; fileName: string }>> {
-  const { blocks } = state;
-  const result = new Map<string, { data: Uint8Array; fileName: string }>();
-
-  const entries = await Promise.all(
-    blocks.map(async (block) => {
-      const file = await exportBlockFile(block, format);
-      return { id: block.id, data: file.data, fileName: file.fileName };
-    })
-  );
-  for (const e of entries) result.set(e.id, { data: e.data, fileName: e.fileName });
+): Map<string, { fileName: string }> {
+  const result = new Map<string, { fileName: string }>();
+  const ext = format === 'pdf' ? '.pdf' : '.docx';
+  for (const block of state.blocks) {
+    const baseName = block.fileName
+      ? block.fileName.replace(/\.[^.]+$/, '')
+      : sanitize(block.label);
+    result.set(block.id, { fileName: `${baseName}${ext}` });
+  }
   return result;
 }
 
-// ─── Embed files as PDF FileAttachment annotations (Acrobat-only) ────────
+// ─── Embed link-only FileAttachment annotations (no embedded data) ────────
 
-async function embedFileAttachments(
+async function embedFileAttachmentLinks(
   pdfBytes: Uint8Array,
   blockLinks: BlockLinkInfo[],
-  blockFiles: Map<string, { data: Uint8Array; fileName: string }>,
-  format: ExportFormat,
+  blockFileMeta: Map<string, { fileName: string }>,
   state?: CanvasExportState
 ): Promise<Uint8Array> {
-  const { PDFDocument, PDFName, PDFDict, PDFArray, PDFString, PDFStream, PDFHexString } = await import('pdf-lib');
+  const { PDFDocument, PDFName, PDFArray, PDFString, PDFHexString } = await import('pdf-lib');
 
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
-  // Build a map of blockId → group folder name for attachment path references
+  // Build a map of blockId → group folder name
   const blockGroupFolder = new Map<string, string>();
   if (state) {
     const groupMap = new Map<string, Group>();
@@ -1186,59 +1183,38 @@ async function embedFileAttachments(
   }
 
   for (const link of blockLinks) {
-    const file = blockFiles.get(link.blockId);
-    if (!file) continue;
+    const meta = blockFileMeta.get(link.blockId);
+    if (!meta) continue;
 
     const pageIndex = link.mapPage - 1;
     if (pageIndex < 0 || pageIndex >= pages.length) continue;
     const page = pages[pageIndex];
     const pageHeight = page.getHeight();
 
-    // Use group-folder-prefixed path so user can place files in matching folders
     const folderPrefix = blockGroupFolder.get(link.blockId);
-    const attachmentPath = folderPrefix ? `${folderPrefix}/${file.fileName}` : file.fileName;
+    const attachmentPath = folderPrefix ? `${folderPrefix}/${meta.fileName}` : meta.fileName;
 
-    const mimeType = format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    const embeddedFileStream = pdfDoc.context.stream(file.data, {
-      Type: PDFName.of('EmbeddedFile'),
-      Subtype: PDFName.of(mimeType),
-      Length: file.data.length,
-    });
-    const embeddedFileStreamRef = pdfDoc.context.register(embeddedFileStream);
-
-    const efDict = pdfDoc.context.obj({
-      F: embeddedFileStreamRef,
-    });
-
-    const fileSpecDict = pdfDoc.context.obj({
-      Type: PDFName.of('Filespec'),
-      F: PDFString.of(attachmentPath),
-      UF: PDFHexString.fromText(attachmentPath),
-      EF: efDict,
-      Desc: PDFString.of(`Block: ${attachmentPath}`),
-    });
-    const fileSpecRef = pdfDoc.context.register(fileSpecDict);
-
-    // Convert jsPDF coords (origin top-left, pt) to PDF coords (origin bottom-left)
+    // Convert jsPDF coords to PDF coords
     const x1 = link.x;
-    const y1 = pageHeight - link.y - link.h; // bottom
+    const y1 = pageHeight - link.y - link.h;
     const x2 = link.x + link.w;
-    const y2 = pageHeight - link.y; // top
+    const y2 = pageHeight - link.y;
 
-    // Create FileAttachment annotation
+    // Create a Launch action annotation that opens an external file by relative path
     const annotDict = pdfDoc.context.obj({
       Type: PDFName.of('Annot'),
-      Subtype: PDFName.of('FileAttachment'),
+      Subtype: PDFName.of('Link'),
       Rect: pdfDoc.context.obj([x1, y1, x2, y2]),
-      FS: fileSpecRef,
-      Name: PDFName.of('PushPin'),
-      C: pdfDoc.context.obj([0.15, 0.45, 0.75]), // blue-ish color
-      Contents: PDFString.of(`Open ${file.fileName}`),
-      F: 4, // Print flag
+      Border: pdfDoc.context.obj([0, 0, 0]),
+      A: pdfDoc.context.obj({
+        Type: PDFName.of('Action'),
+        S: PDFName.of('Launch'),
+        F: PDFString.of(attachmentPath),
+      }),
+      Contents: PDFString.of(`Open ${meta.fileName}`),
     });
     const annotRef = pdfDoc.context.register(annotDict);
 
-    // Add annotation to page
     const existingAnnots = page.node.lookup(PDFName.of('Annots'));
     if (existingAnnots instanceof PDFArray) {
       existingAnnots.push(annotRef);
