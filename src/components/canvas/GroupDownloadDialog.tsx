@@ -137,6 +137,17 @@ ${notes ? `<h2>Notes</h2><div style="white-space:pre-wrap;">${esc(notes)}</div>`
 <h2>Document Content</h2>${content}</body></html>`;
 }
 
+function ensureHtmlTitle(html: string, title: string): string {
+  const safeTitle = esc(title);
+  if (/<title>[^<]*<\/title>/i.test(html)) {
+    return html.replace(/<title>[^<]*<\/title>/i, `<title>${safeTitle}</title>`);
+  }
+  if (/<head[^>]*>/i.test(html)) {
+    return html.replace(/<head([^>]*)>/i, `<head$1><title>${safeTitle}</title>`);
+  }
+  return html.replace(/<html([^>]*)>/i, `<html$1><head><title>${safeTitle}</title></head>`);
+}
+
 function printHtmlAsPdf(html: string, label: string, fileName: string): Promise<void> {
   return new Promise((resolve) => {
     const printIframe = document.createElement('iframe');
@@ -150,8 +161,9 @@ function printHtmlAsPdf(html: string, label: string, fileName: string): Promise<
     printIframe.style.zIndex = '-1';
 
     // Set the document title to the actual file name so the browser print dialog uses it
-    const printHtml = html
-      .replace(/<title>[^<]*<\/title>/i, `<title>${esc(fileName)}</title>`)
+    const resolvedFileName = fileName.toLowerCase().endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+    const originalTitle = document.title;
+    const printHtml = ensureHtmlTitle(html, resolvedFileName)
       .replace(
         '</head>',
         `<style>
@@ -167,17 +179,23 @@ function printHtmlAsPdf(html: string, label: string, fileName: string): Promise<
       );
 
     printIframe.srcdoc = printHtml;
+    printIframe.name = resolvedFileName;
     document.body.appendChild(printIframe);
 
     printIframe.onload = () => {
       setTimeout(() => {
         try {
+          document.title = resolvedFileName;
+          if (printIframe.contentDocument) {
+            printIframe.contentDocument.title = resolvedFileName;
+          }
           printIframe.contentWindow?.print();
         } catch (err) {
           console.error('Print failed for', label, err);
           toast.error(`Print failed for "${label}"`);
         }
         setTimeout(() => {
+          document.title = originalTitle;
           try { document.body.removeChild(printIframe); } catch {}
           resolve();
         }, 1000);
@@ -276,7 +294,7 @@ export default function GroupDownloadDialog({ open, onClose, group, blocks }: Gr
             downloadBytesAsFile(source.bytes, `${safeName}.pdf`, 'application/pdf');
           } else {
             toast.info(`Print dialog for "${headingName}" — choose "Save as PDF"`, { duration: 4000 });
-            await printHtmlAsPdf(html, headingName, safeName);
+            await printHtmlAsPdf(html, headingName, `${safeName}.pdf`);
           }
 
           done++;

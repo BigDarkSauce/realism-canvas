@@ -50,7 +50,7 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
 
       // 2. Build lightweight block file metadata for attachment links (no actual rendering)
-      const blockFileMeta = buildBlockFileMeta(state, format);
+      const blockFileMeta = await buildBlockFileMeta(state, format);
 
       // 3. Embed file attachment annotations (link-only, no embedded data) into the canvas map PDF
       const mapPdfWithAttachments = await embedFileAttachmentLinks(mapPdf, blockLinks, blockFileMeta, state);
@@ -704,13 +704,13 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         const firstAim = cps.length > 0 ? cps[0] : toCenter;
         const lastAim = cps.length > 0 ? cps[cps.length - 1] : fromCenter;
         const from = getEdgePointPdf(fromCenter, firstAim, fromBlock);
-        const to = getEdgePointPdf(toCenter, lastAim, toBlock);
+        const rawTo = getEdgePointPdf(toCenter, lastAim, toBlock);
 
         const connColor = parseColor(conn.color, [60, 60, 80]);
         doc.setDrawColor(connColor[0], connColor[1], connColor[2]);
         doc.setFillColor(connColor[0], connColor[1], connColor[2]);
         const strokeWidth = conn.strokeWidth ?? 2;
-        const connWidth = Math.max(0.5, strokeWidth * scale);
+        const connWidth = Math.max(0.75, strokeWidth * scale);
         doc.setLineWidth(connWidth);
         if (conn.arrowStyle === 'dashed') doc.setLineDashPattern([4, 3], 0);
         else if (conn.arrowStyle === 'dotted') doc.setLineDashPattern([1.5, 2], 0);
@@ -718,6 +718,15 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
 
         const internal = (doc as any).internal;
         const f = (n: number) => n.toFixed(4);
+        const angle = cps.length > 0
+          ? Math.atan2(rawTo.y - cps[cps.length - 1].y, rawTo.x - cps[cps.length - 1].x)
+          : Math.atan2(rawTo.y - from.y, rawTo.x - from.x);
+        const arrowLength = Math.max(8 * scale, connWidth * 5);
+        const arrowHalfWidth = Math.max(3 * scale, connWidth * 2.2);
+        const to = {
+          x: rawTo.x - Math.cos(angle) * (arrowLength - connWidth * 0.25),
+          y: rawTo.y - Math.sin(angle) * (arrowLength - connWidth * 0.25),
+        };
 
         if (cps.length === 0) {
           doc.line(from.x, from.y, to.x, to.y);
@@ -750,20 +759,15 @@ async function generateCanvasMapPdf(state: CanvasExportState, exportFormat: Expo
         }
         doc.setLineDashPattern([], 0);
 
-        // Arrowhead - scale with stroke width
-        let angle: number;
-        if (cps.length > 0) {
-          const lastCp = cps[cps.length - 1];
-          angle = Math.atan2(to.y - lastCp.y, to.x - lastCp.x);
-        } else {
-          angle = Math.atan2(to.y - from.y, to.x - from.x);
-        }
-        const aLen = Math.max(6, (6 + strokeWidth) * scale);
-        const aW = Math.PI / 7;
+        // Arrowhead
+        const baseCenterX = rawTo.x - Math.cos(angle) * arrowLength;
+        const baseCenterY = rawTo.y - Math.sin(angle) * arrowLength;
+        const perpX = -Math.sin(angle);
+        const perpY = Math.cos(angle);
         doc.triangle(
-          to.x, to.y,
-          to.x - aLen * Math.cos(angle - aW), to.y - aLen * Math.sin(angle - aW),
-          to.x - aLen * Math.cos(angle + aW), to.y - aLen * Math.sin(angle + aW),
+          rawTo.x, rawTo.y,
+          baseCenterX + perpX * arrowHalfWidth, baseCenterY + perpY * arrowHalfWidth,
+          baseCenterX - perpX * arrowHalfWidth, baseCenterY - perpY * arrowHalfWidth,
           'F'
         );
       }
@@ -1142,17 +1146,46 @@ async function exportBlockFile(
 
 // ─── Lightweight metadata builder (no file fetching) ────────
 
-function buildBlockFileMeta(
+function extractDocumentHeadingName(html: string): string | null {
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const heading = doc.querySelector('h1, h2, h3, h4, h5, h6, .section-heading, title');
+    const text = heading?.textContent?.trim();
+    return text && text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveBlockExportBaseName(block: Block): Promise<string | null> {
+  if (!block.fileStorageUrl && !block.fileUrl) return null;
+
+  let source: BlockSourceFile | null = null;
+  try {
+    source = await fetchBlockSourceFile(block);
+  } catch (error) {
+    console.warn('Failed to inspect block source for export naming:', block.label, error);
+  }
+
+  const viewerHtml = createViewerEquivalentHtml(block, source);
+  return sanitize(extractDocumentHeadingName(viewerHtml) || block.label);
+}
+
+async function buildBlockFileMeta(
   state: CanvasExportState,
   format: ExportFormat
-): Map<string, { fileName: string }> {
-  const result = new Map<string, { fileName: string }>();
+): Promise<Map<string, { fileName: string }>> {
   const ext = format === 'pdf' ? '.pdf' : '.docx';
-  for (const block of state.blocks) {
-    const baseName = block.fileName
-      ? block.fileName.replace(/\.[^.]+$/, '')
-      : sanitize(block.label);
-    result.set(block.id, { fileName: `${baseName}${ext}` });
+  const entries = await Promise.all(state.blocks.map(async (block) => {
+    const baseName = await resolveBlockExportBaseName(block);
+    if (!baseName) return null;
+    return [block.id, { fileName: `${baseName}${ext}` }] as const;
+  }));
+
+  const result = new Map<string, { fileName: string }>();
+  for (const entry of entries) {
+    if (!entry) continue;
+    result.set(entry[0], entry[1]);
   }
   return result;
 }
@@ -1193,6 +1226,7 @@ async function embedFileAttachmentLinks(
 
     const folderPrefix = blockGroupFolder.get(link.blockId);
     const attachmentPath = folderPrefix ? `${folderPrefix}/${meta.fileName}` : meta.fileName;
+    const windowsAttachmentPath = attachmentPath.replace(/\//g, '\\');
 
     // Convert jsPDF coords to PDF coords
     const x1 = link.x;
@@ -1201,6 +1235,12 @@ async function embedFileAttachmentLinks(
     const y2 = pageHeight - link.y;
 
     // Create a Launch action annotation that opens an external file by relative path
+    const fileSpec = pdfDoc.context.obj({
+      Type: PDFName.of('Filespec'),
+      F: PDFString.of(windowsAttachmentPath),
+      UF: PDFHexString.fromText(attachmentPath),
+    });
+
     const annotDict = pdfDoc.context.obj({
       Type: PDFName.of('Annot'),
       Subtype: PDFName.of('Link'),
@@ -1209,7 +1249,7 @@ async function embedFileAttachmentLinks(
       A: pdfDoc.context.obj({
         Type: PDFName.of('Action'),
         S: PDFName.of('Launch'),
-        F: PDFString.of(attachmentPath),
+        F: fileSpec,
       }),
       Contents: PDFString.of(`Open ${meta.fileName}`),
     });
