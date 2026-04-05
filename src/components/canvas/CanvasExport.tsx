@@ -49,12 +49,11 @@ export default function CanvasExport({ open, onClose, getState }: CanvasExportPr
       // 1. Generate visual canvas map PDF
       const { pdfBytes: mapPdf, blockLinks } = await generateCanvasMapPdf(state, format);
 
-      // 2. Build the block files (for attachment embedding only, not written to ZIP folders)
-      const blockFiles = await collectBlockFiles(state, format);
+      // 2. Build lightweight block file metadata for attachment links (no actual rendering)
+      const blockFileMeta = buildBlockFileMeta(state, format);
 
-      // 3. Embed file attachments into the canvas map PDF
-      // Attachments reference filenames as if in group folders so manual placement works
-      const mapPdfWithAttachments = await embedFileAttachments(mapPdf, blockLinks, blockFiles, format, state);
+      // 3. Embed file attachment annotations (link-only, no embedded data) into the canvas map PDF
+      const mapPdfWithAttachments = await embedFileAttachmentLinks(mapPdf, blockLinks, blockFileMeta, state);
       zip.file('canvas-map.pdf', mapPdfWithAttachments, { binary: true });
 
       // Create empty group folders so user can place files there
