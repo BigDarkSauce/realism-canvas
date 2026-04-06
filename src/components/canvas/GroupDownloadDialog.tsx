@@ -168,12 +168,19 @@ function printHtmlAsPdf(html: string, label: string, fileName: string): Promise<
         '</head>',
         `<style>
           @media print {
-            @page { margin: 0.6in; }
+            @page { margin: 0.6in; size: auto; }
             html, body { background: #fff !important; color: #000 !important; }
             body { font-family: Calibri, Arial, sans-serif; font-size: 12pt; line-height: 1.5; }
             img { max-width: 100% !important; height: auto !important; break-inside: avoid; }
             table, figure, pre, blockquote { break-inside: avoid; }
             .math-expression, [class*="ML__"] { font-family: 'Cambria Math', Cambria, serif !important; }
+            /* Hide browser-added headers/footers */
+            @top-left { content: none !important; }
+            @top-center { content: none !important; }
+            @top-right { content: none !important; }
+            @bottom-left { content: none !important; }
+            @bottom-center { content: none !important; }
+            @bottom-right { content: none !important; }
           }
         </style></head>`
       );
