@@ -520,8 +520,6 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
         hasSelection={canvas.selectedIds.length > 0} multiSelected={canvas.selectedIds.length > 1}
         onDelete={handleDeleteSelected} onGroup={canvas.groupSelected} onUngroup={canvas.ungroupSelected}
         onBackgroundImageUpload={handleBackgroundImageUpload}
-        onImportPdfAsBackground={handleImportPdfAsBackground}
-        onImportPdfAsCanvas={handleImportPdfAsCanvas}
         onSplitDocument={() => setSplitterOpen(true)}
         onUndo={canvas.undo} onRedo={canvas.redo}
         canUndo={canvas.canUndo} canRedo={canvas.canRedo}
