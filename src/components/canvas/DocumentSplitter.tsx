@@ -497,7 +497,8 @@ function DocxHighlightView({
                 >
                   ✕
                 </button>
-              )}              {isHeading && (
+              )}
+              {isHeading && (
                 <span className="absolute -left-1 top-1/2 -translate-y-1/2 -translate-x-full text-[9px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 mr-1">
                   H
                 </span>
