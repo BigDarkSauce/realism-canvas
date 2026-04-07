@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeSelector';
 import {
-  ArrowLeft,
   FolderPlus,
   Trash2,
   ChevronDown,
@@ -19,8 +18,11 @@ import {
   X,
   FilePlus,
   Lock,
+  ArrowLeft,
+  Mail,
 } from 'lucide-react';
 
+// ─── Types ─────────────────────────────────────────────────────
 interface LibraryItem {
   documentId: string;
   displayName: string;
@@ -53,25 +55,38 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-function isLibraryUnlocked(): boolean {
-  // Token will be verified on mount via RPC
-  return sessionStorage.getItem('library_session_token') !== null;
-}
+// ─── Library Gate (Create Account / Login / Forgot Password) ──
+type GateView = 'loading' | 'create' | 'login' | 'forgot';
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
-  const navigate = useNavigate();
-  const [isSetup, setIsSetup] = useState<boolean | null>(null);
+  const [view, setView] = useState<GateView>('loading');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Check if any account exists
     supabase.rpc('rpc_has_library_password').then(({ data }) => {
-      setIsSetup(!!data);
+      setView(data ? 'login' : 'create');
     });
   }, []);
 
-  const handleSetup = async () => {
+  // On mount, verify existing session token
+  useEffect(() => {
+    const token = sessionStorage.getItem('library_session_token');
+    if (token) {
+      supabase.rpc('rpc_verify_library_password', { p_hash: token }).then(({ data }) => {
+        if (data) onUnlocked();
+      });
+    }
+  }, [onUnlocked]);
+
+  const handleCreate = async () => {
+    if (!email.trim()) {
+      toast.error('Email is required');
+      return;
+    }
     if (!password.trim() || password.length < 4) {
       toast.error('Password must be at least 4 characters');
       return;
@@ -82,19 +97,28 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     }
     setLoading(true);
     const hash = await hashSHA256(password);
-    const { error } = await supabase.rpc('rpc_set_library_password', { p_hash: hash });
+    const { error } = await supabase.rpc('rpc_create_library_account' as any, {
+      p_email: email.trim().toLowerCase(),
+      p_hash: hash,
+    });
     if (error) {
-      toast.error('Failed to set password');
+      if (error.message.includes('Email already')) {
+        toast.error('This email is already registered');
+      } else if (error.message.includes('Password already')) {
+        toast.error('This password is already in use. Choose a unique password.');
+      } else {
+        toast.error('Failed to create account');
+      }
       setLoading(false);
       return;
     }
     sessionStorage.setItem('library_session_token', hash);
-    toast.success('Library password set!');
+    toast.success('Library account created!');
     setLoading(false);
     onUnlocked();
   };
 
-  const handleUnlock = async () => {
+  const handleLogin = async () => {
     if (!password.trim()) {
       toast.error('Enter your password');
       return;
@@ -112,7 +136,25 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     onUnlocked();
   };
 
-  if (isSetup === null) {
+  const handleForgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error('Enter the email you registered with');
+      return;
+    }
+    setLoading(true);
+    const resetUrl = `${window.location.origin}/reset-library-password`;
+    const { error } = await supabase.functions.invoke('send-reset-email', {
+      body: { email: email.trim().toLowerCase(), resetUrl },
+    });
+    if (error) {
+      toast.error('Failed to send reset email. Try again.');
+    } else {
+      toast.success('If an account exists with this email, a reset link has been sent.');
+    }
+    setLoading(false);
+  };
+
+  if (view === 'loading') {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Loading...</p>
@@ -124,49 +166,103 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <Lock className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold text-foreground">
-            {isSetup ? 'Unlock Library' : 'Set Library Password'}
+            {view === 'create' && 'Create Library Account'}
+            {view === 'login' && 'Unlock Library'}
+            {view === 'forgot' && 'Reset Password'}
           </h1>
         </div>
+
         <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
-          {isSetup ? (
+          {view === 'create' && (
             <>
+              <p className="text-sm text-muted-foreground">Create an account to protect your library.</p>
               <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter library password"
-                onKeyDown={e => e.key === 'Enter' && handleUnlock()}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Your email"
                 autoFocus
               />
-              <Button onClick={handleUnlock} disabled={loading} className="w-full">
-                {loading ? 'Checking...' : 'Unlock'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">Create a password to protect your library.</p>
               <Input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Create password (min 4 chars)"
-                autoFocus
               />
               <Input
                 type="password"
                 value={confirmPassword}
                 onChange={e => setConfirmPassword(e.target.value)}
                 placeholder="Confirm password"
-                onKeyDown={e => e.key === 'Enter' && handleSetup()}
+                onKeyDown={e => e.key === 'Enter' && handleCreate()}
               />
-              <Button onClick={handleSetup} disabled={loading} className="w-full">
-                {loading ? 'Setting...' : 'Set Password'}
+              <Button onClick={handleCreate} disabled={loading} className="w-full">
+                {loading ? 'Creating...' : 'Create Account'}
               </Button>
+              <button
+                className="text-sm text-primary hover:underline w-full text-center"
+                onClick={() => { setView('login'); setPassword(''); setEmail(''); }}
+              >
+                Already have an account? Log in
+              </button>
+            </>
+          )}
+
+          {view === 'login' && (
+            <>
+              <Input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Enter library password"
+                onKeyDown={e => e.key === 'Enter' && handleLogin()}
+                autoFocus
+              />
+              <Button onClick={handleLogin} disabled={loading} className="w-full">
+                {loading ? 'Checking...' : 'Unlock'}
+              </Button>
+              <div className="flex justify-between">
+                <button
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => { setView('create'); setPassword(''); }}
+                >
+                  Create account
+                </button>
+                <button
+                  className="text-sm text-muted-foreground hover:underline"
+                  onClick={() => { setView('forgot'); setPassword(''); setEmail(''); }}
+                >
+                  Forgot password?
+                </button>
+              </div>
+            </>
+          )}
+
+          {view === 'forgot' && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Enter the email you registered with. We'll send you a password reset link.
+              </p>
+              <Input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Your registered email"
+                onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
+                autoFocus
+              />
+              <Button onClick={handleForgotPassword} disabled={loading} className="w-full gap-2">
+                <Mail className="h-4 w-4" />
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+              <button
+                className="text-sm text-primary hover:underline w-full text-center"
+                onClick={() => { setView('login'); setEmail(''); }}
+              >
+                Back to login
+              </button>
             </>
           )}
         </div>
@@ -175,19 +271,16 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   );
 }
 
+// ─── Main Library Page ────────────────────────────────────────
 export default function LibraryPage() {
   const navigate = useNavigate();
-  const [unlocked, setUnlocked] = useState(isLibraryUnlocked);
+  const [unlocked, setUnlocked] = useState(false);
   const [library, setLibrary] = useState<LibraryData>(loadLibrary);
 
-  // Create document form
-
-  // Create document form
+  // Create document form (no key needed — uses library session token as access key)
   const [createName, setCreateName] = useState('');
-  const [createKey, setCreateKey] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
   const [createTargetFolder, setCreateTargetFolder] = useState<string | null>(null);
-  
 
   // New folder
   const [newFolderName, setNewFolderName] = useState('');
@@ -207,18 +300,20 @@ export default function LibraryPage() {
     return <LibraryGate onUnlocked={() => setUnlocked(true)} />;
   }
 
+  const getAccessKey = () => sessionStorage.getItem('library_session_token') || '';
+
   const handleCreateDocument = async () => {
-    if (!createName.trim() || !createKey.trim()) {
-      toast.error('Enter both file name and key');
+    if (!createName.trim()) {
+      toast.error('Enter a file name');
       return;
     }
     setCreateLoading(true);
     const hashedName = await hashSHA256(createName.trim());
-    const hashedKey = await hashSHA256(createKey.trim());
+    const accessKey = getAccessKey();
 
     const { data, error } = await supabase.rpc('rpc_create_document', {
       p_name: hashedName,
-      p_access_key: hashedKey,
+      p_access_key: accessKey,
     });
     if (error) {
       if (error.message.includes('already exists')) {
@@ -230,8 +325,7 @@ export default function LibraryPage() {
       return;
     }
 
-    // Store hashed access key for this document session
-    sessionStorage.setItem(`doc_key_${data}`, hashedKey);
+    sessionStorage.setItem(`doc_key_${data}`, accessKey);
     const newItem: LibraryItem = { documentId: data as string, displayName: createName.trim() };
     setLibrary(prev => {
       if (createTargetFolder) {
@@ -245,14 +339,11 @@ export default function LibraryPage() {
       return { ...prev, unsorted: [...prev.unsorted, newItem] };
     });
 
-    toast.success('File created and added to library!');
+    toast.success('File created!');
     setCreateName('');
-    setCreateKey('');
     setCreateTargetFolder(null);
-    
     setCreateLoading(false);
   };
-
 
   const removeItem = (documentId: string) => {
     setLibrary(prev => ({
@@ -302,6 +393,13 @@ export default function LibraryPage() {
     setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const openDocument = (item: LibraryItem) => {
+    // Set access key for the document session
+    const accessKey = getAccessKey();
+    sessionStorage.setItem(`doc_key_${item.documentId}`, accessKey);
+    navigate(`/canvas/${item.documentId}`);
+  };
+
   const renderItem = (item: LibraryItem) => (
     <div
       key={item.documentId}
@@ -310,7 +408,7 @@ export default function LibraryPage() {
       <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
       <span
         className="flex-1 text-sm text-foreground truncate cursor-pointer hover:underline"
-        onClick={() => navigate(`/canvas/${item.documentId}`)}
+        onClick={() => openDocument(item)}
       >
         {item.displayName}
       </span>
@@ -333,32 +431,21 @@ export default function LibraryPage() {
       <div className="w-full max-w-2xl space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <h1 className="text-2xl font-bold text-foreground">My Library</h1>
         </div>
 
-        {/* Create new document form */}
+        {/* Create new document form — no key field */}
         <div className="bg-card border border-border rounded-xl p-5 space-y-3 shadow-lg">
           <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
             <FilePlus className="h-4 w-4 text-primary" /> Create New Document
           </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              value={createName}
-              onChange={e => setCreateName(e.target.value)}
-              placeholder="New file name"
-              maxLength={100}
-            />
-            <Input
-              type="password"
-              value={createKey}
-              onChange={e => setCreateKey(e.target.value)}
-              placeholder="Create a key"
-              maxLength={100}
-            />
-          </div>
+          <Input
+            value={createName}
+            onChange={e => setCreateName(e.target.value)}
+            placeholder="New file name"
+            maxLength={100}
+            onKeyDown={e => e.key === 'Enter' && handleCreateDocument()}
+          />
           <div className="flex items-center gap-2 flex-wrap">
             <select
               className="text-sm border border-border rounded-md px-2 py-1.5 bg-background text-foreground"
@@ -371,7 +458,7 @@ export default function LibraryPage() {
               ))}
             </select>
             <Button size="sm" onClick={handleCreateDocument} disabled={createLoading}>
-              {createLoading ? 'Creating...' : 'Create & Add to Library'}
+              {createLoading ? 'Creating...' : 'Create'}
             </Button>
           </div>
         </div>
@@ -468,7 +555,7 @@ export default function LibraryPage() {
 
         {library.folders.length === 0 && library.unsorted.length === 0 && (
           <p className="text-center text-sm text-muted-foreground py-8">
-            Your library is empty. Add documents above to get started.
+            Your library is empty. Create a document above to get started.
           </p>
         )}
       </div>

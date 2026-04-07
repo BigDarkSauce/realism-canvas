@@ -95,6 +95,33 @@ export type Database = {
           },
         ]
       }
+      library_accounts: {
+        Row: {
+          created_at: string | null
+          email: string
+          id: string
+          password_hash: string
+          reset_token: string | null
+          reset_token_expires_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          id?: string
+          password_hash: string
+          reset_token?: string | null
+          reset_token_expires_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          id?: string
+          password_hash?: string
+          reset_token?: string | null
+          reset_token_expires_at?: string | null
+        }
+        Relationships: []
+      }
       save_folders: {
         Row: {
           created_at: string
@@ -129,6 +156,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      rpc_check_password_unique: { Args: { p_hash: string }; Returns: boolean }
       rpc_create_document: {
         Args: { p_access_key: string; p_name: string }
         Returns: string
@@ -136,6 +164,10 @@ export type Database = {
       rpc_create_folder: {
         Args: { p_access_key: string; p_doc_id: string; p_name: string }
         Returns: string
+      }
+      rpc_create_library_account: {
+        Args: { p_email: string; p_hash: string }
+        Returns: undefined
       }
       rpc_create_save: {
         Args: {
@@ -215,9 +247,17 @@ export type Database = {
         Returns: undefined
       }
       rpc_set_library_password: { Args: { p_hash: string }; Returns: undefined }
+      rpc_set_reset_token: {
+        Args: { p_email: string; p_expires: string; p_token: string }
+        Returns: boolean
+      }
       rpc_update_document_data: {
         Args: { p_access_key: string; p_data: Json; p_doc_id: string }
         Returns: undefined
+      }
+      rpc_update_library_password: {
+        Args: { p_email: string; p_new_hash: string }
+        Returns: boolean
       }
       rpc_upsert_document: {
         Args: {
@@ -255,10 +295,12 @@ export type Database = {
         Args: { p_access_key: string; p_name: string }
         Returns: string
       }
+      rpc_verify_library_login: { Args: { p_hash: string }; Returns: boolean }
       rpc_verify_library_password: {
         Args: { p_hash: string }
         Returns: boolean
       }
+      rpc_verify_reset_token: { Args: { p_token: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

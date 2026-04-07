@@ -4,10 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Lobby from "./pages/Lobby";
-import CanvasPage from "./pages/Index";
 import LibraryPage from "./pages/LibraryPage";
-import DataManagementPage from "./pages/DataManagementPage";
+import CanvasPage from "./pages/Index";
+import ResetLibraryPassword from "./pages/ResetLibraryPassword";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import PasswordGate from "./components/PasswordGate";
@@ -41,10 +40,9 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Lobby />} />
+            <Route path="/" element={<LibraryPage />} />
             <Route path="/canvas/:documentId" element={<CanvasPage />} />
-            <Route path="/library" element={<LibraryPage />} />
-            <Route path="/data" element={<DataManagementPage />} />
+            <Route path="/reset-library-password" element={<ResetLibraryPassword />} />
             <Route path="/install" element={<Install />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
