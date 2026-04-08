@@ -39,16 +39,21 @@ interface LibraryData {
   unsorted: LibraryItem[];
 }
 
+function getLibraryKey(): string {
+  const token = sessionStorage.getItem('library_session_token') || 'default';
+  return `canvas_library_${token}`;
+}
+
 function loadLibrary(): LibraryData {
   try {
-    const raw = localStorage.getItem('canvas_library');
+    const raw = localStorage.getItem(getLibraryKey());
     if (raw) return JSON.parse(raw);
   } catch {}
   return { folders: [], unsorted: [] };
 }
 
 function saveLibrary(data: LibraryData) {
-  localStorage.setItem('canvas_library', JSON.stringify(data));
+  localStorage.setItem(getLibraryKey(), JSON.stringify(data));
 }
 
 function generateId() {
@@ -72,15 +77,10 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     });
   }, []);
 
-  // On mount, verify existing session token
+  // Always require manual login — no auto-login from previous session
   useEffect(() => {
-    const token = sessionStorage.getItem('library_session_token');
-    if (token) {
-      supabase.rpc('rpc_verify_library_password', { p_hash: token }).then(({ data }) => {
-        if (data) onUnlocked();
-      });
-    }
-  }, [onUnlocked]);
+    sessionStorage.removeItem('library_session_token');
+  }, []);
 
   const handleCreate = async () => {
     if (!email.trim()) {
@@ -275,7 +275,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
 export default function LibraryPage() {
   const navigate = useNavigate();
   const [unlocked, setUnlocked] = useState(false);
-  const [library, setLibrary] = useState<LibraryData>(loadLibrary);
+  const [library, setLibrary] = useState<LibraryData>({ folders: [], unsorted: [] });
 
   // Create document form (no key needed — uses library session token as access key)
   const [createName, setCreateName] = useState('');
@@ -295,6 +295,19 @@ export default function LibraryPage() {
   useEffect(() => {
     saveLibrary(library);
   }, [library]);
+
+  // Reload library data when unlocked (so it uses the correct per-account key)
+  useEffect(() => {
+    if (unlocked) {
+      setLibrary(loadLibrary());
+    }
+  }, [unlocked]);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('library_session_token');
+    setUnlocked(false);
+    setLibrary({ folders: [], unsorted: [] });
+  };
 
   if (!unlocked) {
     return <LibraryGate onUnlocked={() => setUnlocked(true)} />;
@@ -431,7 +444,11 @@ export default function LibraryPage() {
       <div className="w-full max-w-2xl space-y-6">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold text-foreground">My Library</h1>
+          <h1 className="text-2xl font-bold text-foreground flex-1">My Library</h1>
+          <Button variant="outline" size="sm" onClick={handleLogout} className="gap-1.5">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to main screen
+          </Button>
         </div>
 
         {/* Create new document form — no key field */}
