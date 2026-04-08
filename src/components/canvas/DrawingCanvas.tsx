@@ -82,39 +82,50 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     };
   };
 
+  const eraseAtPos = useCallback((pos: { x: number; y: number }) => {
+    for (const stroke of strokes) {
+      for (const pt of stroke.points) {
+        const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
+        if (dist < 15) {
+          onEraseStroke(stroke.id);
+          break;
+        }
+      }
+    }
+  }, [strokes, onEraseStroke]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (tool !== 'draw' && tool !== 'eraser') return;
     e.stopPropagation();
 
+    isDrawing.current = true;
+
     if (tool === 'eraser') {
-      // Find and remove stroke near click
-      const pos = getPos(e);
-      for (const stroke of strokes) {
-        for (const pt of stroke.points) {
-          const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
-          if (dist < 15) {
-            onEraseStroke(stroke.id);
-            return;
-          }
-        }
-      }
+      eraseAtPos(getPos(e));
       return;
     }
 
-    isDrawing.current = true;
     currentPoints.current = [getPos(e)];
-  }, [tool, strokes, onEraseStroke]);
+  }, [tool, eraseAtPos]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDrawing.current || tool !== 'draw') return;
+    if (!isDrawing.current) return;
+
+    if (tool === 'eraser') {
+      eraseAtPos(getPos(e));
+      return;
+    }
+
+    if (tool !== 'draw') return;
     currentPoints.current.push(getPos(e));
     redraw();
-  }, [tool, redraw]);
+  }, [tool, redraw, eraseAtPos]);
 
   const handleMouseUp = useCallback(() => {
-    if (!isDrawing.current || tool !== 'draw') return;
+    if (!isDrawing.current) return;
     isDrawing.current = false;
-    if (currentPoints.current.length >= 2) {
+
+    if (tool === 'draw' && currentPoints.current.length >= 2) {
       onAddStroke({
         id: `stroke-${++strokeIdCounter}`,
         points: [...currentPoints.current],
