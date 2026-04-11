@@ -97,6 +97,7 @@ export type Database = {
       }
       library_accounts: {
         Row: {
+          account_password_hash: string
           created_at: string | null
           email: string
           id: string
@@ -105,6 +106,7 @@ export type Database = {
           reset_token_expires_at: string | null
         }
         Insert: {
+          account_password_hash: string
           created_at?: string | null
           email: string
           id?: string
@@ -113,6 +115,7 @@ export type Database = {
           reset_token_expires_at?: string | null
         }
         Update: {
+          account_password_hash?: string
           created_at?: string | null
           email?: string
           id?: string
@@ -167,6 +170,14 @@ export type Database = {
       }
       rpc_create_library_account: {
         Args: { p_email: string; p_hash: string }
+        Returns: undefined
+      }
+      rpc_create_library_account_v2: {
+        Args: {
+          p_account_hash: string
+          p_email: string
+          p_library_hash: string
+        }
         Returns: undefined
       }
       rpc_create_save: {
@@ -237,6 +248,10 @@ export type Database = {
           id: string
           name: string
         }[]
+      }
+      rpc_login_account: {
+        Args: { p_account_hash: string; p_email: string }
+        Returns: boolean
       }
       rpc_move_save: {
         Args: { p_access_key: string; p_folder_id?: string; p_save_id: string }
