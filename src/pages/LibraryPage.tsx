@@ -71,7 +71,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Always show login if accounts exist, create if none
+    // Check if any account exists
     supabase.rpc('rpc_has_library_password').then(({ data }) => {
       setView(data ? 'login' : 'create');
     });
