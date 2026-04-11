@@ -99,47 +99,58 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     }
   };
 
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const currentColorRef = useRef(currentColor);
+  currentColorRef.current = currentColor;
+  const currentWidthRef = useRef(currentWidth);
+  currentWidthRef.current = currentWidth;
+  const onAddStrokeRef = useRef(onAddStroke);
+  onAddStrokeRef.current = onAddStroke;
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (tool !== 'draw' && tool !== 'eraser') return;
+    const t = toolRef.current;
+    if (t !== 'draw' && t !== 'eraser') return;
     e.stopPropagation();
 
     isDrawing.current = true;
 
-    if (tool === 'eraser') {
+    if (t === 'eraser') {
       eraseAtPos(getPos(e));
       return;
     }
 
     currentPoints.current = [getPos(e)];
-  }, [tool]);
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing.current) return;
+    const t = toolRef.current;
 
-    if (tool === 'eraser') {
+    if (t === 'eraser') {
       eraseAtPos(getPos(e));
       return;
     }
 
-    if (tool !== 'draw') return;
+    if (t !== 'draw') return;
     currentPoints.current.push(getPos(e));
     redraw();
-  }, [tool, redraw]);
+  }, [redraw]);
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing.current) return;
     isDrawing.current = false;
 
-    if (tool === 'draw' && currentPoints.current.length >= 2) {
-      onAddStroke({
+    if (toolRef.current === 'draw' && currentPoints.current.length >= 2) {
+      onAddStrokeRef.current({
         id: `stroke-${++strokeIdCounter}`,
         points: [...currentPoints.current],
-        color: currentColor,
-        width: currentWidth,
+        color: currentColorRef.current,
+        width: currentWidthRef.current,
       });
     }
     currentPoints.current = [];
-  }, [tool, currentColor, currentWidth, onAddStroke]);
+  }, []);
 
   const isActive = tool === 'draw' || tool === 'eraser';
 
