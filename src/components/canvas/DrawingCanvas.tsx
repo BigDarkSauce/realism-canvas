@@ -16,6 +16,10 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
   const currentPoints = useRef<{ x: number; y: number }[]>([]);
+  const strokesRef = useRef(strokes);
+  strokesRef.current = strokes;
+  const onEraseStrokeRef = useRef(onEraseStroke);
+  onEraseStrokeRef.current = onEraseStroke;
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -39,7 +43,6 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
       ctx.stroke();
     }
 
-    // Draw current in-progress stroke
     if (currentPoints.current.length >= 2) {
       ctx.beginPath();
       ctx.strokeStyle = currentColor;
@@ -73,7 +76,6 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    // Account for zoom scaling: canvas internal size vs displayed size
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
     return {
@@ -82,17 +84,20 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     };
   };
 
-  const eraseAtPos = useCallback((pos: { x: number; y: number }) => {
-    for (const stroke of strokes) {
+  const eraseAtPos = (pos: { x: number; y: number }) => {
+    const erasedIds = new Set<string>();
+    for (const stroke of strokesRef.current) {
+      if (erasedIds.has(stroke.id)) continue;
       for (const pt of stroke.points) {
         const dist = Math.hypot(pt.x - pos.x, pt.y - pos.y);
         if (dist < 15) {
-          onEraseStroke(stroke.id);
+          erasedIds.add(stroke.id);
+          onEraseStrokeRef.current(stroke.id);
           break;
         }
       }
     }
-  }, [strokes, onEraseStroke]);
+  };
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (tool !== 'draw' && tool !== 'eraser') return;
@@ -106,7 +111,7 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     }
 
     currentPoints.current = [getPos(e)];
-  }, [tool, eraseAtPos]);
+  }, [tool]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing.current) return;
@@ -119,7 +124,7 @@ export default function DrawingCanvas({ strokes, currentColor, currentWidth, too
     if (tool !== 'draw') return;
     currentPoints.current.push(getPos(e));
     redraw();
-  }, [tool, redraw, eraseAtPos]);
+  }, [tool, redraw]);
 
   const handleMouseUp = useCallback(() => {
     if (!isDrawing.current) return;
