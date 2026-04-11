@@ -60,74 +60,109 @@ function generateId() {
   return crypto.randomUUID();
 }
 
-// ─── Library Gate (Create Account / Login / Forgot Password) ──
-type GateView = 'loading' | 'create' | 'login' | 'forgot';
+// ─── Library Gate (Account Login → Library Password) ──────────
+type GateView = 'loading' | 'login' | 'create' | 'forgot' | 'library_password';
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [view, setView] = useState<GateView>('loading');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [confirmAccountPassword, setConfirmAccountPassword] = useState('');
+  const [libraryPassword, setLibraryPassword] = useState('');
+  const [confirmLibraryPassword, setConfirmLibraryPassword] = useState('');
+  const [enteredLibraryPassword, setEnteredLibraryPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Always show login if accounts exist, create if none
     supabase.rpc('rpc_has_library_password').then(({ data }) => {
       setView(data ? 'login' : 'create');
     });
   }, []);
 
-  // Always require manual login — no auto-login from previous session
+  // Always require manual login
   useEffect(() => {
     sessionStorage.removeItem('library_session_token');
   }, []);
 
+  // Step 1a: Login with email + account password → then ask for library password
+  const handleLogin = async () => {
+    if (!email.trim() || !accountPassword.trim()) {
+      toast.error('Enter your email and password');
+      return;
+    }
+    setLoading(true);
+    const accountHash = await hashSHA256(accountPassword);
+    const { data: valid, error } = await supabase.rpc('rpc_login_account' as any, {
+      p_email: email.trim().toLowerCase(),
+      p_account_hash: accountHash,
+    });
+    if (error || !valid) {
+      toast.error('Incorrect email or password');
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    setView('library_password');
+  };
+
+  // Step 1b: Create account with email + account password + library password
   const handleCreate = async () => {
     if (!email.trim()) {
       toast.error('Email is required');
       return;
     }
-    if (!password.trim() || password.length < 4) {
-      toast.error('Password must be at least 4 characters');
+    if (!accountPassword.trim() || accountPassword.length < 4) {
+      toast.error('Account password must be at least 4 characters');
       return;
     }
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
+    if (accountPassword !== confirmAccountPassword) {
+      toast.error('Account passwords do not match');
+      return;
+    }
+    if (!libraryPassword.trim() || libraryPassword.length < 4) {
+      toast.error('Library password must be at least 4 characters');
+      return;
+    }
+    if (libraryPassword !== confirmLibraryPassword) {
+      toast.error('Library passwords do not match');
       return;
     }
     setLoading(true);
-    const hash = await hashSHA256(password);
-    const { error } = await supabase.rpc('rpc_create_library_account' as any, {
+    const accountHash = await hashSHA256(accountPassword);
+    const libHash = await hashSHA256(libraryPassword);
+    const { error } = await supabase.rpc('rpc_create_library_account_v2' as any, {
       p_email: email.trim().toLowerCase(),
-      p_hash: hash,
+      p_account_hash: accountHash,
+      p_library_hash: libHash,
     });
     if (error) {
       if (error.message.includes('Email already')) {
         toast.error('This email is already registered');
-      } else if (error.message.includes('Password already')) {
-        toast.error('This password is already in use. Choose a unique password.');
+      } else if (error.message.includes('Library password already')) {
+        toast.error('This library password is already in use. Choose a unique one.');
       } else {
         toast.error('Failed to create account');
       }
       setLoading(false);
       return;
     }
-    sessionStorage.setItem('library_session_token', hash);
-    toast.success('Library account created!');
+    sessionStorage.setItem('library_session_token', libHash);
+    toast.success('Account created! Welcome to your library.');
     setLoading(false);
     onUnlocked();
   };
 
-  const handleLogin = async () => {
-    if (!password.trim()) {
-      toast.error('Enter your password');
+  // Step 2: Enter library password (after successful account login)
+  const handleLibraryPassword = async () => {
+    if (!enteredLibraryPassword.trim()) {
+      toast.error('Enter your library password');
       return;
     }
     setLoading(true);
-    const hash = await hashSHA256(password);
+    const hash = await hashSHA256(enteredLibraryPassword);
     const { data: valid, error } = await supabase.rpc('rpc_verify_library_password', { p_hash: hash });
     if (error || !valid) {
-      toast.error('Incorrect password');
+      toast.error('Incorrect library password');
       setLoading(false);
       return;
     }
@@ -168,75 +203,129 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
         <div className="flex items-center gap-3">
           <Lock className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-bold text-foreground">
-            {view === 'create' && 'Create Library Account'}
-            {view === 'login' && 'Unlock Library'}
+            {view === 'login' && 'Sign In'}
+            {view === 'create' && 'Create Account'}
             {view === 'forgot' && 'Reset Password'}
+            {view === 'library_password' && 'Enter Library Password'}
           </h1>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
-          {view === 'create' && (
+          {view === 'login' && (
             <>
-              <p className="text-sm text-muted-foreground">Create an account to protect your library.</p>
               <Input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="Your email"
+                placeholder="Email"
                 autoFocus
               />
               <Input
                 type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Create password (min 4 chars)"
-              />
-              <Input
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
-                onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              />
-              <Button onClick={handleCreate} disabled={loading} className="w-full">
-                {loading ? 'Creating...' : 'Create Account'}
-              </Button>
-              <button
-                className="text-sm text-primary hover:underline w-full text-center"
-                onClick={() => { setView('login'); setPassword(''); setEmail(''); }}
-              >
-                Already have an account? Log in
-              </button>
-            </>
-          )}
-
-          {view === 'login' && (
-            <>
-              <Input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Enter library password"
+                value={accountPassword}
+                onChange={e => setAccountPassword(e.target.value)}
+                placeholder="Account password"
                 onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                autoFocus
               />
               <Button onClick={handleLogin} disabled={loading} className="w-full">
-                {loading ? 'Checking...' : 'Unlock'}
+                {loading ? 'Signing in...' : 'Sign In'}
               </Button>
               <div className="flex justify-between">
                 <button
                   className="text-sm text-primary hover:underline"
-                  onClick={() => { setView('create'); setPassword(''); }}
+                  onClick={() => { setView('create'); setAccountPassword(''); setEmail(''); }}
                 >
                   Create account
                 </button>
                 <button
                   className="text-sm text-muted-foreground hover:underline"
-                  onClick={() => { setView('forgot'); setPassword(''); setEmail(''); }}
+                  onClick={() => { setView('forgot'); setAccountPassword(''); setEmail(''); }}
                 >
                   Forgot password?
                 </button>
               </div>
+            </>
+          )}
+
+          {view === 'create' && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Create an account. You'll also set a <strong>library password</strong> — a separate,
+                globally unique password used to unlock your library each time you sign in.
+              </p>
+              <Input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Email"
+                autoFocus
+              />
+              <div className="border-t border-border pt-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Account Password</p>
+                <Input
+                  type="password"
+                  value={accountPassword}
+                  onChange={e => setAccountPassword(e.target.value)}
+                  placeholder="Create account password (min 4 chars)"
+                />
+                <Input
+                  type="password"
+                  value={confirmAccountPassword}
+                  onChange={e => setConfirmAccountPassword(e.target.value)}
+                  placeholder="Confirm account password"
+                />
+              </div>
+              <div className="border-t border-border pt-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Library Password</p>
+                <p className="text-xs text-muted-foreground">This must be unique across all libraries and is used to access your files.</p>
+                <Input
+                  type="password"
+                  value={libraryPassword}
+                  onChange={e => setLibraryPassword(e.target.value)}
+                  placeholder="Create library password (min 4 chars)"
+                />
+                <Input
+                  type="password"
+                  value={confirmLibraryPassword}
+                  onChange={e => setConfirmLibraryPassword(e.target.value)}
+                  placeholder="Confirm library password"
+                  onKeyDown={e => e.key === 'Enter' && handleCreate()}
+                />
+              </div>
+              <Button onClick={handleCreate} disabled={loading} className="w-full">
+                {loading ? 'Creating...' : 'Create Account'}
+              </Button>
+              <button
+                className="text-sm text-primary hover:underline w-full text-center"
+                onClick={() => { setView('login'); setAccountPassword(''); setEmail(''); setLibraryPassword(''); setConfirmLibraryPassword(''); setConfirmAccountPassword(''); }}
+              >
+                Already have an account? Sign in
+              </button>
+            </>
+          )}
+
+          {view === 'library_password' && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Enter the library password you set when creating your account.
+              </p>
+              <Input
+                type="password"
+                value={enteredLibraryPassword}
+                onChange={e => setEnteredLibraryPassword(e.target.value)}
+                placeholder="Library password"
+                onKeyDown={e => e.key === 'Enter' && handleLibraryPassword()}
+                autoFocus
+              />
+              <Button onClick={handleLibraryPassword} disabled={loading} className="w-full">
+                {loading ? 'Checking...' : 'Unlock Library'}
+              </Button>
+              <button
+                className="text-sm text-muted-foreground hover:underline w-full text-center"
+                onClick={() => { setView('login'); setEnteredLibraryPassword(''); setAccountPassword(''); setEmail(''); }}
+              >
+                Back to sign in
+              </button>
             </>
           )}
 
@@ -261,7 +350,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
                 className="text-sm text-primary hover:underline w-full text-center"
                 onClick={() => { setView('login'); setEmail(''); }}
               >
-                Back to login
+                Back to sign in
               </button>
             </>
           )}
