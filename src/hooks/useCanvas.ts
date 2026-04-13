@@ -173,6 +173,11 @@ export function useCanvas() {
 
   const addStroke = useCallback((stroke: DrawingStroke) => { setStrokes(prev => [...prev, stroke]); }, []);
   const eraseStroke = useCallback((id: string) => { setStrokes(prev => prev.filter(s => s.id !== id)); }, []);
+  const eraseStrokes = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    const idSet = new Set(ids);
+    setStrokes(prev => prev.filter(stroke => !idSet.has(stroke.id)));
+  }, []);
 
   const loadState = useCallback((state: {
     blocks: Block[]; connections: Connection[]; groups: Group[]; strokes: DrawingStroke[];
@@ -208,7 +213,7 @@ export function useCanvas() {
     groupSelected, ungroupSelected, renameGroup, updateGroup,
     toggleSelect, clearSelection,
     setTool, setBackground,
-    addStroke, eraseStroke,
+    addStroke, eraseStroke, eraseStrokes,
     undo, redo, canUndo, canRedo,
     loadState,
   };
