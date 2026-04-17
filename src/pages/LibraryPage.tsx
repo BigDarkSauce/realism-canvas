@@ -348,10 +348,10 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="Your registered email"
-                onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
+                onKeyDown={e => e.key === 'Enter' && handleForgotPassword('account')}
                 autoFocus
               />
-              <Button onClick={handleForgotPassword} disabled={loading} className="w-full gap-2">
+              <Button onClick={() => handleForgotPassword('account')} disabled={loading} className="w-full gap-2">
                 <Mail className="h-4 w-4" />
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>
