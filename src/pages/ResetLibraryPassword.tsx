@@ -100,7 +100,7 @@ export default function ResetLibraryPassword() {
         <div className="w-full max-w-sm bg-card border border-border rounded-xl p-6 shadow-lg text-center space-y-4">
           <CheckCircle className="h-12 w-12 text-primary mx-auto" />
           <h1 className="text-xl font-bold text-foreground">Password Updated!</h1>
-          <p className="text-sm text-muted-foreground">You can now sign in with your new account password. Your library password is unchanged.</p>
+          <p className="text-sm text-muted-foreground">{successMsg}</p>
           <Button onClick={() => navigate('/')} className="w-full">Open App</Button>
         </div>
       </div>
@@ -112,10 +112,10 @@ export default function ResetLibraryPassword() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex items-center gap-3">
           <Lock className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Set New Sign-In Password</h1>
+          <h1 className="text-xl font-bold text-foreground">{labelTitle}</h1>
         </div>
         <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
-          <p className="text-sm text-muted-foreground">Choose a new <strong>account password</strong> — this is the one you use to sign in with your email. (Your separate library password is not affected.)</p>
+          <p className="text-sm text-muted-foreground">{explainer}</p>
           <Input
             type="password"
             value={password}
