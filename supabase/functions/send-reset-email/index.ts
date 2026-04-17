@@ -22,7 +22,8 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    const { email, resetUrl } = await req.json()
+    const { email, resetUrl, mode } = await req.json()
+    const resetMode: 'account' | 'library' = mode === 'library' ? 'library' : 'account'
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'Email required' }), {
         status: 400,
