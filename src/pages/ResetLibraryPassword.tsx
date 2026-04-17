@@ -97,10 +97,10 @@ export default function ResetLibraryPassword() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex items-center gap-3">
           <Lock className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Set New Password</h1>
+          <h1 className="text-xl font-bold text-foreground">Set New Sign-In Password</h1>
         </div>
         <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
-          <p className="text-sm text-muted-foreground">Choose a new unique password for your library.</p>
+          <p className="text-sm text-muted-foreground">Choose a new <strong>account password</strong> — this is the one you use to sign in with your email. (Your separate library password is not affected.)</p>
           <Input
             type="password"
             value={password}
