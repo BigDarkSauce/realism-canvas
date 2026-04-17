@@ -367,17 +367,17 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
           {view === 'forgot_library' && (
             <>
               <p className="text-sm text-muted-foreground">
-                We'll send a reset link to your registered email so you can set a new <strong>sign-in password</strong>. Your library password and all your existing files and folders will remain unchanged.
+                We'll send a reset link to your registered email so you can set a new <strong>library password</strong> — the password used to unlock your library after signing in. Your account sign-in password and all your existing files and folders will remain unchanged.
               </p>
               <Input
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="Your registered email"
-                onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
+                onKeyDown={e => e.key === 'Enter' && handleForgotPassword('library')}
                 autoFocus
               />
-              <Button onClick={handleForgotPassword} disabled={loading} className="w-full gap-2">
+              <Button onClick={() => handleForgotPassword('library')} disabled={loading} className="w-full gap-2">
                 <Mail className="h-4 w-4" />
                 {loading ? 'Sending...' : 'Send Reset Link'}
               </Button>
