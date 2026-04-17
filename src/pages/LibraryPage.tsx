@@ -61,7 +61,7 @@ function generateId() {
 }
 
 // ─── Library Gate (Account Login → Library Password) ──────────
-type GateView = 'loading' | 'login' | 'create' | 'forgot' | 'library_password';
+type GateView = 'loading' | 'login' | 'create' | 'forgot' | 'library_password' | 'forgot_library';
 
 function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [view, setView] = useState<GateView>('loading');
