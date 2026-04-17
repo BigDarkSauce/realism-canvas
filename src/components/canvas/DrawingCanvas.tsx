@@ -1,5 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react';
-import { DrawingPoint, DrawingStroke, CanvasTool } from '@/types/canvas';
+import { DrawingStroke, CanvasTool } from '@/types/canvas';
 
 interface DrawingCanvasProps {
   strokes: DrawingStroke[];
@@ -8,17 +8,14 @@ interface DrawingCanvasProps {
   tool: CanvasTool;
   onAddStroke: (stroke: DrawingStroke) => void;
   onEraseStroke: (id: string) => void;
-  onEraseStrokes?: (ids: string[]) => void;
 }
 
 let strokeIdCounter = 0;
 
-type Point = DrawingPoint;
-
 function distancePointToSegment(
-  point: Point,
-  start: Point,
-  end: Point
+  point: { x: number; y: number },
+  start: { x: number; y: number },
+  end: { x: number; y: number }
 ) {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
@@ -33,11 +30,11 @@ function distancePointToSegment(
   return Math.hypot(point.x - projectionX, point.y - projectionY);
 }
 
-function orientation(a: Point, b: Point, c: Point) {
+function orientation(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) {
   return (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
 }
 
-function onSegment(a: Point, b: Point, c: Point) {
+function onSegment(a: { x: number; y: number }, b: { x: number; y: number }, c: { x: number; y: number }) {
   return (
     b.x <= Math.max(a.x, c.x) &&
     b.x >= Math.min(a.x, c.x) &&
@@ -47,10 +44,10 @@ function onSegment(a: Point, b: Point, c: Point) {
 }
 
 function segmentsIntersect(
-  a1: Point,
-  a2: Point,
-  b1: Point,
-  b2: Point
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number }
 ) {
   const o1 = orientation(a1, a2, b1);
   const o2 = orientation(a1, a2, b2);
@@ -66,10 +63,10 @@ function segmentsIntersect(
 }
 
 function distanceBetweenSegments(
-  a1: Point,
-  a2: Point,
-  b1: Point,
-  b2: Point
+  a1: { x: number; y: number },
+  a2: { x: number; y: number },
+  b1: { x: number; y: number },
+  b2: { x: number; y: number }
 ) {
   if (segmentsIntersect(a1, a2, b1, b2)) return 0;
 
@@ -83,8 +80,8 @@ function distanceBetweenSegments(
 
 function strokeIntersectsBrushPath(
   stroke: DrawingStroke,
-  from: Point,
-  to: Point,
+  from: { x: number; y: number },
+  to: { x: number; y: number },
   radius: number
 ) {
   if (stroke.points.length === 0) return false;
@@ -99,49 +96,15 @@ function strokeIntersectsBrushPath(
   return false;
 }
 
-function drawStroke(ctx: CanvasRenderingContext2D, stroke: { points: Point[]; color: string; width: number }) {
-  if (stroke.points.length < 2) return;
-  ctx.beginPath();
-  ctx.strokeStyle = stroke.color;
-  ctx.lineWidth = stroke.width;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
-  for (let i = 1; i < stroke.points.length; i++) {
-    ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
-  }
-  ctx.stroke();
-}
-
-export default function DrawingCanvas({
-  strokes,
-  currentColor,
-  currentWidth,
-  tool,
-  onAddStroke,
-  onEraseStroke,
-  onEraseStrokes,
-}: DrawingCanvasProps) {
+export default function DrawingCanvas({ strokes, currentColor, currentWidth, tool, onAddStroke, onEraseStroke }: DrawingCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
-  const activePointerId = useRef<number | null>(null);
-  const activePointerTarget = useRef<HTMLCanvasElement | null>(null);
-  const currentPoints = useRef<Point[]>([]);
-  const lastPointerPos = useRef<Point | null>(null);
+  const currentPoints = useRef<{ x: number; y: number }[]>([]);
+  const lastPointerPos = useRef<{ x: number; y: number } | null>(null);
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
-  const toolRef = useRef(tool);
-  toolRef.current = tool;
-  const currentColorRef = useRef(currentColor);
-  currentColorRef.current = currentColor;
-  const currentWidthRef = useRef(currentWidth);
-  currentWidthRef.current = currentWidth;
-  const onAddStrokeRef = useRef(onAddStroke);
-  onAddStrokeRef.current = onAddStroke;
   const onEraseStrokeRef = useRef(onEraseStroke);
   onEraseStrokeRef.current = onEraseStroke;
-  const onEraseStrokesRef = useRef(onEraseStrokes);
-  onEraseStrokesRef.current = onEraseStrokes;
 
   const redraw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -151,18 +114,33 @@ export default function DrawingCanvas({
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    for (const stroke of strokesRef.current) {
-      drawStroke(ctx, stroke);
+    for (const stroke of strokes) {
+      if (stroke.points.length < 2) continue;
+      ctx.beginPath();
+      ctx.strokeStyle = stroke.color;
+      ctx.lineWidth = stroke.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 1; i < stroke.points.length; i++) {
+        ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      }
+      ctx.stroke();
     }
 
     if (currentPoints.current.length >= 2) {
-      drawStroke(ctx, {
-        points: currentPoints.current,
-        color: currentColorRef.current,
-        width: currentWidthRef.current,
-      });
+      ctx.beginPath();
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.moveTo(currentPoints.current[0].x, currentPoints.current[0].y);
+      for (let i = 1; i < currentPoints.current.length; i++) {
+        ctx.lineTo(currentPoints.current[i].x, currentPoints.current[i].y);
+      }
+      ctx.stroke();
     }
-  }, []);
+  }, [strokes, currentColor, currentWidth]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -177,9 +155,9 @@ export default function DrawingCanvas({
     return () => window.removeEventListener('resize', resize);
   }, [redraw]);
 
-  useEffect(() => { redraw(); }, [strokes, currentColor, currentWidth, redraw]);
+  useEffect(() => { redraw(); }, [redraw]);
 
-  const getPos = useCallback((clientX: number, clientY: number) => {
+  const getPos = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
@@ -189,96 +167,30 @@ export default function DrawingCanvas({
       x: (clientX - rect.left) * scaleX,
       y: (clientY - rect.top) * scaleY,
     };
-  }, []);
+  };
 
-  const eraseAlongPath = useCallback((from: Point, to: Point) => {
+  const eraseAlongPath = (from: { x: number; y: number }, to: { x: number; y: number }) => {
     const radius = Math.max(12, currentWidthRef.current * 2.5);
-    const erasedIds: string[] = [];
+    const erasedIds = new Set<string>();
 
     for (const stroke of strokesRef.current) {
+      if (erasedIds.has(stroke.id)) continue;
+
       if (strokeIntersectsBrushPath(stroke, from, to, radius)) {
-        erasedIds.push(stroke.id);
+        erasedIds.add(stroke.id);
+        onEraseStrokeRef.current(stroke.id);
       }
     }
-    if (erasedIds.length === 0) return;
+  };
 
-    const uniqueIds = [...new Set(erasedIds)];
-    const erasedSet = new Set(uniqueIds);
-    strokesRef.current = strokesRef.current.filter(stroke => !erasedSet.has(stroke.id));
-
-    if (onEraseStrokesRef.current) {
-      onEraseStrokesRef.current(uniqueIds);
-    } else {
-      uniqueIds.forEach(id => onEraseStrokeRef.current(id));
-    }
-
-    redraw();
-  }, [redraw]);
-
-  const finishPointerInteraction = useCallback((pointerId?: number) => {
-    if (!isDrawing.current) return;
-    isDrawing.current = false;
-
-    if (toolRef.current === 'draw' && currentPoints.current.length >= 2) {
-      onAddStrokeRef.current({
-        id: `stroke-${++strokeIdCounter}`,
-        points: [...currentPoints.current],
-        color: currentColorRef.current,
-        width: currentWidthRef.current,
-      });
-    }
-
-    if (pointerId !== undefined && activePointerTarget.current) {
-      try {
-        activePointerTarget.current.releasePointerCapture(pointerId);
-      } catch {
-        // Ignore release failures.
-      }
-    }
-
-    activePointerId.current = null;
-    activePointerTarget.current = null;
-    currentPoints.current = [];
-    lastPointerPos.current = null;
-    redraw();
-  }, [redraw]);
-
-  useEffect(() => {
-    const handlePointerMove = (event: PointerEvent) => {
-      if (!isDrawing.current || activePointerId.current !== event.pointerId) return;
-      if (event.cancelable) event.preventDefault();
-
-      const pos = getPos(event.clientX, event.clientY);
-      const activeTool = toolRef.current;
-
-      if (activeTool === 'eraser') {
-        const from = lastPointerPos.current ?? pos;
-        eraseAlongPath(from, pos);
-        lastPointerPos.current = pos;
-        return;
-      }
-
-      if (activeTool !== 'draw') return;
-      currentPoints.current.push(pos);
-      lastPointerPos.current = pos;
-      redraw();
-    };
-
-    const handlePointerEnd = (event: PointerEvent) => {
-      if (activePointerId.current !== event.pointerId) return;
-      finishPointerInteraction(event.pointerId);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerEnd);
-    window.addEventListener('pointercancel', handlePointerEnd);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerEnd);
-      window.removeEventListener('pointercancel', handlePointerEnd);
-    };
-  }, [eraseAlongPath, finishPointerInteraction, getPos, redraw]);
+  const toolRef = useRef(tool);
+  toolRef.current = tool;
+  const currentColorRef = useRef(currentColor);
+  currentColorRef.current = currentColor;
+  const currentWidthRef = useRef(currentWidth);
+  currentWidthRef.current = currentWidth;
+  const onAddStrokeRef = useRef(onAddStroke);
+  onAddStrokeRef.current = onAddStroke;
 
   const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const t = toolRef.current;
@@ -288,8 +200,6 @@ export default function DrawingCanvas({
 
     isDrawing.current = true;
     const pos = getPos(e.clientX, e.clientY);
-    activePointerId.current = e.pointerId;
-    activePointerTarget.current = e.currentTarget;
     lastPointerPos.current = pos;
 
     try {
@@ -304,8 +214,51 @@ export default function DrawingCanvas({
     }
 
     currentPoints.current = [pos];
+  }, []);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing.current) return;
+    const t = toolRef.current;
+    const pos = getPos(e.clientX, e.clientY);
+
+    if (t === 'eraser') {
+      const from = lastPointerPos.current ?? pos;
+      eraseAlongPath(from, pos);
+      lastPointerPos.current = pos;
+      return;
+    }
+
+    if (t !== 'draw') return;
+    currentPoints.current.push(pos);
+    lastPointerPos.current = pos;
     redraw();
-  }, [eraseAlongPath, getPos, redraw]);
+  }, [redraw]);
+
+  const handlePointerUp = useCallback((e?: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!isDrawing.current) return;
+    isDrawing.current = false;
+
+    if (toolRef.current === 'draw' && currentPoints.current.length >= 2) {
+      onAddStrokeRef.current({
+        id: `stroke-${++strokeIdCounter}`,
+        points: [...currentPoints.current],
+        color: currentColorRef.current,
+        width: currentWidthRef.current,
+      });
+    }
+
+    if (e) {
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch {
+        // Ignore release failures.
+      }
+    }
+
+    currentPoints.current = [];
+    lastPointerPos.current = null;
+    redraw();
+  }, []);
 
   const isActive = tool === 'draw' || tool === 'eraser';
 
@@ -320,6 +273,9 @@ export default function DrawingCanvas({
         touchAction: 'none',
       }}
       onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     />
   );
 }
