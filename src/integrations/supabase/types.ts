@@ -266,6 +266,10 @@ export type Database = {
         Args: { p_email: string; p_expires: string; p_token: string }
         Returns: boolean
       }
+      rpc_update_account_password: {
+        Args: { p_email: string; p_new_account_hash: string }
+        Returns: boolean
+      }
       rpc_update_document_data: {
         Args: { p_access_key: string; p_data: Json; p_doc_id: string }
         Returns: undefined

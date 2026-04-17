@@ -44,29 +44,17 @@ export default function ResetLibraryPassword() {
     setLoading(true);
     const hash = await hashSHA256(password);
 
-    // Check uniqueness
-    const { data: isUnique } = await supabase.rpc('rpc_check_password_unique' as any, { p_hash: hash });
-    if (!isUnique) {
-      toast.error('This password is already in use. Please choose a unique password.');
-      setLoading(false);
-      return;
-    }
-
-    const { data: updated, error } = await supabase.rpc('rpc_update_library_password' as any, {
+    const { data: updated, error } = await supabase.rpc('rpc_update_account_password' as any, {
       p_email: email,
-      p_new_hash: hash,
+      p_new_account_hash: hash,
     });
-    if (error) {
-      if (error.message.includes('already in use')) {
-        toast.error('This password is already in use. Please choose a unique password.');
-      } else {
-        toast.error('Failed to update password');
-      }
+    if (error || !updated) {
+      toast.error('Failed to update password. Please try requesting a new reset link.');
       setLoading(false);
       return;
     }
     setDone(true);
-    toast.success('Password updated successfully!');
+    toast.success('Sign-in password updated! You can now log in with your new password.');
     setLoading(false);
   };
 
@@ -97,7 +85,7 @@ export default function ResetLibraryPassword() {
         <div className="w-full max-w-sm bg-card border border-border rounded-xl p-6 shadow-lg text-center space-y-4">
           <CheckCircle className="h-12 w-12 text-primary mx-auto" />
           <h1 className="text-xl font-bold text-foreground">Password Updated!</h1>
-          <p className="text-sm text-muted-foreground">You can now access your library with the new password.</p>
+          <p className="text-sm text-muted-foreground">You can now sign in with your new account password. Your library password is unchanged.</p>
           <Button onClick={() => navigate('/')} className="w-full">Open App</Button>
         </div>
       </div>
@@ -109,10 +97,10 @@ export default function ResetLibraryPassword() {
       <div className="w-full max-w-sm space-y-6">
         <div className="flex items-center gap-3">
           <Lock className="h-6 w-6 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">Set New Password</h1>
+          <h1 className="text-xl font-bold text-foreground">Set New Sign-In Password</h1>
         </div>
         <div className="bg-card border border-border rounded-xl p-5 space-y-4 shadow-lg">
-          <p className="text-sm text-muted-foreground">Choose a new unique password for your library.</p>
+          <p className="text-sm text-muted-foreground">Choose a new <strong>account password</strong> — this is the one you use to sign in with your email. (Your separate library password is not affected.)</p>
           <Input
             type="password"
             value={password}
