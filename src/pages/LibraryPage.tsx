@@ -171,7 +171,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     onUnlocked();
   };
 
-  const handleForgotPassword = async () => {
+  const handleForgotPassword = async (resetMode: 'account' | 'library' = 'account') => {
     if (!email.trim()) {
       toast.error('Enter the email you registered with');
       return;
@@ -179,7 +179,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
     setLoading(true);
     const resetUrl = `${window.location.origin}/reset-library-password`;
     const { error } = await supabase.functions.invoke('send-reset-email', {
-      body: { email: email.trim().toLowerCase(), resetUrl },
+      body: { email: email.trim().toLowerCase(), resetUrl, mode: resetMode },
     });
     if (error) {
       toast.error('Failed to send reset email. Try again.');
