@@ -207,7 +207,7 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
             {view === 'create' && 'Create Account'}
             {view === 'forgot' && 'Reset Password'}
             {view === 'library_password' && 'Enter Library Password'}
-            {view === 'forgot_library' && 'Reset Sign-In Password'}
+            {view === 'forgot_library' && 'Reset Library Password'}
           </h1>
         </div>
 
