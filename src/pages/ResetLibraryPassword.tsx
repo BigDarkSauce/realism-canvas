@@ -44,29 +44,17 @@ export default function ResetLibraryPassword() {
     setLoading(true);
     const hash = await hashSHA256(password);
 
-    // Check uniqueness
-    const { data: isUnique } = await supabase.rpc('rpc_check_password_unique' as any, { p_hash: hash });
-    if (!isUnique) {
-      toast.error('This password is already in use. Please choose a unique password.');
-      setLoading(false);
-      return;
-    }
-
-    const { data: updated, error } = await supabase.rpc('rpc_update_library_password' as any, {
+    const { data: updated, error } = await supabase.rpc('rpc_update_account_password' as any, {
       p_email: email,
-      p_new_hash: hash,
+      p_new_account_hash: hash,
     });
-    if (error) {
-      if (error.message.includes('already in use')) {
-        toast.error('This password is already in use. Please choose a unique password.');
-      } else {
-        toast.error('Failed to update password');
-      }
+    if (error || !updated) {
+      toast.error('Failed to update password. Please try requesting a new reset link.');
       setLoading(false);
       return;
     }
     setDone(true);
-    toast.success('Password updated successfully!');
+    toast.success('Sign-in password updated! You can now log in with your new password.');
     setLoading(false);
   };
 
