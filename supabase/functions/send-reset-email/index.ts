@@ -22,7 +22,8 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    const { email, resetUrl } = await req.json()
+    const { email, resetUrl, mode } = await req.json()
+    const resetMode: 'account' | 'library' = mode === 'library' ? 'library' : 'account'
     if (!email || typeof email !== 'string') {
       return new Response(JSON.stringify({ error: 'Email required' }), {
         status: 400,
@@ -48,8 +49,14 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Build reset link
-    const link = `${resetUrl}?token=${encodeURIComponent(token)}`
+    // Build reset link (include mode so reset page knows which password to update)
+    const link = `${resetUrl}?token=${encodeURIComponent(token)}&mode=${resetMode}`
+
+    const subject = resetMode === 'library' ? 'Reset Your Library Password' : 'Reset Your Sign-In Password'
+    const heading = resetMode === 'library' ? 'Reset Your Library Password' : 'Reset Your Sign-In Password'
+    const intro = resetMode === 'library'
+      ? 'You requested a reset for your <strong>library password</strong> — the password used to unlock your library after signing in. Click the button below to set a new one. Your sign-in (account) password and your existing files and folders will remain unchanged.'
+      : 'You requested a reset for your <strong>sign-in (account) password</strong>. Click the button below to set a new one. Your library password and your existing files and folders will remain unchanged.'
 
     // Send email via Resend gateway
     const emailRes = await fetch(`${GATEWAY_URL}/emails`, {
@@ -62,13 +69,11 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: 'Canvas App <onboarding@resend.dev>',
         to: [email],
-        subject: 'Reset Your Library Password',
+        subject,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 20px;">
-            <h2 style="color: #1a1a1a; margin-bottom: 16px;">Reset Your Library Password</h2>
-            <p style="color: #555; line-height: 1.6;">
-              You requested a password reset for your library. Click the button below to set a new password.
-            </p>
+            <h2 style="color: #1a1a1a; margin-bottom: 16px;">${heading}</h2>
+            <p style="color: #555; line-height: 1.6;">${intro}</p>
             <a href="${link}" style="display: inline-block; background: #000; color: #fff; padding: 12px 32px; border-radius: 8px; text-decoration: none; margin: 24px 0; font-weight: 600;">
               Reset Password
             </a>
