@@ -321,19 +321,27 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
               <Button onClick={handleLibraryPassword} disabled={loading} className="w-full">
                 {loading ? 'Checking...' : 'Unlock Library'}
               </Button>
-              <button
-                className="text-sm text-muted-foreground hover:underline w-full text-center"
-                onClick={() => { setView('login'); setEnteredLibraryPassword(''); setAccountPassword(''); setEmail(''); }}
-              >
-                Back to sign in
-              </button>
+              <div className="flex justify-between">
+                <button
+                  className="text-sm text-muted-foreground hover:underline"
+                  onClick={() => { setView('login'); setEnteredLibraryPassword(''); setAccountPassword(''); setEmail(''); }}
+                >
+                  Back to sign in
+                </button>
+                <button
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => { setView('forgot_library'); setEnteredLibraryPassword(''); }}
+                >
+                  Forgot password?
+                </button>
+              </div>
             </>
           )}
 
           {view === 'forgot' && (
             <>
               <p className="text-sm text-muted-foreground">
-                Enter the email you registered with. We'll send you a password reset link.
+                Enter the email you registered with. We'll send you a link to reset your <strong>sign-in password</strong>. Your library password and all your files and folders will remain unchanged.
               </p>
               <Input
                 type="email"
@@ -350,6 +358,32 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
               <button
                 className="text-sm text-primary hover:underline w-full text-center"
                 onClick={() => { setView('login'); setEmail(''); }}
+              >
+                Back to sign in
+              </button>
+            </>
+          )}
+
+          {view === 'forgot_library' && (
+            <>
+              <p className="text-sm text-muted-foreground">
+                We'll send a reset link to your registered email so you can set a new <strong>sign-in password</strong>. Your library password and all your existing files and folders will remain unchanged.
+              </p>
+              <Input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="Your registered email"
+                onKeyDown={e => e.key === 'Enter' && handleForgotPassword()}
+                autoFocus
+              />
+              <Button onClick={handleForgotPassword} disabled={loading} className="w-full gap-2">
+                <Mail className="h-4 w-4" />
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </Button>
+              <button
+                className="text-sm text-primary hover:underline w-full text-center"
+                onClick={() => { setView('login'); setEmail(''); setEnteredLibraryPassword(''); }}
               >
                 Back to sign in
               </button>
