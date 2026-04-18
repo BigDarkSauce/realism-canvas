@@ -74,17 +74,15 @@ function LibraryGate({ onUnlocked }: { onUnlocked: () => void }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // If a valid library session token already exists (e.g. user navigated
-    // back from a canvas project within the same session), skip the gate.
-    const existing = sessionStorage.getItem('library_session_token');
-    if (existing) {
-      onUnlocked();
-      return;
-    }
     supabase.rpc('rpc_has_library_password').then(({ data }) => {
       setView(data ? 'login' : 'create');
     });
-  }, [onUnlocked]);
+  }, []);
+
+  // Always require manual login
+  useEffect(() => {
+    sessionStorage.removeItem('library_session_token');
+  }, []);
 
   // Step 1a: Login with email + account password → then ask for library password
   const handleLogin = async () => {
