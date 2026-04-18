@@ -56,8 +56,8 @@ export default function ResetLibraryPassword() {
 
     const rpcName = isLibrary ? 'rpc_update_library_password' : 'rpc_update_account_password';
     const args = isLibrary
-      ? { p_email: email, p_new_hash: hash }
-      : { p_email: email, p_new_account_hash: hash };
+      ? { p_email: email, p_new_hash: hash, p_reset_token: token }
+      : { p_email: email, p_new_account_hash: hash, p_reset_token: token };
 
     const { data: updated, error } = await supabase.rpc(rpcName as any, args as any);
     if (error || !updated) {
