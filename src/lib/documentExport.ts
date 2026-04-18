@@ -298,38 +298,38 @@ function ensureExportStyles(doc: Document, mode: ExportMode): void {
 
   const style = doc.createElement('style');
   style.id = styleId;
+  // NOTE: Do NOT use `!important` on color/font/background — original document
+  // styles (heading fonts, colored text, math formatting) MUST win.
   style.textContent = `
     @page { margin: 0.5in; }
     html, body {
-      background: #ffffff !important;
-      color: #000000 !important;
+      background: #ffffff;
     }
     body {
       margin: 0;
+      color: #1a1a2e;
       font-family: Calibri, Arial, sans-serif;
       font-size: 12pt;
       line-height: 1.5;
       overflow-wrap: anywhere;
       word-break: normal;
     }
-    * { box-sizing: border-box; }
-    body > *:first-child { margin-top: 0 !important; }
+    body > *:first-child { margin-top: 0; }
     img, svg, canvas {
-      display: block;
-      max-width: 100% !important;
-      height: auto !important;
-      margin: 0.75em 0;
-      object-fit: contain;
+      max-width: 100%;
+      height: auto;
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    /* GIFs and other images keep their natural display */
+    img { display: inline-block; }
+    img.block, figure > img { display: block; margin: 0.75em 0; }
     table, figure, pre, blockquote, ul, ol {
-      max-width: 100% !important;
+      max-width: 100%;
       break-inside: avoid;
       page-break-inside: avoid;
     }
     table {
-      width: 100% !important;
       border-collapse: collapse;
     }
     td, th { vertical-align: top; }
@@ -341,8 +341,9 @@ function ensureExportStyles(doc: Document, mode: ExportMode): void {
       break-inside: avoid;
       page-break-inside: avoid;
     }
+    /* Math: only set font-family as a fallback (no !important so authored fonts win) */
     .math-export, [data-export-math="true"], math, mrow, mi, mn, mo, mtext, mfrac, msqrt, mroot, msub, msup, msubsup, munder, mover, munderover, mtable, mtr, mtd, .docx-math, .docx-cambria-math {
-      font-family: 'Cambria Math', 'Cambria', serif !important;
+      font-family: 'Cambria Math', 'Cambria', serif;
       white-space: pre-wrap;
     }
     .docx-math-block, math[display="block"] {
@@ -354,6 +355,11 @@ function ensureExportStyles(doc: Document, mode: ExportMode): void {
     ${mode === 'word' ? `
       body { margin: 0; }
       p, li { margin: 0 0 12pt; }
+      /* Preserve heading typography in Word */
+      h1 { font-size: 22pt; font-weight: bold; margin: 18pt 0 10pt; }
+      h2 { font-size: 17pt; font-weight: bold; margin: 16pt 0 8pt; }
+      h3 { font-size: 14pt; font-weight: bold; margin: 14pt 0 6pt; }
+      h4 { font-size: 12pt; font-weight: bold; margin: 12pt 0 4pt; }
     ` : ''}
   `;
   doc.head.appendChild(style);
