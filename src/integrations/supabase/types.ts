@@ -267,7 +267,11 @@ export type Database = {
         Returns: boolean
       }
       rpc_update_account_password: {
-        Args: { p_email: string; p_new_account_hash: string }
+        Args: {
+          p_email: string
+          p_new_account_hash: string
+          p_reset_token: string
+        }
         Returns: boolean
       }
       rpc_update_document_data: {
@@ -275,7 +279,7 @@ export type Database = {
         Returns: undefined
       }
       rpc_update_library_password: {
-        Args: { p_email: string; p_new_hash: string }
+        Args: { p_email: string; p_new_hash: string; p_reset_token: string }
         Returns: boolean
       }
       rpc_upsert_document: {
