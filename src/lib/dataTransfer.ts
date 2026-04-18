@@ -24,15 +24,31 @@ export async function exportAllData(): Promise<ExportBundle> {
     }
   } catch {}
 
-  // Fetch only the user's documents via RPC
-  const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents', { p_doc_ids: docIds });
+  // Look up the per-document access keys held in this session
+  const accessKeys: string[] = docIds.map((id) => sessionStorage.getItem(`doc_key_${id}`) || '');
+  const pairs = docIds
+    .map((id, i) => ({ id, key: accessKeys[i] }))
+    .filter((p) => p.key);
+  const authorizedIds = pairs.map((p) => p.id);
+  const authorizedKeys = pairs.map((p) => p.key);
+
+  if (authorizedIds.length === 0) {
+    return {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      library: (() => { try { const r = localStorage.getItem('canvas_library'); return r ? JSON.parse(r) : null; } catch { return null; } })(),
+      documents: [], saves: [], folders: [],
+    };
+  }
+
+  // Fetch only the user's documents via RPC (access keys are required)
+  const { data: documents, error: docErr } = await supabase.rpc('rpc_export_documents', { p_doc_ids: authorizedIds, p_access_keys: authorizedKeys });
   if (docErr) throw new Error(`Failed to fetch documents: ${docErr.message}`);
 
-  // Fetch saves and folders scoped to user's documents via RPC
-  const { data: saves, error: saveErr } = await supabase.rpc('rpc_export_saves', { p_doc_ids: docIds });
+  const { data: saves, error: saveErr } = await supabase.rpc('rpc_export_saves', { p_doc_ids: authorizedIds, p_access_keys: authorizedKeys });
   if (saveErr) throw new Error(`Failed to fetch saves: ${saveErr.message}`);
 
-  const { data: folders, error: folderErr } = await supabase.rpc('rpc_export_folders', { p_doc_ids: docIds });
+  const { data: folders, error: folderErr } = await supabase.rpc('rpc_export_folders', { p_doc_ids: authorizedIds, p_access_keys: authorizedKeys });
   if (folderErr) throw new Error(`Failed to fetch folders: ${folderErr.message}`);
 
   // Get library config from localStorage
