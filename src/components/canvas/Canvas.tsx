@@ -549,8 +549,8 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
       )}
 
       <div className="absolute top-4 left-4 z-50 flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border">
-          <ArrowLeft className="h-4 w-4" /> Menu
+        <Button variant="outline" size="sm" onClick={handleBackToMenu} className="h-9 gap-2 bg-toolbar border-toolbar-border" title="Save and return to library">
+          <ArrowLeft className="h-4 w-4" /> Back to Library
         </Button>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-toolbar border border-toolbar-border rounded-xl">
           <span className="text-xs font-mono text-muted-foreground w-8 text-right">{Math.round(zoom * 100)}%</span>
