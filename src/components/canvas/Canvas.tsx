@@ -78,6 +78,16 @@ export default function Canvas({ documentId, onBackToMenu }: CanvasProps) {
 
   const getAccessKey = () => sessionStorage.getItem(`doc_key_${documentId}`) || '';
 
+  // Track the active document so storage helpers can authorize uploads/URLs
+  useEffect(() => {
+    sessionStorage.setItem('current_doc_id', documentId);
+    return () => {
+      if (sessionStorage.getItem('current_doc_id') === documentId) {
+        sessionStorage.removeItem('current_doc_id');
+      }
+    };
+  }, [documentId]);
+
   // Load document state on mount
   useEffect(() => {
     const loadDocument = async () => {
