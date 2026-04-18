@@ -198,7 +198,7 @@ export type Database = {
         Returns: undefined
       }
       rpc_export_documents: {
-        Args: { p_doc_ids: string[] }
+        Args: { p_access_keys: string[]; p_doc_ids: string[] }
         Returns: {
           canvas_data: Json
           created_at: string
@@ -207,7 +207,7 @@ export type Database = {
         }[]
       }
       rpc_export_folders: {
-        Args: { p_doc_ids: string[] }
+        Args: { p_access_keys: string[]; p_doc_ids: string[] }
         Returns: {
           created_at: string
           document_id: string
@@ -216,7 +216,7 @@ export type Database = {
         }[]
       }
       rpc_export_saves: {
-        Args: { p_doc_ids: string[] }
+        Args: { p_access_keys: string[]; p_doc_ids: string[] }
         Returns: {
           canvas_data: Json
           created_at: string
