@@ -550,10 +550,22 @@ export async function renderHtmlToPdfBytes(html: string, fileName: string): Prom
 
 export async function renderHtmlToDocxBytes(html: string): Promise<Uint8Array> {
   const preparedHtml = prepareHtmlForDocumentExport(html, 'word');
-  const htmlToDocxModule = await import('@turbodocx/html-to-docx') as any;
-  const htmlToDocx = htmlToDocxModule.default || htmlToDocxModule;
+  const mod: any = await import('@turbodocx/html-to-docx');
+  // Vite/ESM interop: the function may live at .default, .default.default, or be the module itself
+  let htmlToDocx: any = mod?.default;
+  if (htmlToDocx && typeof htmlToDocx !== 'function' && typeof htmlToDocx.default === 'function') {
+    htmlToDocx = htmlToDocx.default;
+  }
+  if (typeof htmlToDocx !== 'function' && typeof mod === 'function') {
+    htmlToDocx = mod;
+  }
+  if (typeof htmlToDocx !== 'function') {
+    throw new Error('html-to-docx module did not expose a callable default export');
+  }
   const output = await htmlToDocx(preparedHtml, null, {
     table: { row: { cantSplit: true } },
+    font: 'Calibri',
+    fontSize: 24, // 12pt in half-points
   });
 
   if (output instanceof Uint8Array) return output;
