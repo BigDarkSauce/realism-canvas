@@ -416,9 +416,14 @@ export default function LibraryPage() {
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
 
+  // Only persist library AFTER it's been loaded post-unlock.
+  // Without this guard, the initial empty state would overwrite the user's
+  // saved library on every remount (e.g. navigating back from a project).
   useEffect(() => {
-    saveLibrary(library);
-  }, [library]);
+    if (unlocked) {
+      saveLibrary(library);
+    }
+  }, [library, unlocked]);
 
   // Reload library data when unlocked (so it uses the correct per-account key)
   useEffect(() => {
